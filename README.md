@@ -55,6 +55,8 @@ a QR + link print instantly:
 
 **scan → composer opens → dictate → send.** that's the whole setup.
 
+> phone can't reach the link? if `ufw` is on: `sudo ufw allow 8741/tcp`
+
 ## use it
 
 | do this | get this |

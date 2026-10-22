@@ -116,6 +116,12 @@ opt = [("adb",         have("adb"),        "usb bridge + app install"),
        ("scrcpy",      have("scrcpy"),      "phone screen mirroring")]
 bad = 0
 print("wrap doctor — dependency check")
+try:
+    ufw = open("/etc/ufw/ufw.conf").read()
+    if "ENABLED=yes" in ufw:
+        print(f"  [ note  ] ufw is ON — LAN pairing needs: sudo ufw allow 8741/tcp")
+except OSError:
+    pass
 for name, ok, why in req:
     print(f"  [{'ok' if ok else 'MISSING'}] {name:<13} {why}")
     bad += 0 if ok else 1
