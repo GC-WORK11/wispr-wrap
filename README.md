@@ -33,8 +33,11 @@ flowchart LR
 ```bash
 git clone https://github.com/GC-WORK11/wispr-wrap
 cd wispr-wrap
-npm install        # zero dependencies — just links `wrap`
-npx wrap           # or: npm run wrap
+npm install        # zero dependencies — instant
+npm run wrap       # daemon + pairing QR/link
+
+# optional — a real `wrap` on your PATH:
+npm link           # then just: wrap / wrap pair / wrap tunnel …
 ```
 
 a QR + link print instantly:
