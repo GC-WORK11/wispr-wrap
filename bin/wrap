@@ -1,0 +1,140 @@
+#!/bin/bash
+# wrap — Flow Composer: phone -> laptop typing bridge
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PORT="${WF_PORT:-8741}"
+PIDFILE="$ROOT/wfd.pid"
+LOG="$ROOT/wfd.log"
+TUNLOG="$ROOT/tunnel.log"
+TUNPID="$ROOT/tunnel.pid"
+CF="${CF:-$(command -v cloudflared 2>/dev/null || echo "$HOME/.local/bin/cloudflared")}"
+KEYFILE="$HOME/.config/wf/key"
+
+daemon_running() { curl -sf "http://localhost:$PORT/health" >/dev/null 2>&1; }
+key() { cat "$KEYFILE" 2>/dev/null; }
+
+qr() { python3 "$ROOT/server/qrprint.py" "$1"; }
+
+pair_card() {
+    local info
+    info=$(curl -sf "http://localhost:$PORT/pair-info") || { echo "daemon not answering"; return 1; }
+    python3 - "$info" "$ROOT/server/qrprint.py" <<'PY'
+import json, sys, subprocess
+i = json.loads(sys.argv[1])
+link = f"http://{i['ip']}:{i['port']}/?k={i['key']}"
+subprocess.run([sys.executable, sys.argv[2], link])
+print()
+print(f"  scan with your phone camera — composer opens paired")
+print(f"  or open on phone:  {link}")
+alts = [a for a in i.get('ips', []) if a != i['ip']]
+for a in alts:
+    print(f"  other interface:   http://{a}:{i['port']}/?k={i['key']}")
+print(f"  app/manual:        address {i['ip']}:{i['port']}   code {i['code']}")
+PY
+}
+
+case "$1" in
+start)
+    if daemon_running; then echo "daemon already running on :$PORT"; else
+        nohup python3 "$ROOT/server/wfd.py" >>"$LOG" 2>&1 &
+        echo $! > "$PIDFILE"
+        sleep 0.5
+        daemon_running || { echo "daemon failed — see $LOG"; exit 1; }
+    fi
+    if adb get-state >/dev/null 2>&1; then
+        adb reverse "tcp:8741" "tcp:$PORT" && echo "usb bridge: phone localhost:8741 -> laptop :$PORT"
+    fi
+    pair_card
+    ;;
+pair)
+    pair_card
+    ;;
+restart)
+    "$0" stop; sleep 0.3; "$0" start
+    ;;
+bridge)
+    adb wait-for-device
+    adb reverse "tcp:8741" "tcp:$PORT" && echo "usb bridge up: phone localhost:8741 -> laptop :$PORT"
+    ;;
+stop)
+    [ -f "$PIDFILE" ] && kill "$(cat "$PIDFILE")" 2>/dev/null && rm -f "$PIDFILE" && echo "daemon stopped"
+    [ -f "$TUNPID" ] && kill "$(cat "$TUNPID")" 2>/dev/null && rm -f "$TUNPID" && echo "tunnel stopped"
+    adb reverse --remove "tcp:8741" 2>/dev/null
+    ;;
+status)
+    daemon_running && echo "daemon: UP on :$PORT" || echo "daemon: DOWN"
+    adb devices | tail -n +2 | grep -q device && adb devices || echo "adb: no device"
+    adb reverse --list 2>/dev/null | grep . || echo "bridge: none"
+    grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' "$TUNLOG" 2>/dev/null | tail -1 | sed 's/^/tunnel: /'
+    ;;
+send|test)
+    shift; text="$*"; [ -z "$text" ] && text="hello from wrap $(date +%T)"
+    curl -sf -X POST "http://localhost:$PORT/send" -H "Content-Type: application/json" \
+        -H "X-WF-Key: $(key)" \
+        -d "$(python3 -c 'import json,sys; print(json.dumps({"text": sys.argv[1], "mode": "type"}))' "$text")" \
+        && echo " -> typed at cursor"
+    ;;
+install)
+    "$ROOT/app/build.sh" && adb install -r "$ROOT/app/wf-composer.apk" && \
+        adb shell am start -n com.wf.composer/.MainActivity
+    ;;
+tunnel)
+    command -v "$CF" >/dev/null || { echo "cloudflared not found (set \$CF or install it)"; exit 1; }
+    [ -f "$TUNPID" ] && kill "$(cat "$TUNPID")" 2>/dev/null; rm -f "$TUNPID"; sleep 0.5
+    nohup "$CF" tunnel --url "http://localhost:$PORT" --no-autoupdate >"$TUNLOG" 2>&1 &
+    echo $! > "$TUNPID"
+    echo -n "waiting for tunnel"
+    for i in $(seq 1 30); do
+        TURL=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' "$TUNLOG" | tail -1)
+        [ -n "$TURL" ] && break; echo -n "."; sleep 1
+    done; echo
+    [ -z "$TURL" ] && { echo "tunnel failed — see $TUNLOG"; exit 1; }
+    echo "tunnel: $TURL"
+    qr "$TURL/?k=$(key)"
+    echo "  scan with your phone camera — works from anywhere"
+    ;;
+open)
+    adb shell am start -n com.wf.composer/.MainActivity
+    ;;
+doctor|check)
+    python3 - <<'PY'
+import shutil, subprocess, sys
+def have(c): return shutil.which(c) is not None
+def pyxlib():
+    try:
+        import Xlib; return True
+    except Exception:
+        return False
+req = [("python3", have("python3"), "the daemon itself"),
+       ("curl",    have("curl"),    "CLI talks to the daemon over HTTP"),
+       ("xdotool", have("xdotool"), "types/pastes at the cursor"),
+       ("xprop",   have("xprop"),   "active-window detection (x11-utils)"),
+       ("xclip",   have("xclip"),   "clipboard save/restore"),
+       ("convert", have("convert"), "image -> png normalization (imagemagick)"),
+       ("python3-xlib", pyxlib(),   "multi-target clipboard (apt: python3-xlib)")]
+opt = [("adb",         have("adb"),        "usb bridge + app install"),
+       ("cloudflared", have("cloudflared"), "wrap tunnel — anywhere access"),
+       ("scrcpy",      have("scrcpy"),      "phone screen mirroring")]
+bad = 0
+print("wrap doctor — dependency check")
+for name, ok, why in req:
+    print(f"  [{'ok' if ok else 'MISSING'}] {name:<13} {why}")
+    bad += 0 if ok else 1
+for name, ok, why in opt:
+    print(f"  [{'ok' if ok else ' - '}] {name:<13} {why} (optional)")
+sys.exit(1 if bad else 0)
+PY
+    ;;
+*)
+    echo "wrap — Flow Composer bridge (phone -> laptop cursor)
+  wrap start     start daemon + show pair QR (scan = connected)
+  wrap pair      show pair QR / one-shot code again
+  wrap bridge    adb reverse (after replug)
+  wrap tunnel    cloudflare tunnel + pair QR (works from anywhere)
+  wrap doctor    verify dependencies (run this first)
+  wrap status    daemon / adb / bridge / tunnel state
+  wrap send TEXT type TEXT at laptop cursor
+  wrap install   build + install Android app (optional)
+  wrap open      launch app on phone
+  wrap stop      stop daemon"
+    ;;
+esac

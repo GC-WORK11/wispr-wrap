@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0a0a0a">
+<title>wispr wrap — pair</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; }
+  body {
+    font-family:ui-monospace,'SF Mono','Cascadia Mono',Menlo,monospace;
+    background:#0a0a0a; color:#e8e8e8;
+    display:flex; align-items:center; justify-content:center;
+    min-height:100dvh; padding:28px;
+  }
+  .card { width:100%; max-width:340px; display:flex; flex-direction:column; gap:26px; }
+  h1 {
+    font-size:15px; font-weight:500; letter-spacing:.34em; text-transform:uppercase;
+    color:#fafafa; text-align:center;
+  }
+  h1::before { content:''; display:block; width:34px; height:1px; background:#fafafa;
+    margin:0 auto 22px; }
+  .sub { font-size:11px; color:#666; text-align:center; margin-top:-14px; letter-spacing:.08em; }
+  input {
+    width:100%; background:transparent; color:#e8e8e8; font:inherit; font-size:14px;
+    border:none; border-bottom:1px solid #2e2e2e; padding:14px 2px; outline:none;
+    letter-spacing:.04em; border-radius:0; transition:border-color .2s;
+  }
+  input:focus { border-color:#fafafa; }
+  input::placeholder { color:#3d3d3d; }
+  input.code { letter-spacing:.42em; font-size:16px; }
+  button {
+    margin-top:8px; padding:15px; cursor:pointer; font:inherit; font-size:12px;
+    letter-spacing:.28em; text-transform:uppercase;
+    background:#fafafa; color:#0a0a0a; border:1px solid #fafafa; border-radius:0;
+    transition:opacity .15s;
+  }
+  button:active { opacity:.75; }
+  .err { min-height:15px; font-size:11px; color:#999; text-align:center; letter-spacing:.06em; }
+  .hint { font-size:10px; color:#4a4a4a; text-align:center; line-height:1.9; letter-spacing:.04em; }
+  .hint code { color:#8a8a8a; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>wispr wrap</h1>
+    <div class="sub">pair with laptop</div>
+    <input id="addr" placeholder="laptop address — 10.0.0.2:8741" inputmode="url" autocapitalize="none" autocorrect="off" autocomplete="off">
+    <input id="code" class="code" placeholder="CODE" maxlength="8" autocapitalize="characters" autocorrect="off" autocomplete="off">
+    <button id="go">connect</button>
+    <div class="err" id="err"></div>
+    <div class="hint">address + code are printed by <code>wrap start</code><br>
+      usb cable? run <code>wrap bridge</code> — the app then pairs itself<br>
+      or scan the qr with your camera app instead</div>
+  </div>
+<script>
+const err=document.getElementById('err'), addr=document.getElementById('addr'),
+      code=document.getElementById('code');
+const bad=m=>{ err.textContent=m; };
+
+function finish(url,key){
+  err.textContent='paired';
+  try{ window.WF && window.WF.pairOk(url,key); }
+  catch(e){ location.href=url+'?k='+encodeURIComponent(key); }
+}
+
+document.getElementById('go').onclick=async()=>{
+  err.textContent='';
+  let a=addr.value.trim(); if(!a) return bad('enter the address shown by wrap start');
+  if(!/^https?:\/\//.test(a)) a='http://'+a;
+  if(!a.endsWith('/')) a+='/';
+  try{
+    const r=await fetch(a+'pair',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({code:code.value.trim()})});
+    const j=await r.json().catch(()=>({}));
+    if(r.ok&&j.key) return finish(a,j.key);
+    bad(r.status===429?'slow down — one try a second':
+        r.status===403?'wrong code — see wrap start output':'not a wrap daemon ('+r.status+')');
+  }catch(e){ bad('cannot reach '+a.replace(/\/$/,'')); }
+};
+code.addEventListener('keydown',e=>{ if(e.key==='Enter')document.getElementById('go').click(); });
+addr.focus();
+</script>
+</body>
+</html>

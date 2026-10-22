@@ -1,0 +1,45 @@
+{
+  "name": "wispr-wrap",
+  "version": "0.2.0",
+  "description": "Phone-to-laptop input bridge: dictate/type/send on your phone, it lands at your Linux cursor.",
+  "license": "MIT",
+  "private": false,
+  "author": "GC-WORK11",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GC-WORK11/wispr-wrap.git"
+  },
+  "homepage": "https://github.com/GC-WORK11/wispr-wrap",
+  "bugs": "https://github.com/GC-WORK11/wispr-wrap/issues",
+  "keywords": [
+    "wispr",
+    "dictation",
+    "linux",
+    "voice-typing",
+    "clipboard",
+    "bridge"
+  ],
+  "bin": {
+    "wrap": "bin/wrap"
+  },
+  "files": [
+    "bin/",
+    "server/",
+    "web/",
+    "app/AndroidManifest.xml",
+    "app/build.sh",
+    "app/src/",
+    "app/res/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "wrap": "bin/wrap start",
+    "start": "bin/wrap start",
+    "pair": "bin/wrap pair",
+    "doctor": "bin/wrap doctor",
+    "stop": "bin/wrap stop",
+    "status": "bin/wrap status",
+    "tunnel": "bin/wrap tunnel"
+  }
+}

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="glow" cx=".5" cy=".36" r=".44">
+      <stop offset="0" stop-color="#fff" stop-opacity=".15"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="#000"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
+
+  <!-- back petals (offset half-step, dimmer) -->
+  <g fill="#8a8a8a">
+    <ellipse cx="310" cy="176" rx="48" ry="15" transform="rotate(22.5 256 176)"/>
+    <ellipse cx="310" cy="176" rx="48" ry="15" transform="rotate(67.5 256 176)"/>
+    <ellipse cx="310" cy="176" rx="48" ry="15" transform="rotate(112.5 256 176)"/>
+    <ellipse cx="310" cy="176" rx="48" ry="15" transform="rotate(157.5 256 176)"/>
+    <ellipse cx="310" cy="176" rx="48" ry="15" transform="rotate(202.5 256 176)"/>
+    <ellipse cx="310" cy="176" rx="48" ry="15" transform="rotate(247.5 256 176)"/>
+    <ellipse cx="310" cy="176" rx="48" ry="15" transform="rotate(292.5 256 176)"/>
+    <ellipse cx="310" cy="176" rx="48" ry="15" transform="rotate(337.5 256 176)"/>
+  </g>
+  <!-- front petals -->
+  <g fill="#f7f7f7">
+    <ellipse cx="314" cy="176" rx="52" ry="17"/>
+    <ellipse cx="314" cy="176" rx="52" ry="17" transform="rotate(45 256 176)"/>
+    <ellipse cx="314" cy="176" rx="52" ry="17" transform="rotate(90 256 176)"/>
+    <ellipse cx="314" cy="176" rx="52" ry="17" transform="rotate(135 256 176)"/>
+    <ellipse cx="314" cy="176" rx="52" ry="17" transform="rotate(180 256 176)"/>
+    <ellipse cx="314" cy="176" rx="52" ry="17" transform="rotate(225 256 176)"/>
+    <ellipse cx="314" cy="176" rx="52" ry="17" transform="rotate(270 256 176)"/>
+    <ellipse cx="314" cy="176" rx="52" ry="17" transform="rotate(315 256 176)"/>
+  </g>
+  <circle cx="256" cy="176" r="24" fill="#000" stroke="#f7f7f7" stroke-width="7"/>
+
+  <!-- sparkles -->
+  <g stroke="#d8d8d8" stroke-width="6" stroke-linecap="round">
+    <path d="M148 78v20M138 88h20"/>
+    <path d="M380 62v16M372 70h16"/>
+    <path d="M412 152v14M405 159h14"/>
+  </g>
+
+  <!-- composer pill the flower grows out of -->
+  <rect x="136" y="352" width="240" height="66" rx="33" fill="none" stroke="#f7f7f7" stroke-width="7"/>
+
+  <!-- stem dives into the pill -->
+  <path d="M256 396 C 253 340 270 280 256 216" fill="none" stroke="#f7f7f7" stroke-width="7" stroke-linecap="round"/>
+
+  <!-- leaf -->
+  <ellipse cx="292" cy="318" rx="34" ry="12" transform="rotate(-36 292 318)" fill="#e8e8e8"/>
+</svg>

@@ -1,0 +1,3 @@
+#!/bin/bash
+# legacy alias — the CLI is now `wrap`
+exec "$(dirname "$0")/wrap" "$@"
