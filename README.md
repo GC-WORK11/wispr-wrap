@@ -55,7 +55,8 @@ a QR + link print instantly:
 
 **scan → composer opens → dictate → send.** that's the whole setup.
 
-> phone can't reach the link? if `ufw` is on: `sudo ufw allow 8741/tcp`
+> `wrap start` auto-opens :8741 through ufw/firewalld (asks for sudo once, remembers).
+> headless run? `sudo ufw allow 8741/tcp`
 
 ## use it
 

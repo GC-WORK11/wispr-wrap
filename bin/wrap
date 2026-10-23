@@ -43,15 +43,20 @@ start)
     if adb get-state >/dev/null 2>&1; then
         adb reverse "tcp:8741" "tcp:$PORT" && echo "usb bridge: phone localhost:8741 -> laptop :$PORT"
     fi
-    # best-effort firewall fix — LAN pairing needs the port open
-    if grep -q '^ENABLED=yes' /etc/ufw/ufw.conf 2>/dev/null; then
-        sudo ufw allow "$PORT/tcp" >/dev/null 2>&1 \
-            && echo "firewall: opened :$PORT (ufw)" \
-            || echo "firewall: ufw is on — if the link doesn't load, run: sudo ufw allow $PORT/tcp"
-    elif command -v firewall-cmd >/dev/null 2>&1 && systemctl is-active --quiet firewalld; then
-        sudo firewall-cmd --add-port="$PORT/tcp" >/dev/null 2>&1 \
-            && echo "firewall: opened :$PORT (firewalld)" \
-            || echo "firewall: if the link doesn't load, run: sudo firewall-cmd --add-port=$PORT/tcp"
+    # best-effort firewall fix — LAN pairing needs the port open (tries once per port)
+    FWMARK="$HOME/.config/wf/fw-$PORT"
+    if [ ! -f "$FWMARK" ] && grep -q '^ENABLED=yes' /etc/ufw/ufw.conf 2>/dev/null; then
+        if [ -t 0 ]; then
+            echo "firewall: ufw is on — opening :$PORT for LAN pairing (sudo)"
+            sudo ufw allow "$PORT/tcp" >/dev/null 2>&1 && touch "$FWMARK" \
+                && echo "firewall: opened :$PORT" \
+                || echo "firewall: failed — run: sudo ufw allow $PORT/tcp"
+        else
+            echo "firewall: ufw is on — if the link doesn't load: sudo ufw allow $PORT/tcp"
+        fi
+    elif [ ! -f "$FWMARK" ] && command -v firewall-cmd >/dev/null 2>&1 && systemctl is-active --quiet firewalld; then
+        [ -t 0 ] && sudo firewall-cmd --add-port="$PORT/tcp" >/dev/null 2>&1 && touch "$FWMARK" \
+            || echo "firewall: if the link doesn't load: sudo firewall-cmd --add-port=$PORT/tcp"
     fi
     pair_card
     ;;
