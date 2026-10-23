@@ -43,6 +43,16 @@ start)
     if adb get-state >/dev/null 2>&1; then
         adb reverse "tcp:8741" "tcp:$PORT" && echo "usb bridge: phone localhost:8741 -> laptop :$PORT"
     fi
+    # best-effort firewall fix — LAN pairing needs the port open
+    if grep -q '^ENABLED=yes' /etc/ufw/ufw.conf 2>/dev/null; then
+        sudo ufw allow "$PORT/tcp" >/dev/null 2>&1 \
+            && echo "firewall: opened :$PORT (ufw)" \
+            || echo "firewall: ufw is on — if the link doesn't load, run: sudo ufw allow $PORT/tcp"
+    elif command -v firewall-cmd >/dev/null 2>&1 && systemctl is-active --quiet firewalld; then
+        sudo firewall-cmd --add-port="$PORT/tcp" >/dev/null 2>&1 \
+            && echo "firewall: opened :$PORT (firewalld)" \
+            || echo "firewall: if the link doesn't load, run: sudo firewall-cmd --add-port=$PORT/tcp"
+    fi
     pair_card
     ;;
 pair)
