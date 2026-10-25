@@ -10,7 +10,6 @@
 <meta name="apple-mobile-web-app-title" content="Wispr Wrap">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="icon.svg">
-<link rel="apple-touch-icon" href="icon-180.png">
 <title>Wispr Wrap — Flow Composer</title>
 <link rel="stylesheet" href="css/app.css">
 <link rel="stylesheet" href="css/compose.css">
@@ -31,6 +30,7 @@
   <!-- compose view: the always-on surface -->
   <main class="stage" id="stage">
     <div class="pill" id="pill">
+      <div id="confirms" hidden></div>
       <div class="attach" id="attach" hidden>
         <img id="thumb" alt="">
         <video id="vthumb" muted playsinline preload="metadata" style="display:none"></video>

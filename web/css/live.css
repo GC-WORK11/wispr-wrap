@@ -1,0 +1,121 @@
+/* live.css — the LIVE sheet: viewfinder + skeleton + reading strip.
+   Light surfaces, hairlines, one accent. The video pane is intrinsically
+   dark; the chrome around it stays light. Shares tokens from app.css. */
+
+.lv-body { display: flex; flex-direction: column; gap: 11px; }
+
+.lv-eng { font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
+.lv-eng:empty { display: none; }
+
+/* listen badge — state is reported, never implied */
+.lv-badge {
+  display: inline-flex; align-items: center; gap: 6px; flex: none;
+  height: 24px; padding: 0 10px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--hairline);
+  font-size: 11px; font-weight: 600; color: var(--muted-2); letter-spacing: .04em;
+}
+.lv-badge i {
+  width: 6px; height: 6px; border-radius: 50%; flex: none;
+  background: transparent; border: 1.4px solid var(--muted);
+}
+.lv-badge.listen { color: var(--accent); border-color: #c9d8fc; background: var(--accent-soft); }
+.lv-badge.listen i { background: var(--accent); border-color: var(--accent); }
+.lv-badge.err { color: var(--danger); border-color: #efc9c4; background: var(--danger-soft); }
+.lv-badge.err i { background: var(--danger); border-color: var(--danger); }
+
+/* viewfinder */
+.lv-view {
+  position: relative; flex: none; width: 100%;
+  aspect-ratio: 4 / 5; max-height: 52dvh;
+  border-radius: 16px; overflow: hidden;
+  background: #101216; border: 1px solid var(--hairline);
+}
+#lv-cam {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; transform: scaleX(-1);   /* selfie-mirror */
+}
+#lv-cam.rear { transform: none; }
+#lv-skel { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+/* overlay card for permission / no-model / remote states */
+.lv-cover {
+  position: absolute; inset: 0; display: flex;
+  align-items: center; justify-content: center; padding: 22px;
+  background: rgba(14, 16, 20, .38);
+}
+.lv-cover[hidden] { display: none; }
+.lv-card {
+  max-width: 320px; text-align: center;
+  background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px;
+  padding: 15px 18px 16px; box-shadow: var(--sh-2);
+}
+.lv-card-t { font-size: 13px; font-weight: 650; letter-spacing: .01em; margin-bottom: 6px; }
+.lv-card-m { font-size: 12px; color: var(--muted-2); line-height: 1.55; }
+.lv-card-b { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+.lv-card-b:empty { display: none; }
+.lv-btn {
+  height: 32px; padding: 0 14px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--hairline); background: var(--surface); color: var(--ink-2);
+  font-size: 12px; font-weight: 600; letter-spacing: .01em; font-family: inherit;
+  transition: transform .12s, border-color .2s;
+}
+.lv-btn:active { transform: scale(.95); }
+.lv-btn.pri { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* reading strip — the engine's current top guess + distance + reason */
+.lv-read { display: flex; align-items: baseline; gap: 10px; flex: none; min-height: 21px; }
+.lv-rlab {
+  flex: none; font-size: 10.5px; font-weight: 650;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+}
+.lv-rguess {
+  flex: 1; min-width: 0; font-size: 14px; font-weight: 650;
+  letter-spacing: .04em; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lv-rguess.dim { color: var(--muted); font-weight: 500; }
+.lv-rdist { flex: none; font-size: 11.5px; color: var(--muted-2); font-variant-numeric: tabular-nums; }
+.lv-why {
+  flex: none; min-height: 14px; margin-top: -6px;
+  font-size: 11px; color: var(--muted-2); letter-spacing: .01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lv-why:empty { display: none; }
+
+/* last-fired-action flash */
+.lv-act {
+  display: flex; align-items: center; gap: 8px; flex: none; min-height: 20px;
+  font-size: 12px; color: var(--muted-2);
+  opacity: 0; transform: translateY(-2px); transition: opacity .3s, transform .3s;
+}
+.lv-act.show { opacity: 1; transform: none; }
+.lv-act i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+.lv-act span { font-weight: 600; letter-spacing: .01em; }
+
+/* pending confirms inside the sheet */
+.lv-pend { display: flex; flex-direction: column; gap: 6px; flex: none; }
+.lv-pend[hidden] { display: none; }
+.lv-pend-row {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--warn-soft); border: 1px solid #f0e0bb;
+  border-radius: 12px; padding: 8px 10px;
+}
+.lv-pend-t { flex: 1; min-width: 0; font-size: 12px; color: var(--warn); font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+
+/* hold-to-listen progress + hint */
+.lv-hold { display: flex; flex-direction: column; gap: 7px; flex: none; }
+.lv-hold-bar { height: 3px; border-radius: 99px; background: var(--hairline); overflow: hidden; }
+.lv-hold-bar i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 99px; }
+.lv-hint { font-size: 11px; color: var(--muted); letter-spacing: .01em; text-align: center; padding-bottom: 2px; }
+
+/* replayed-keypoints source (devtools: tools/demo-rec feeds kp42) */
+.lv-view.replay { background:
+  radial-gradient(120% 90% at 50% 0%, #16203a 0%, #0c1224 60%, #070b18 100%); }
+.lv-view.replay #lv-cam { display: none; }
+.lv-replay {
+  position: absolute; left: 10px; top: 10px; z-index: 3;
+  font: 600 10.5px/1 var(--mono); letter-spacing: .04em;
+  color: #9db4ff; background: rgba(20, 32, 62, .72);
+  border: 1px solid rgba(120, 150, 240, .35); border-radius: 8px;
+  padding: 4px 7px; pointer-events: none;
+}

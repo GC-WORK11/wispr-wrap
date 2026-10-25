@@ -12,13 +12,17 @@
  *   API/auth  network-only, never cached (keypoint/bank data must not persist)
  *   everything else same-origin: stale-while-revalidate
  */
-const VERSION = "wf-shell-v1";
+const VERSION = "wf-shell-v2";
 const CACHE = `wispr-wrap-${VERSION}`;
 
 const SHELL = [
   "/", "/index.html", "/pair.html", "/manifest.webmanifest", "/icon.svg",
-  "/teach.html",          // lands with the teach-mode lane (W2)
-  "/live.js", "/live.css" // lands with the live-mode lane (W3)
+  // merged module app — every lane lives under js/ + css/
+  "/css/app.css", "/css/compose.css", "/css/live.css", "/css/teach.css",
+  "/css/actions.css", "/css/macro.css", "/css/library.css",
+  "/js/app.js", "/js/compose.js", "/js/pose.js", "/js/skeleton.js",
+  "/js/live.js", "/js/actions.js", "/js/macro.js", "/js/teach.js",
+  "/js/library.js"
 ];
 const VENDOR = [
   "/vendor/mediapipe/vision_bundle.mjs",

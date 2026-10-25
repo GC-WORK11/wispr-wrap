@@ -256,11 +256,21 @@ def _screenshot_tool(region):
         ("spectacle", ["-r", "-b", "-n", "-o", "{p}"] if region
                       else ["-b", "-n", "-o", "{p}"]),
         ("scrot", ["-s", "{p}"] if region else ["{p}"]),
+        # ffmpeg x11grab is a real full-display capture on X11 — the
+        # fallback of last resort on minimal boxes (no ImageMagick etc.).
+        ("ffmpeg", None),
     ]
     for name, tmpl in table:
         path = _which(name)
-        if path:
-            return path, [path] + tmpl
+        if not path:
+            continue
+        if name == "ffmpeg":
+            if region or not os.environ.get("DISPLAY"):
+                continue                       # x11grab: full display only
+            tmpl = ["-hide_banner", "-loglevel", "error", "-y",
+                    "-f", "x11grab", "-i", os.environ["DISPLAY"],
+                    "-frames:v", "1", "{p}"]
+        return path, [path] + tmpl
     return None, None
 
 
@@ -543,7 +553,7 @@ _PROBES = {
     "media.pause":        ("playerctl", "dbus-send"),
     "media.next":         ("playerctl", "dbus-send"),
     "media.prev":         ("playerctl", "dbus-send"),
-    "sys.screenshot":     ("import", "gnome-screenshot", "spectacle", "scrot"),
+    "sys.screenshot":     ("import", "gnome-screenshot", "spectacle", "scrot", "ffmpeg"),
     "sys.screenshot-region": ("import", "gnome-screenshot", "spectacle", "scrot"),
     "sys.lock":           ("loginctl", "xdg-screensaver"),
     "sys.dnd":            ("gsettings", "dbus-send"),

@@ -1,0 +1,88 @@
+/* teach.css — the teach wizard in #sheet-teach. Shares tokens from app.css. */
+
+.tw-steps {
+  flex: none; display: flex; gap: 5px; list-style: none;
+  padding: 0 18px 10px;
+}
+.tw-steps li {
+  height: 3px; flex: 1; border-radius: 99px; background: var(--hairline);
+  transition: background .25s;
+}
+.tw-steps li.on { background: var(--accent); }
+.tw-steps li.done { background: #b9ccf8; }
+
+.tw-body { display: flex; flex-direction: column; }
+.tw-step { display: none; flex-direction: column; gap: 14px; }
+.tw-step.on { display: flex; animation: sheet-in .22s var(--ease-out); }
+
+.tw-gloss { font-size: 12px; color: var(--muted-2); min-height: 16px; letter-spacing: .02em; }
+.tw-gloss b { color: var(--accent); font-family: var(--mono); font-weight: 600; }
+
+.errline { min-height: 16px; font-size: 12px; color: var(--danger); }
+.tw-foot { display: flex; gap: 10px; }
+.tw-foot .btn-primary, .tw-foot .btn-ghost { flex: 1; }
+
+/* perform stage */
+.tw-stage {
+  position: relative; width: 100%;
+  aspect-ratio: 4 / 5; max-height: 48dvh;
+  border-radius: 16px; overflow: hidden;
+  background: #101216; border: 1px solid var(--hairline);
+}
+#tw-vid {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; transform: scaleX(-1);
+}
+#tw-vid.rear { transform: none; }
+#tw-skel { position: absolute; inset: 0; width: 100%; height: 100%; }
+.tw-camerr {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  padding: 22px; text-align: center; font-size: 12.5px; line-height: 1.6;
+  color: #e6e9f0; background: rgba(14,16,20,.55);
+}
+.tw-camerr[hidden] { display: none; }
+.tw-count {
+  position: absolute; inset: 0; display: none;
+  align-items: center; justify-content: center;
+  font-size: 64px; font-weight: 700; color: #fff;
+  text-shadow: 0 2px 18px rgba(0,0,0,.5);
+}
+.tw-rec {
+  position: absolute; top: 10px; left: 10px;
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 22px; padding: 0 9px; border-radius: 999px;
+  background: rgba(10,12,16,.55); color: #fff;
+  font-size: 10px; font-weight: 700; letter-spacing: .12em;
+  opacity: 0; transition: opacity .2s;
+}
+.tw-rec.on { opacity: 1; }
+.tw-rec i { width: 7px; height: 7px; border-radius: 50%; background: #f04747; animation: pulse 1s infinite; }
+
+/* takebar */
+.tw-takes { display: flex; gap: 6px; flex: none; min-height: 8px; }
+.tw-takes .tk { height: 6px; flex: 1; max-width: 64px; border-radius: 99px; background: var(--hairline); }
+.tw-takes .tk.got { background: var(--accent); }
+
+/* bind previews */
+.tw-prev { display: flex; gap: 10px; flex-wrap: wrap; }
+.tkv { display: flex; flex-direction: column; gap: 4px; }
+.tkv canvas { width: 92px; height: 92px; border-radius: 12px; border: 1px solid var(--hairline); }
+.tkv-m { font-size: 10.5px; color: var(--muted); max-width: 92px; }
+
+.tw-bound { display: flex; flex-direction: column; gap: 10px; }
+.tw-action {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface); border: 1px solid var(--hairline);
+  border-radius: 14px; padding: 12px 14px;
+}
+.tw-act-n { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* done */
+.tw-done { text-align: center; padding: 26px 8px; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.tw-check {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: var(--accent-soft); color: var(--accent);
+  font-size: 26px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.tw-done h2 { font-size: 17px; font-weight: 700; }

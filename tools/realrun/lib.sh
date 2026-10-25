@@ -143,6 +143,35 @@ focus_term() { # focus the sink terminal; die if it won't take focus
     echo "could not focus terminal wid=$TERM_WID" >&2; return 1
 }
 
+# --- the shared sign->effect lane --------------------------------------------
+# teach_bind_fire GLOSS LABEL "argv string" [tier]
+#   Runs the whole REAL chain against the live daemon:
+#     POST /teach/begin (takes=1) -> kpstream clip -> /teach/end
+#     PUT /bank {gloss,label,argv,tier}  (the real binding write path)
+#     kpstream palm (listening on) -> kpstream sign:<GLOSS>
+#   Returns the last /live/kp status on stdout is silent; the caller checks
+#   the OS effect. Exits non-zero only on contract breakage (4xx on the
+#   endpoints themselves -> rc 3 = route pending).
+teach_bind_fire() {
+    local g="$1" label="$2" argv="$3" tier="${4:-0}"
+    local code
+    code=$(call POST /teach/begin "{\"name\":\"$g\",\"takes\":1,\"label\":\"$label\"}")
+    [ "$code" = 200 ] || return 3
+    python3 "$HERE/kpstream.py" --base "$BASE" --key "$KEY" --fps 40 "teach:$g" >/dev/null
+    sleep 0.25
+    code=$(call POST /teach/end '{}')
+    code=$(call PUT /bank "{\"gloss\":\"$g\",\"label\":\"$label\",\"argv\":\"$argv\",\"tier\":$tier}")
+    [ "$code" = 200 ] || return 3
+    python3 "$HERE/kpstream.py" --base "$BASE" --key "$KEY" --fps 40 palm >/dev/null 2>&1
+    sleep 0.3
+    python3 "$HERE/kpstream.py" --base "$BASE" --key "$KEY" --fps 40 "sign:$g"
+    return 0
+}
+
+# wait_file PATH [tries] — poll until file exists
+wait_file() { local p="$1" n="${2:-30}" i; for i in $(seq 1 "$n"); do
+    [ -e "$p" ] && return 0; sleep 0.2; done; return 1; }
+
 # --- results ----------------------------------------------------------------
 RESULT_STATUS=""
 result() { # result STATUS reason — writes RESULT into $PROOF, exits via caller

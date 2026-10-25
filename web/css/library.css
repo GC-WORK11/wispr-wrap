@@ -1,0 +1,48 @@
+/* library.css — the sign library sheet. Shares tokens from app.css. */
+
+.lib-banner {
+  flex: none; display: flex; align-items: center; gap: 10px;
+  margin: 0 18px 10px; padding: 10px 12px;
+  background: var(--warn-soft); border: 1px solid #f0e0bb; border-radius: 12px;
+  font-size: 12px; color: var(--warn); line-height: 1.45;
+}
+.lib-banner[hidden] { display: none; }
+.lib-banner button {
+  margin-left: auto; appearance: none; border: 1px solid #ecd9a8;
+  background: transparent; color: var(--warn); border-radius: 8px;
+  font-family: inherit; font-size: 11.5px; font-weight: 650; padding: 5px 10px;
+}
+
+.lib-card {
+  background: var(--surface); border: 1px solid var(--hairline);
+  border-radius: var(--r-card); padding: 13px 14px; margin-bottom: 10px;
+  box-shadow: var(--sh-1);
+}
+.lib-top { display: flex; align-items: baseline; gap: 8px; }
+.lib-name { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 650; letter-spacing: .01em; }
+.lib-gl { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-left: 8px; }
+.lib-act {
+  display: flex; align-items: center; gap: 8px; margin-top: 7px;
+  font-size: 12.5px; color: var(--muted-2);
+}
+.lib-act-v { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-row { display: flex; gap: 7px; margin-top: 11px; flex-wrap: wrap; }
+.lib-b {
+  appearance: none; cursor: pointer; font-family: inherit;
+  font-size: 12px; font-weight: 600; color: var(--ink-2);
+  border: 1px solid var(--hairline); background: var(--surface);
+  border-radius: 9px; padding: 7px 12px;
+}
+.lib-b:active { transform: scale(.95); }
+.lib-b.danger { color: var(--danger); }
+.lib-b.btn-primary { border: none; }
+
+.lib-rename { display: flex; gap: 8px; margin-top: 10px; }
+.lib-rename .input { flex: 1; min-width: 0; padding: 9px 11px; font-size: 14px; border-radius: 10px; }
+
+.lib-empty {
+  text-align: center; color: var(--muted-2); font-size: 13px; line-height: 1.7;
+  padding: 34px 12px;
+}
+.lib-empty b { color: var(--accent); }
+.lib-empty[hidden] { display: none; }

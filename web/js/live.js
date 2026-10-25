@@ -58,7 +58,8 @@ const video = $('lv-cam'), skel = $('lv-skel'), cover = $('lv-cover'),
       engEl = $('lv-eng'), badge = $('lv-badge'), badgeT = $('lv-badge-t'),
       guessEl = $('lv-guess'), distEl = $('lv-dist'), whyEl = $('lv-why'),
       actEl = $('lv-act'), actT = $('lv-act-t'), pendEl = $('lv-pend'),
-      holdI = $('lv-hold-i'), hint = $('lv-hint'), xbtn = $('lv-x');
+      holdI = $('lv-hold-i'), hint = $('lv-hint'), xbtn = $('lv-x'),
+      viewEl = $('lv-view');
 
 const HINT_DEF = 'hold an open palm to listen · palms together to stop';
 const KP_MS = 83;        // ~12 Hz keypoint frames (spec: 10-15 Hz)
@@ -83,7 +84,9 @@ export class KpLink {
     this.timer = setInterval(() => this.tick(), KP_MS);
   }
   tick() {
-    if (!this.video || !this.engine || this.video.readyState < 2) return;
+    if (!this.engine) return;
+    if (!(this.engine.videoless) &&
+        (!this.video || this.video.readyState < 2)) return;
     const t = performance.now();
     let res;
     try { res = this.engine.detectFrame(this.video, t); } catch (e) { return; }
@@ -316,6 +319,37 @@ function onKpResp(j) {
 /* ---------- camera ---------- */
 async function boot() {
   if (S.remote) { useLaptop(); return; }
+  /* dev seam first: a loopback kp42 replay service (tools/demo-rec) may be
+     feeding frames. Probe is ~350 ms once; on a real phone it never
+     answers and the camera path runs untouched. */
+  try {
+    const rep = await Pose.replay();
+    if (rep) {
+      S.engine = rep;
+      S.front = false;                      // replayed frames aren't mirrored
+      viewEl.classList.add('replay');
+      let tag = viewEl.querySelector('.lv-replay');
+      if (!tag) {
+        tag = document.createElement('div');
+        tag.className = 'lv-replay';
+        viewEl.appendChild(tag);
+      }
+      tag.textContent = 'replayed keypoints · devtools';
+      tag.hidden = false;
+      hideCard();
+      setBadge('', 'idle');
+      S.link.start(video, S.engine, {
+        onFrame: (pts, t) => {
+          Skel.draw(skel, pts, { video: null, mirror: false });
+          feedHold(pts, t);
+        },
+        onResp: onKpResp,
+        onStatus: s => { if (s === 'dead') probe(); if (s === 'denied') setBadge('err', 'unpaired'); },
+      });
+      return;
+    }
+    viewEl.classList.remove('replay');
+  } catch (e) { /* probe failed — camera path */ }
   card('camera', 'asking for the camera…');
   try {
     const c = await Pose.openCamera(video, true);

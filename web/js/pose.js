@@ -63,10 +63,77 @@ function pack(lms, hds) {
 
 let loading = null;
 
+/* ---------- kp42 replay seam (devtools, loopback only) ----------
+   tools/demo-rec runs a tiny replay service at http://127.0.0.1:8877 that
+   hands out recorded keypoint frames. When — and ONLY when — that service
+   answers a 350 ms probe, Pose.replay() returns a `videoless` engine that
+   produces the identical {points[42],hands:2} shape the real model emits.
+   On a phone/desktop without the dev service the probe simply fails and
+   the camera+model path runs untouched. Nothing is faked: the daemon still
+   sees real /live/kp frames; the replay just replaces the camera. */
+const REPLAY_BASE = 'http://127.0.0.1:8877';
+let replayProbed;
+
+function replayEngine() {
+  const Z = () => ({ x: 0, y: 0, z: 0, score: 0 });
+  let queue = [], inflight = false, lastT = -1, stopped = false;
+  async function pull() {
+    if (inflight || stopped) return;
+    inflight = true;
+    try {
+      const r = await fetch(REPLAY_BASE + '/pull?n=8', { cache: 'no-store' });
+      const j = await r.json();
+      if (j && Array.isArray(j.frames)) queue.push(...j.frames);
+    } catch (e) { /* replay service went away — zeros keep flowing */ }
+    inflight = false;
+  }
+  const iv = setInterval(() => { if (queue.length < 6) pull(); }, 60);
+  return {
+    name: 'kp42-replay',
+    videoless: true,               // KpLink: don't wait on video.readyState
+    replayed: true,
+    detectFrame(_src, tMs) {
+      const t = tMs == null ? performance.now() : tMs;
+      if (t === lastT) return null;
+      lastT = t;
+      const f = queue.shift();
+      if (queue.length < 4) pull();
+      const src = f && Array.isArray(f.points) && f.points.length === 42
+        ? f.points : null;
+      const pts = new Array(42);
+      for (let i = 0; i < 42; i++) {
+        const p = src ? src[i] : null;
+        pts[i] = p ? { x: +p.x || 0, y: +p.y || 0, z: +(p.z || 0),
+                       score: p.score == null ? 1 : +p.score } : Z();
+      }
+      return { points: pts, hands: 2, order: ['Left', 'Right'],
+               replayed: !!src };
+    },
+    close() { stopped = true; clearInterval(iv); queue = []; },
+  };
+}
+
 export const Pose = {
   state: 'idle',
   error: null,
   SIZE_BYTES,
+
+  /** Returns a replay engine when the demo-rec service is up, else null. */
+  async replay() {
+    if (replayProbed === undefined) {
+      try {
+        const ctl = new AbortController();
+        const t = setTimeout(() => ctl.abort(), 350);
+        const r = await fetch(REPLAY_BASE + '/health',
+                              { signal: ctl.signal, cache: 'no-store' });
+        clearTimeout(t);
+        replayProbed = r.ok ? replayEngine() : null;
+      } catch (e) {
+        replayProbed = null;
+      }
+    }
+    return replayProbed;
+  },
 
   load(onProgress) {
     if (loading) return loading;

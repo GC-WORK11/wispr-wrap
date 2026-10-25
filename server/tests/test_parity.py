@@ -173,7 +173,16 @@ class Parity(unittest.TestCase):
         self.rng = random.Random(SEED * 1000 + STATS["cases"])
 
     def _teach_both(self, exemplars):
-        """exemplars: {gloss: [raw_pts]}. Returns (ref_bank, notes)."""
+        """exemplars: {gloss: [raw_pts]}. Returns (ref_bank, notes).
+
+        The impl bank is reset per case: ref is rebuilt per case, so the
+        impl must be too — a persistent bank (correct product semantics)
+        would hold same-named exemplars from earlier cases and the two
+        engines would honestly argmin different template SETS, not
+        different decisions on the same set."""
+        rst = getattr(self.impl, "reset", None)
+        if callable(rst):
+            rst()
         ref = refmatch.RefBank(reject_threshold=REJECT_T)
         notes = []
         for gloss, raws in exemplars.items():

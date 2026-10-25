@@ -1,0 +1,69 @@
+/* compose.css — the composer pill: reviewable input, attach chip, sends.
+   Register: light surface, hairlines, one accent — shares tokens from app.css. */
+
+#box {
+  flex: 1; min-width: 0; min-height: 40px; max-height: 132px;
+  background: transparent; border: none; outline: none; resize: none;
+  font: inherit; font-size: 16px; line-height: 1.42; color: var(--ink);
+  caret-color: var(--accent); letter-spacing: .01em;
+  padding: 9px 2px; overflow-y: hidden;
+}
+#box::placeholder { color: var(--muted); }
+
+/* attach chip above the row */
+.attach { display: flex; align-items: center; gap: 12px; width: 100%; padding: 4px 6px 10px 4px; }
+.attach[hidden] { display: none; }
+.attach img, .attach video {
+  width: 56px; height: 56px; border-radius: 14px; object-fit: cover;
+  border: 1px solid var(--hairline); background: var(--hairline-2);
+}
+.attach .aname {
+  flex: 1; min-width: 0; color: var(--muted-2); font-size: 12.5px; letter-spacing: .02em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.attach .x {
+  flex: none; width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
+  background: transparent; border: 1px solid var(--hairline); color: var(--ink-2);
+  font-size: 15px; line-height: 1; font-family: inherit;
+}
+
+/* + attach menu */
+.attach-menu {
+  position: absolute; left: 10px; bottom: calc(100% + 6px); z-index: 12;
+  background: var(--surface); border-radius: 14px; box-shadow: var(--sh-2);
+  padding: 6px; display: flex; flex-direction: column; min-width: 168px;
+}
+.attach-item {
+  appearance: none; border: none; background: transparent; cursor: pointer;
+  font-family: inherit; font-size: 14px; font-weight: 550; color: var(--ink);
+  text-align: left; padding: 11px 12px; border-radius: 9px;
+}
+.attach-item:active { background: var(--hairline-2); }
+
+/* pending-confirm strip — tier>=2 actions held laptop-side, releasable here */
+#confirms {
+  position: absolute; left: 0; right: 0; bottom: calc(100% + 10px); z-index: 11;
+  display: flex; flex-direction: column; gap: 8px;
+}
+#confirms[hidden] { display: none; }
+.confirm-row {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface); border-radius: 16px; box-shadow: var(--sh-2);
+  border: 1px solid var(--warn-soft);
+  padding: 10px 12px;
+}
+.confirm-txt {
+  flex: 1; min-width: 0; font-size: 12.5px; color: var(--ink-2); font-weight: 550;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.confirm-yes, .confirm-no {
+  flex: none; appearance: none; border: none; cursor: pointer;
+  font-family: inherit; font-size: 12px; font-weight: 650;
+  padding: 7px 12px; border-radius: 999px;
+}
+.confirm-yes { background: var(--accent); color: #fff; }
+.confirm-no { background: var(--hairline-2); color: var(--muted-2); }
+.confirm-yes:active, .confirm-no:active { transform: scale(.94); }
+
+/* offline/unpaired dimming — the pill stays usable-looking but honest */
+.pill { position: relative; }

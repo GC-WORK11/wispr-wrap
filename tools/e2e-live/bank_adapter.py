@@ -123,6 +123,7 @@ class BankHandle:
     def __init__(self, mod, path=None, reject_threshold=None):
         tried = []
         self.mod = mod
+        self._init_kw = {"path": path, "reject_threshold": reject_threshold}
         self.reject_threshold = 0.45 if reject_threshold is None else reject_threshold
         kwargs_pool = []
         if path:
@@ -175,6 +176,16 @@ class BankHandle:
             raise AdapterError(
                 "bank constructed via %s but has no match/recognize/best method; "
                 "tried %s | %s" % (self.ctor, _MATCH_NAMES, _BEST_NAMES))
+
+    def reset(self):
+        """Fresh empty bank with the same ctor config. The parity loop's
+        'one bank per case built from the SAME raw exemplars' semantics
+        need this: a real bank PERSISTS taught exemplars (correct product
+        behavior — teaching a new sign never drops old ones), so without
+        a reset the impl would see a superset of the reference's
+        per-case template set and the argmins could honestly differ."""
+        self.bank = None
+        self.__init__(self.mod, **self._init_kw)
 
     # -- teach ----------------------------------------------------------
     def add(self, gloss, points):
