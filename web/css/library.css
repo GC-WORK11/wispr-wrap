@@ -1,48 +1,119 @@
-/* library.css — the sign library sheet. Shares tokens from app.css. */
+/* library.css — the sign library sheet. Shares tokens from app.css.
+   One calm reading column: head, banner, cards and the footer CTA all
+   share a 620px spine (chrome gets the shared 18px gutters on top). */
 
+#sheet-signs .sheet-head { width: 100%; max-width: 656px; margin: 0 auto; }
+#sheet-signs .sheet-body { display: flex; flex-direction: column; align-items: center; }
+#sheet-signs .sheet-body > * { width: 100%; max-width: 620px; }
+
+/* error banner — danger register, aligned with the column edges */
 .lib-banner {
   flex: none; display: flex; align-items: center; gap: 10px;
-  margin: 0 18px 10px; padding: 10px 12px;
-  background: var(--warn-soft); border: 1px solid #f0e0bb; border-radius: 12px;
-  font-size: 12px; color: var(--warn); line-height: 1.45;
+  width: calc(100% - 36px); max-width: 620px;
+  margin: 0 auto 10px; padding: 10px 12px;
+  background: var(--danger-soft); border: 1px solid #f2d4d2; border-radius: 12px;
+  font-size: 12px; color: var(--danger); line-height: 1.45;
 }
 .lib-banner[hidden] { display: none; }
 .lib-banner button {
-  margin-left: auto; appearance: none; border: 1px solid #ecd9a8;
-  background: transparent; color: var(--warn); border-radius: 8px;
-  font-family: inherit; font-size: 11.5px; font-weight: 650; padding: 5px 10px;
+  margin-left: auto; flex: none; appearance: none; cursor: pointer;
+  border: 1px solid #ecc7c3; background: transparent; color: var(--danger);
+  border-radius: 8px; font-family: inherit; font-size: 11.5px; font-weight: 650;
+  padding: 5px 10px;
 }
+.lib-banner button:hover { background: #fae5e3; }
+
+/* the list */
+#lib-list { display: flex; flex-direction: column; gap: 10px; }
 
 .lib-card {
   background: var(--surface); border: 1px solid var(--hairline);
-  border-radius: var(--r-card); padding: 13px 14px; margin-bottom: 10px;
+  border-radius: var(--r-card); padding: 14px 16px 12px;
   box-shadow: var(--sh-1);
 }
-.lib-top { display: flex; align-items: baseline; gap: 8px; }
-.lib-name { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 650; letter-spacing: .01em; }
-.lib-gl { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-left: 8px; }
-.lib-act {
-  display: flex; align-items: center; gap: 8px; margin-top: 7px;
-  font-size: 12.5px; color: var(--muted-2);
+
+/* top line: gloss chip + label + exemplar count */
+.lib-top { display: flex; align-items: center; gap: 9px; }
+.lib-gl {
+  flex: none; max-width: 48%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--mono); font-size: 10.5px; font-weight: 600;
+  letter-spacing: .07em; text-transform: uppercase;
+  color: var(--ink-2); background: var(--hairline-2);
+  padding: 4px 8px; border-radius: 8px;
 }
-.lib-act-v { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lib-row { display: flex; gap: 7px; margin-top: 11px; flex-wrap: wrap; }
+.lib-name {
+  flex: 1; min-width: 0;
+  font-size: 14.5px; font-weight: 650; letter-spacing: .005em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lib-top .chip { flex: none; }
+
+/* bound-action line — muted summary + honest state chips */
+.lib-act {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 8px; font-size: 12.5px; color: var(--muted-2);
+}
+.lib-act-v {
+  flex: 1 1 200px; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lib-act .chip { flex: none; }
+
+/* row actions — small ghosts on a hairline divider */
+.lib-row {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  margin-top: 11px; padding-top: 10px;
+  border-top: 1px solid var(--hairline-2);
+}
 .lib-b {
   appearance: none; cursor: pointer; font-family: inherit;
   font-size: 12px; font-weight: 600; color: var(--ink-2);
   border: 1px solid var(--hairline); background: var(--surface);
-  border-radius: 9px; padding: 7px 12px;
+  border-radius: 9px; padding: 6px 11px;
+  transition: transform .12s, background .15s, border-color .15s;
 }
+.lib-b:hover { background: var(--hairline-2); }
 .lib-b:active { transform: scale(.95); }
+.lib-b:disabled { opacity: .5; }
 .lib-b.danger { color: var(--danger); }
+.lib-b.danger:hover,
+.lib-b.danger[data-armed] { background: var(--danger-soft); border-color: #ecc7c3; }
 .lib-b.btn-primary { border: none; }
+.lib-b.btn-primary:hover { background: var(--accent); }
 
-.lib-rename { display: flex; gap: 8px; margin-top: 10px; }
+/* inline rename — takes the row's slot, same divider rhythm */
+.lib-rename {
+  display: flex; gap: 8px;
+  margin-top: 11px; padding-top: 10px;
+  border-top: 1px solid var(--hairline-2);
+}
 .lib-rename .input { flex: 1; min-width: 0; padding: 9px 11px; font-size: 14px; border-radius: 10px; }
 
+/* empty state — centered in the leftover body space */
 .lib-empty {
-  text-align: center; color: var(--muted-2); font-size: 13px; line-height: 1.7;
-  padding: 34px 12px;
+  margin: auto; max-width: 360px;
+  text-align: center; color: var(--muted-2);
+  font-size: 13px; line-height: 1.75; padding: 34px 14px;
 }
-.lib-empty b { color: var(--accent); }
 .lib-empty[hidden] { display: none; }
+.lib-empty-g {
+  width: 46px; height: 46px; margin: 0 auto 15px; border-radius: 50%;
+  background: var(--accent-soft); color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+}
+.lib-empty-g svg { width: 20px; height: 20px; }
+.lib-empty b { color: var(--accent); font-weight: 650; }
+.lib-empty i { color: var(--ink-2); }
+
+/* footer CTA stays .btn-primary .btn-block, kept on the spine */
+#sheet-signs .sheet-foot #lib-teach {
+  flex: none; width: 100%; max-width: 620px; margin: 0 auto;
+}
+
+/* narrow screens — same column, tighter card */
+@media (max-width: 720px) {
+  .lib-card { padding: 13px 14px 11px; }
+  .lib-name { font-size: 14px; }
+  .lib-b { padding: 8px 12px; }
+}

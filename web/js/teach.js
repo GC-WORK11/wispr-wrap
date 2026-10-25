@@ -38,8 +38,8 @@ sheet.innerHTML = `
       <div class="tw-gloss" id="tw-gloss"></div>
       <div class="errline" id="tw-name-err"></div>
       <div class="tw-foot">
-        <button class="btn-ghost" id="tw-name-cancel">cancel</button>
-        <button class="btn-primary" id="tw-name-next" disabled>record it</button>
+        <button class="btn btn-ghost" id="tw-name-cancel">cancel</button>
+        <button class="btn btn-primary" id="tw-name-next" disabled>record it</button>
       </div>
     </section>
 
@@ -55,8 +55,8 @@ sheet.innerHTML = `
       <div class="tw-takes" id="tw-takebar"></div>
       <div class="errline" id="tw-rec-err"></div>
       <div class="tw-foot">
-        <button class="btn-ghost" id="tw-rec-back">back</button>
-        <button class="btn-primary" id="tw-rec-done" disabled>bind it ›</button>
+        <button class="btn btn-ghost" id="tw-rec-back">back</button>
+        <button class="btn btn-primary" id="tw-rec-done" disabled>bind it ›</button>
       </div>
     </section>
 
@@ -64,13 +64,13 @@ sheet.innerHTML = `
       <p class="hint">captured on the laptop — wrist path + hand shape is what it scores.</p>
       <div class="tw-prev" id="tw-prev"></div>
       <div class="tw-bound" id="tw-bound">
-        <button class="btn-ghost btn-block" id="tw-pick">@ pick what it does</button>
+        <button class="btn btn-ghost btn-block" id="tw-pick">@ pick what it does</button>
         <div class="tw-action" id="tw-action" hidden></div>
       </div>
       <div class="errline" id="tw-bind-err"></div>
       <div class="tw-foot">
-        <button class="btn-ghost" id="tw-bind-back">record more</button>
-        <button class="btn-primary" id="tw-save" disabled>make it live</button>
+        <button class="btn btn-ghost" id="tw-bind-back">record more</button>
+        <button class="btn btn-primary" id="tw-save" disabled>make it live</button>
       </div>
     </section>
 
@@ -80,8 +80,8 @@ sheet.innerHTML = `
         <h2 id="tw-done-t">live</h2>
         <p class="hint" id="tw-done-m"></p>
         <div class="tw-foot">
-          <button class="btn-ghost" id="tw-done-lib">sign library</button>
-          <button class="btn-primary" id="tw-done-live">sign it live</button>
+          <button class="btn btn-ghost" id="tw-done-lib">sign library</button>
+          <button class="btn btn-primary" id="tw-done-live">sign it live</button>
         </div>
       </div>
     </section>
@@ -183,6 +183,7 @@ async function startCapture() {
     const rep = await Pose.replay();
     if (rep) {
       W.engine = rep; W.front = false;
+      stageEl.classList.add('replay');
       recLead.textContent += ' (dev: replayed keypoints)';
       recEl.classList.add('on');
       W.link.start(vid, W.engine, { onFrame, onResp, onStatus });
@@ -214,6 +215,7 @@ function stopCapture() {
   recEl.classList.remove('on');
   if (W.stream) { for (const t of W.stream.getTracks()) t.stop(); W.stream = null; }
   vid.srcObject = null;
+  stageEl.classList.remove('replay');
 }
 
 /* ---------- step 1 · name ---------- */

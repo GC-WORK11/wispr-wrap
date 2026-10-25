@@ -25,6 +25,11 @@ sheet.innerHTML = `
   <div class="sheet-body">
     <section id="lib-list"></section>
     <div class="lib-empty" id="lib-empty" hidden>
+      <span class="lib-empty-g" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+      </span>
       no signs yet — <b>teach your first one</b>.<br>
       a sign is a gesture <i>you</i> choose, bound to an action on your laptop.<br>
       three takes, ~90 seconds, runs offline.
@@ -63,12 +68,12 @@ function render() {
       : (s.exemplars ? s.exemplars.length : '?'));
     const tier = s.tier || 0;
     card.innerHTML =
-      `<div class="lib-top"><span class="lib-name">${esc(s.label || s.gloss)}` +
-      `<span class="lib-gl">${esc(s.gloss)}</span></span>` +
+      `<div class="lib-top"><span class="lib-gl">${esc(s.gloss)}</span>` +
+      `<span class="lib-name">${esc(s.label && s.label !== s.gloss ? s.label : '')}</span>` +
       `<span class="chip">${n} exemplar${n === 1 ? '' : 's'}</span></div>` +
       `<div class="lib-act"><span class="lib-act-v">${esc(actSummary(s))}</span>` +
-      `<span class="chip ${tier >= 2 ? 'warn' : ''}">${tier >= 2 ? 'laptop confirm' : 'instant'}</span>` +
-      (s.taught === false ? '<span class="chip">command only</span>' : '') +
+      (tier >= 2 ? '<span class="chip warn">confirm</span>' : '') +
+      (s.taught === false ? '<span class="chip accent">bound</span>' : '') +
       `</div>`;
     const row = document.createElement('div'); row.className = 'lib-row';
     const mk = (txt, cls, fn) => {
