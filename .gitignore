@@ -24,3 +24,6 @@ WhatsApp*
 *.swp
 .DS_Store
 nohup.out
+# local e2e evidence — never committed (may contain screenshots of the desktop)
+proofs/
+tools/replay/out/

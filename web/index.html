@@ -3,575 +3,82 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, interactive-widget=resizes-content">
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#f6f8fb">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Wispr Wrap">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-180.png">
 <title>Wispr Wrap — Flow Composer</title>
-<style>
-  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html,body { height:100%; background:#000; }
-  body {
-    font-family:ui-monospace,'SF Mono','JetBrains Mono','Cascadia Mono',Menlo,Consolas,monospace;
-    font-variant-ligatures:none; color:#f2f2f2; overflow:hidden;
-    display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
-    min-height:100dvh;
-    padding:24px 18px calc(env(safe-area-inset-bottom) + clamp(34px, 9dvh, 96px));
-  }
-
-  /* ascii field — three brightness tiers, one text node each */
-  .field { position:fixed; inset:0; overflow:hidden; pointer-events:none; }
-  .field pre {
-    position:absolute; left:0; top:0; margin:0; white-space:pre;
-    font:inherit; font-size:var(--fs,10px); line-height:var(--lh,11px); letter-spacing:0;
-  }
-  #f0 { color:#3d3d3d; }
-  #f1 { color:#909090; }
-  #f2 { color:#f7f7f7; text-shadow:0 0 8px rgba(255,255,255,.42); }
-
-  .stage { position:relative; z-index:2; width:100%; max-width:560px; transition:transform .25s ease; }
-
-  .pill {
-    position:relative; width:100%; display:flex; flex-direction:column;
-    background:#060606; border-radius:999px; padding:9px 9px 9px 11px;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 20px 60px #000;
-    transition:border-radius .3s ease;
-  }
-  .pill.has-img { border-radius:28px; }
-
-  /* ultra instinct ring — silver light sweeping the border (pure rotation: compositor-only) */
-  .ring {
-    position:absolute; inset:-1px; border-radius:inherit; padding:1.25px; overflow:hidden;
-    pointer-events:none; background:rgba(255,255,255,.14);
-    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite:xor; mask-composite:exclude;
-  }
-  .ring::before {
-    content:''; position:absolute; left:50%; top:50%; width:680px; height:680px; margin:-340px 0 0 -340px;
-    background:conic-gradient(from 0deg,
-      transparent 0deg, rgba(255,255,255,.06) 40deg, rgba(255,255,255,.9) 80deg, #fff 90deg,
-      rgba(255,255,255,.14) 112deg, transparent 150deg, transparent 205deg,
-      rgba(255,255,255,.6) 252deg, #fff 266deg, rgba(255,255,255,.1) 290deg, transparent 330deg);
-    animation:sweep 4.2s linear infinite;
-  }
-  @keyframes sweep { to { transform:rotate(1turn); } }
-
-  /* aura — silver glow that flickers like it's alive */
-  .aura {
-    position:absolute; inset:-18px -12px; border-radius:inherit; z-index:-1; pointer-events:none;
-    background:radial-gradient(75% 130% at 50% 55%, rgba(255,255,255,.2), transparent 72%);
-    filter:blur(16px); animation:flicker 3.1s linear infinite;
-  }
-  @keyframes flicker {
-    0%,100% { opacity:.5;  transform:scale(1); }
-    9%  { opacity:.66; }
-    17% { opacity:.44; transform:scale(1.02); }
-    29% { opacity:.72; }
-    38% { opacity:.52; }
-    52% { opacity:.8;  transform:scale(1.035); }
-    61% { opacity:.48; }
-    74% { opacity:.68; }
-    86% { opacity:.46; transform:scale(1.01); }
-  }
-  .pill.burst .aura { animation:burst .8s ease-out; }
-  @keyframes burst { 0% { opacity:1; transform:scale(1.18); } 100% { opacity:.5; transform:scale(1); } }
-  .pill.off .ring { background:rgba(255,255,255,.07); }
-  .pill.off .ring::before { opacity:.18; animation-duration:14s; }
-  .pill.off .aura { opacity:.06; animation:none; }
-
-  .row { display:flex; align-items:center; gap:10px; width:100%; }
-  #box {
-    flex:1; min-width:0; height:44px; background:none; border:none; outline:none;
-    font:inherit; font-size:16px; color:#f6f6f6; caret-color:#fff; letter-spacing:.01em;
-  }
-  #box::placeholder { color:#5a5a5a; }
-  .go {
-    flex:none; width:44px; height:44px; border-radius:50%; border:none; cursor:pointer;
-    background:#f5f5f5; display:flex; align-items:center; justify-content:center;
-    box-shadow:0 0 0 1px rgba(255,255,255,.25), 0 0 22px rgba(255,255,255,.18);
-    transition:transform .12s, box-shadow .2s;
-  }
-  .go:active { transform:scale(.9); box-shadow:0 0 0 1px #fff, 0 0 34px rgba(255,255,255,.45); }
-  .go svg { width:19px; height:19px; }
-  .plus {
-    flex:none; width:36px; height:36px; border-radius:50%; cursor:pointer;
-    background:transparent; border:1px solid rgba(255,255,255,.16);
-    display:flex; align-items:center; justify-content:center; transition:transform .12s, border-color .2s;
-  }
-  .plus:active { transform:scale(.86); border-color:rgba(255,255,255,.5); }
-  .plus svg { width:15px; height:15px; }
-
-  .attach { display:none; align-items:center; gap:12px; width:100%; padding:6px 6px 12px 3px; }
-  .pill.has-img .attach { display:flex; animation:chipin .25s ease; }
-  @keyframes chipin { from { opacity:0; transform:translateY(8px) scale(.96); } }
-  .attach img, .attach video {
-    width:56px; height:56px; border-radius:14px; object-fit:cover;
-    border:1px solid rgba(255,255,255,.14); background:#111;
-  }
-  .attach .aname {
-    flex:1; min-width:0; color:#9c9c9c; font-size:12.5px; letter-spacing:.02em;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  }
-  .attach .x {
-    flex:none; width:28px; height:28px; border-radius:50%; cursor:pointer; font:inherit;
-    background:transparent; border:1px solid rgba(255,255,255,.18); color:#e6e6e6; font-size:15px; line-height:1;
-  }
-
-  .status {
-    position:absolute; left:0; right:0; top:calc(100% + 12px); text-align:center; pointer-events:none;
-    font-size:11.5px; letter-spacing:.06em; color:#8c8c8c;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-    opacity:0; transform:translateY(-4px); transition:opacity .3s, transform .3s;
-  }
-  .status.show { opacity:1; transform:none; }
-
-  /* live toggle — second pill row under the send arrow. styled inline so the
-     chip looks right before live.css finishes loading (it only styles the sheet) */
-  .lrow { display:flex; justify-content:flex-end; width:100%; padding:7px 2px 0 0; }
-  .livebtn {
-    display:inline-flex; align-items:center; gap:7px; height:26px; padding:0 11px;
-    border-radius:999px; border:1px solid rgba(255,255,255,.16); cursor:pointer;
-    background:transparent; color:#9c9c9c; font:inherit; font-size:10.5px; letter-spacing:.14em;
-    transition:transform .12s, border-color .2s, color .2s;
-  }
-  .livebtn:active { transform:scale(.94); border-color:rgba(255,255,255,.4); }
-  .livebtn .lv-o { font-size:9px; color:#5a5a5a; transition:color .25s; }
-  .livebtn.on { color:#ececec; border-color:rgba(255,255,255,.32); }
-  .livebtn.on .lv-o { color:#4a7dff; }
-</style>
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/compose.css">
+<link rel="stylesheet" href="css/live.css">
+<link rel="stylesheet" href="css/teach.css">
+<link rel="stylesheet" href="css/actions.css">
+<link rel="stylesheet" href="css/macro.css">
+<link rel="stylesheet" href="css/library.css">
 </head>
 <body>
-  <div class="field" id="field" aria-hidden="true"><pre id="f0"></pre><pre id="f1"></pre><pre id="f2"></pre></div>
-  <div class="stage" id="stage">
-    <div class="pill off" id="pill">
-      <div class="aura"></div>
-      <div class="ring"></div>
-      <div class="attach" id="attach">
+  <!-- status strip: laptop link, focused window, live state — always visible -->
+  <header class="statusbar" id="statusbar">
+    <span class="dot" id="link-dot" aria-hidden="true"></span>
+    <span class="statusbar-text" id="status-text">connecting…</span>
+    <span class="statusbar-live" id="status-live" hidden>listening</span>
+  </header>
+
+  <!-- compose view: the always-on surface -->
+  <main class="stage" id="stage">
+    <div class="pill" id="pill">
+      <div class="attach" id="attach" hidden>
         <img id="thumb" alt="">
         <video id="vthumb" muted playsinline preload="metadata" style="display:none"></video>
         <span class="aname" id="aname"></span>
         <button class="x" id="unattach" aria-label="Remove attachment">×</button>
       </div>
       <div class="row">
-        <button class="plus" id="plus" aria-label="Attach image or video">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#d4d4d4" stroke-width="2.2" stroke-linecap="round">
+        <button class="iconbtn" id="plus" aria-label="Attach image, video or file">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <path d="M12 5v14M5 12h14"/>
           </svg>
         </button>
-        <input id="box" type="text" placeholder="Wispr Wrap" autocomplete="off"
-               autocorrect="off" autocapitalize="sentences" enterkeyhint="send">
+        <textarea id="box" rows="1" placeholder="Wispr Wrap" autocomplete="off"
+                  autocorrect="off" autocapitalize="sentences" enterkeyhint="send"></textarea>
         <input id="file" type="file" accept="image/*,video/*" style="display:none">
+        <input id="fileany" type="file" style="display:none">
         <button class="go" id="go" aria-label="Send to laptop">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#050505" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 19V5"/><path d="M5 12l7-7 7 7"/>
           </svg>
         </button>
       </div>
-      <div class="lrow">
-        <button class="livebtn" id="livebtn" aria-haspopup="dialog" aria-expanded="false" aria-label="Live sign mode"><span class="lv-o">◉</span>LIVE</button>
+      <div class="tray">
+        <button class="traybtn" id="tray-live" aria-label="Live sign control">
+          <span class="traydot" id="live-dot"></span>LIVE
+        </button>
+        <button class="traybtn" id="tray-teach">teach a sign</button>
+        <button class="traybtn" id="tray-signs">signs</button>
       </div>
     </div>
-    <div class="status" id="toast"></div>
-  </div>
-<script>
-const box=document.getElementById('box'), go=document.getElementById('go'),
-      pill=document.getElementById('pill'), toast=document.getElementById('toast'),
-      stage=document.getElementById('stage'),
-      plus=document.getElementById('plus'), file=document.getElementById('file'),
-      attach=document.getElementById('attach'), thumb=document.getElementById('thumb'),
-      vthumb=document.getElementById('vthumb'),
-      aname=document.getElementById('aname'), unattach=document.getElementById('unattach');
-let toastT, staged=null;
-let bloom=0, charge=0, burstAt=-99;   // ascii field state
+    <div class="toast" id="toast"></div>
+  </main>
 
-// pairing key: arrives once in the URL (?k=), then lives in localStorage
-const store=(()=>{try{return localStorage}catch(e){return sessionStorage}})();
-const K=new URLSearchParams(location.search).get('k')||store.getItem('wfk')||'';
-if(K){ store.setItem('wfk',K); if(location.search) history.replaceState(null,'','/'); }
-const AUTH={'X-WF-Key':K};
+  <!-- sheets: live / teach / library mount into these -->
+  <section class="sheet" id="sheet-live" hidden aria-label="Live sign control"></section>
+  <section class="sheet" id="sheet-teach" hidden aria-label="Teach a sign"></section>
+  <section class="sheet" id="sheet-signs" hidden aria-label="Sign library"></section>
+  <section class="sheet sheet-lower" id="sheet-actions" hidden aria-label="Pick an action"></section>
+  <section class="sheet sheet-lower" id="sheet-macro" hidden aria-label="Macro and context rules"></section>
 
-function fmtSize(b){ return b>1048576 ? (b/1048576).toFixed(1)+'MB' : Math.round(b/1024)+'KB'; }
-
-function flash(msg){
-  toast.textContent=msg; toast.classList.add('show');
-  clearTimeout(toastT); toastT=setTimeout(()=>toast.classList.remove('show'),1800);
-}
-const buzz=()=>{ try{ navigator.vibrate && navigator.vibrate(25); }catch(_){} };
-const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-
-function burst(){
-  burstAt=performance.now()/1000;
-  pill.classList.remove('burst'); void pill.offsetWidth; pill.classList.add('burst');
-  clearTimeout(burst.t); burst.t=setTimeout(()=>pill.classList.remove('burst'),850);
-}
-
-function stageImage(blob,name){
-  clearStaged();
-  staged={blob,url:URL.createObjectURL(blob),name:name||'image',
-          isVideo:(blob.type||'').startsWith('video/')};
-  if(staged.isVideo){
-    vthumb.src=staged.url; vthumb.style.display='block'; thumb.style.display='none';
-  }else{
-    thumb.src=staged.url; thumb.style.display='block'; vthumb.style.display='none';
-  }
-  aname.textContent=staged.name+' · '+fmtSize(blob.size);
-  pill.classList.add('has-img'); buzz();
-  charge=Math.min(1,charge+.5);
-}
-function clearStaged(){
-  if(staged) URL.revokeObjectURL(staged.url);
-  staged=null; pill.classList.remove('has-img');
-  thumb.removeAttribute('src'); vthumb.removeAttribute('src'); vthumb.load&&vthumb.load();
-}
-unattach.onclick=()=>{ clearStaged(); box.focus(); };
-
-async function send(){
-  const text=box.value;
-  let into=null, imgOk=false, txtOk=false;
-  if(staged){
-    const st=staged; // capture before clear
-    flash(st.isVideo?'sending video…':'sending image…');
-    try{
-      let r;
-      if(st.isVideo || !(st.blob.type||'').startsWith('image/')){
-        r=await fetch('/send-file',{method:'POST',
-          headers:{'Content-Type':st.blob.type||'application/octet-stream',
-                   'X-File-Name':encodeURIComponent(st.name),...AUTH},body:st.blob});
-      }else{
-        const b=await squeeze(st.blob);
-        r=await fetch('/send-image',{method:'POST',
-          headers:{'Content-Type':b.type||'application/octet-stream',...AUTH},body:b});
-      }
-      if(r.status===403){ flash('unpaired — rescan QR'); try{window.WF&&window.WF.unpair();}catch(_){} return; }
-      const j=await r.json().catch(()=>({}));
-      imgOk=r.ok; into=j.into;
-      clearStaged();
-      await sleep(650);
-    }catch(e){ flash('laptop unreachable — run: wrap start'); }
-  }
-  if(text.trim()){
-    box.value='';
-    try{
-      const r=await fetch('/send',{method:'POST',headers:{'Content-Type':'application/json',...AUTH},
-        body:JSON.stringify({text,mode:'type'})});
-      if(r.status===403){ flash('unpaired — rescan QR'); try{window.WF&&window.WF.unpair();}catch(_){} return; }
-      txtOk=r.ok;
-      const j=await r.json().catch(()=>({}));
-      into=into||j.into;
-    }catch(e){}
-  }
-  if(imgOk||txtOk){
-    flash('→ '+[imgOk&&'file',txtOk&&'text'].filter(Boolean).join(' + ')+' into '+(into||'laptop'));
-    burst();
-  }else
-    flash('send failed — run: wrap start');
-  buzz(); box.focus();
-}
-
-go.onclick=send;
-box.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();send();} });
-box.addEventListener('input',()=>{ charge=Math.min(1,charge+.22); });
-
-// ---------- dictation ----------
-// Wispr Flow's bubble expands whenever the soft keyboard is up and types into the
-// focused field via accessibility — so on app open we focus the field and raise the
-// keyboard: the Wispr dictation bubble appears on its own, ready to tap. No keyboard
-// means Wispr hides itself — its bubble is keyboard-bound by design.
-function armDictation(){
-  if(!(window.WF&&WF.hasWispr&&WF.hasWispr()&&WF.focusField)) return;
-  box.focus();                    // field gets focus…
-  WF.focusField();                // …activity raises the keyboard → wispr bubble expands
-}
-
-plus.onclick=()=>file.click();
-file.onchange=()=>{ const f=file.files[0]; if(f){stageImage(f,f.name);} file.value=''; };
-
-const MAXD=1280, JPEG_Q=0.82, PASS_MAX=900*1024;
-
-async function squeeze(blob){
-  if(blob.type==='image/gif'||blob.size<=PASS_MAX) return blob; // small enough — send as-is, keep quality
-  try{
-    // createImageBitmap decodes big photos way faster than <img>
-    const bmp=await createImageBitmap(blob);
-    const s=Math.min(1,MAXD/Math.max(bmp.width,bmp.height));
-    // already fits and already a compact format — don't touch it
-    if(s>=1&&blob.type!=='image/png'&&blob.size<=1536*1024){ bmp.close&&bmp.close(); return blob; }
-    const c=document.createElement('canvas');
-    c.width=Math.round(bmp.width*s); c.height=Math.round(bmp.height*s);
-    const x=c.getContext('2d');
-    if(blob.type==='image/png'){ x.fillStyle='#fff'; x.fillRect(0,0,c.width,c.height); }
-    x.drawImage(bmp,0,0,c.width,c.height);
-    bmp.close&&bmp.close();
-    return await new Promise(r=>c.toBlob(b=>r(b||blob),'image/jpeg',JPEG_Q));
-  }catch(e){ return blob; }
-}
-
-// copy an image on the phone, paste in the composer -> it stages like an attachment
-document.addEventListener('paste',e=>{
-  const items=(e.clipboardData||{}).items||[];
-  for(const it of items){
-    if(it.type && it.type.startsWith('image/')){
-      stageImage(it.getAsFile(),'pasted image'); e.preventDefault(); return;
-    }
-  }
-});
-
-async function ping(){
-  try{ await fetch('/health',{cache:'no-store'}); pill.classList.remove('off'); }
-  catch(e){ pill.classList.add('off'); }
-}
-ping(); setInterval(ping,3000);
-window.addEventListener('load',()=>{
-  box.focus();
-  setTimeout(armDictation,1100);   // let the flower bloom first, then summon the keyboard + wispr
-});
-
-// ---------- ascii flower field ----------
-// a flower grows out of the composer: blooms when the laptop link is up, charges while
-// text flows in, and fires an energy pulse up the stem on every send. 12fps idle, 25fps active.
-const field=document.getElementById('field'), LY=[0,1,2].map(i=>document.getElementById('f'+i));
-const RM=matchMedia('(prefers-reduced-motion: reduce)');
-const cc=s=>s.charCodeAt(0), RAMP=[...' .,:-=+*#%@'].map(cc);
-const DASH=cc('-'), UND=cc('_'), SL=cc('/'), BS=cc('\\'), PIPE=cc('|'), DOT=cc('.'), COL=cc(':'),
-      PLUS=cc('+'), STAR=cc('*'), AT=cc('@'), HASH=cc('#'), OO=cc('o'), SP=32;
-const dec=new TextDecoder(), NF=8, LF=[], LB=[], G={x:0,y:0,m:1};
-for(let k=0;k<NF;k++){ LF.push(.84+.22*hash(k,3)); LB.push(.8+.22*hash(k,9)); }
-let cols=0, rows=0, cw=6, lh=11, stride=1, bufs=[], tmpl=null, stars=[], P=null, lastF=0, PQ=0;
-
-function hash(x,y){
-  let h=(Math.imul(x|0,374761393)+Math.imul(y|0,668265263))|0;
-  h=Math.imul(h^(h>>>13),1274126177); h^=h>>>16; return (h>>>0)/4294967296;
-}
-function vnoise(x,y){
-  const xi=Math.floor(x), yi=Math.floor(y), xf=x-xi, yf=y-yi, u=xf*xf*(3-2*xf), v=yf*yf*(3-2*yf),
-        a=hash(xi,yi), b=hash(xi+1,yi), c=hash(xi,yi+1), d=hash(xi+1,yi+1);
-  return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v;
-}
-function put(i,l,ch){ bufs[0][i]=l===0?ch:SP; bufs[1][i]=l===1?ch:SP; bufs[2][i]=l===2?ch:SP; }
-function ramp(b){ return RAMP[b<=0?0:b>=1?10:Math.round(b*10)]; }
-// glyph for a line whose normal is (nx,ny) in screen space
-function dirc(nx,ny,under){
-  let a=Math.atan2(-nx,-ny)*57.29578; if(a<0)a+=180; if(a>=180)a-=180;
-  if(a<24||a>=156) return under&&ny>.3?UND:DASH;
-  return a<76?SL:a<104?PIPE:BS;
-}
-function grad(F,x,y){
-  const gx=F(x+1.5,y)-F(x-1.5,y), gy=F(x,y+1.5)-F(x,y-1.5), m=Math.hypot(gx,gy)||1;
-  G.x=gx/m; G.y=gy/m; G.m=m/3; return G;
-}
-const band=g=>.55*(Math.abs(g.x)*cw+Math.abs(g.y)*lh);
-
-function measure(){
-  const r=pill.getBoundingClientRect();
-  P={l:r.left,t:r.top,r:r.right,b:r.bottom,cx:(r.left+r.right)/2,cy:(r.top+r.bottom)/2,
-     hw:r.width/2,hh:r.height/2,rad:pill.classList.contains('has-img')?28:r.height/2};
-}
-function grid(){
-  const W=innerWidth, H=innerHeight, m=document.createElement('pre');
-  m.style.cssText='position:absolute;visibility:hidden;margin:0;line-height:1;font-size:100px';
-  m.textContent='0'.repeat(40); field.appendChild(m);
-  const fs=Math.max(8,Math.min(13,W/(66*m.getBoundingClientRect().width/4000)));
-  m.style.fontSize=fs+'px'; m.textContent='0'.repeat(200);
-  cw=m.getBoundingClientRect().width/200; m.remove();
-  lh=Math.round(fs*112)/100;
-  const ds=document.documentElement.style;
-  ds.setProperty('--fs',fs+'px'); ds.setProperty('--lh',lh+'px');
-  cols=Math.ceil(W/cw)+1; rows=Math.ceil(H/lh)+1; stride=cols+1;
-  tmpl=new Uint8Array(rows*stride).fill(SP);
-  for(let j=0;j<rows;j++) tmpl[j*stride+cols]=10;
-  bufs=[0,1,2].map(()=>new Uint8Array(tmpl.length));
-  stars=[];
-  for(let j=0;j<rows;j++) for(let i=0;i<cols;i++)
-    if(hash(i*3+1,j*7+5)<.012) stars.push(j*stride+i,(i+.5)*cw,(j+.5)*lh,hash(i+11,j+17),hash(i+23,j+31));
-  measure();
-}
-function sdPill(x,y){
-  const qx=Math.abs(x-P.cx)-P.hw+P.rad, qy=Math.abs(y-P.cy)-P.hh+P.rad, ox=qx>0?qx:0, oy=qy>0?qy:0;
-  return Math.sqrt(ox*ox+oy*oy)+Math.min(Math.max(qx,qy),0)-P.rad;
-}
-
-function drawStars(t){
-  for(let s=0;s<stars.length;s+=5){
-    const x=stars[s+1], y=stars[s+2];
-    if(x>P.l-4&&x<P.r+4&&y>P.t-4&&y<P.b+4) continue;
-    const tw=.5+.5*Math.sin(t*(.5+stars[s+3]*1.6)+stars[s+4]*6.283);
-    if(tw>.96) put(stars[s],1,PLUS); else if(tw>.35) put(stars[s],0,stars[s+3]>.8?STAR:DOT);
-  }
-}
-
-// ascii flames licking off the composer — rise upward, flare with charge and on send
-function drawAura(t,tb,online){
-  if(!online) return;
-  const boost=tb>=0&&tb<3?1.5*Math.exp(-tb*2.2):0, lvl=.55+.6*charge+boost, AW=26*(1+.9*boost)+10*charge;
-  const i0=Math.max(0,Math.floor((P.l-AW)/cw)), i1=Math.min(cols-1,Math.ceil((P.r+AW)/cw)),
-        j0=Math.max(0,Math.floor((P.t-AW*1.9)/lh)), j1=Math.min(rows-1,Math.ceil((P.b+AW)/lh));
-  for(let j=j0;j<=j1;j++){
-    const y=(j+.5)*lh, w=AW*(y<P.cy?1+.9*Math.min(1,(P.cy-y)/(P.hh+AW)):1);
-    for(let i=i0;i<=i1;i++){
-      const x=(i+.5)*cw, d=sdPill(x,y); if(d<=1||d>=w) continue;
-      const f=1-d/w, n=.62*vnoise(x*.055,(y+t*58)*.055)+.38*vnoise(x*.14,(y+t*120)*.14),
-            I=f*f*(.3+.7*n)*lvl, idx=j*stride+i;
-      if(I>.82) put(idx,2,STAR); else if(I>.6) put(idx,1,PLUS); else if(I>.42) put(idx,0,PLUS);
-      else if(I>.28) put(idx,0,COL); else if(I>.16) put(idx,0,DOT);
-    }
-  }
-}
-
-function petalR(a,N,lens,t,fl){ // petal radius as a fraction of R; leaves petal-local offset in PQ
-  const seg=6.2831853/N; let k=Math.round(a/seg); const q=(a-k*seg)/(seg/2);
-  k=((k%N)+N)%N; PQ=q;
-  return .16+.84*Math.pow(Math.max(0,1-q*q),.58)*lens[k]*(1+fl*Math.sin(t*1.7+k*1.9));
-}
-
-function leaf(ax,ay,ang,len,wid){
-  if(len<cw*2) return;
-  const dx=Math.cos(ang), dy=-Math.sin(ang),
-        i0=Math.max(0,Math.floor((ax-len)/cw)), i1=Math.min(cols-1,Math.ceil((ax+len)/cw)),
-        j0=Math.max(0,Math.floor((ay-len)/lh)), j1=Math.min(rows-1,Math.ceil((ay+len)/lh));
-  for(let j=j0;j<=j1;j++){
-    const y=(j+.5)*lh;
-    for(let i=i0;i<=i1;i++){
-      const x=(i+.5)*cw, px=x-ax, py=y-ay, u=px*dx+py*dy; if(u<=0||u>=len) continue;
-      const sn=Math.sin(Math.PI*u/len), half=wid*Math.pow(sn,.8), v=-px*dy+py*dx, av=Math.abs(v);
-      if(av>=half) continue;
-      const idx=j*stride+i, dh=wid*.8*Math.pow(sn,-.2)*Math.cos(Math.PI*u/len)*Math.PI/len,
-            sv=v<0?-1:1, gx=-sv*dy-dh*dx, gy=sv*dx-dh*dy, gm=Math.hypot(gx,gy)||1;
-      G.x=gx/gm; G.y=gy/gm;
-      if((half-av)/gm<band(G)) put(idx,1,dirc(G.x,G.y,true));
-      else if(av<cw*.5) put(idx,1,dirc(-dy,dx,false));
-      else put(idx,0,ramp(.3+.4*(1-av/half)));
-    }
-  }
-}
-
-function drawFlower(t,tb,online){
-  const top=26, base=P.t+2, avail=base-top;
-  if(avail<90) return;
-  const R=Math.min(.3*Math.min(innerWidth,560),avail/3.6), vital=online?1:.5, TILT=.92;
-  const hx=P.cx+Math.sin(t*.7)*.045*R+Math.sin(t*1.9)*.012*R, hy=top+R*1.12;
-  const fl=tb>.38&&tb<3?Math.exp(-(tb-.38)*3.2):0;   // flare once the stem pulse lands
-  const B=bloom*(1+.08*fl+.04*charge), rot=t*.06+charge*.2, rd=R*.2*(.55+.45*Math.min(1,bloom));
-
-  // stem: grows from the composer up to the head; a pulse rides it on send
-  const yTop=hy+rd*.5, sLen=base-yTop, yGrow=base-sLen*Math.min(1,bloom*1.7),
-        bend=.09*R*Math.sin(t*.45+1.3), sp=tb>=0&&tb<.6?tb/.42:-1;
-  const xs=s=>P.cx+(hx-P.cx)*Math.pow(s,1.5)+bend*Math.sin(Math.PI*s);
-  if(sLen>R*.7){
-    const lg=Math.min(1,Math.max(0,(bloom-.25)*1.6));
-    leaf(xs(.3),base-sLen*.3,2.55+.06*Math.sin(t*.8),R*.5*lg,R*.14);
-    leaf(xs(.52),base-sLen*.52,.62+.06*Math.sin(t*.8+2),R*.46*lg,R*.13);
-  }
-  for(let j=Math.max(0,Math.floor(yGrow/lh));j<=Math.min(rows-1,Math.floor(base/lh));j++){
-    const y=(j+.5)*lh; if(y<yGrow||y>base) continue;
-    const s=(base-y)/sLen, x=xs(s), i=Math.floor(x/cw); if(i<0||i>=cols) continue;
-    const tx=xs(Math.min(1,s+.02))-x, ty=-.02*sLen, idx=j*stride+i;
-    if(sp>=0&&Math.abs(s-sp)<.08) put(idx,2,HASH); else put(idx,online?1:0,dirc(-ty,tx,false));
-  }
-
-  // head: disc + front petals + offset back petals, outlined with directional glyphs
-  const Ff=(x,y)=>{ const dx=x-hx, dy=(y-hy)/TILT; return Math.hypot(dx,dy)-R*B*petalR(Math.atan2(dy,dx)-rot,NF,LF,t,.025); };
-  const Fb=(x,y)=>{ const dx=x-hx, dy=(y-hy)/TILT; return Math.hypot(dx,dy)-R*B*1.12*petalR(Math.atan2(dy,dx)-rot-Math.PI/NF,NF,LB,t,.02); };
-  const Rmax=fl>0?R*3:R*1.25*B+2,
-        i0=Math.max(0,Math.floor((hx-Rmax)/cw)), i1=Math.min(cols-1,Math.ceil((hx+Rmax)/cw)),
-        j0=Math.max(0,Math.floor((hy-Rmax)/lh)), j1=Math.min(rows-1,Math.ceil((hy+Rmax)/lh));
-  for(let j=j0;j<=j1;j++){
-    const y=(j+.5)*lh; if(y>P.t-2) break;
-    for(let i=i0;i<=i1;i++){
-      const x=(i+.5)*cw, dx=x-hx, dy=(y-hy)/TILT, r=Math.hypot(dx,dy); if(r>Rmax) continue;
-      const idx=j*stride+i, th=Math.atan2(dy,dx);
-      if(r<rd){ const u=r/rd; put(idx,u<.8?2:1,u<.42?AT:u<.8?OO:STAR); continue; }
-      const rf=R*B*petalR(th-rot,NF,LF,t,.025), q=PQ;
-      if(r<rf){
-        const e=rf-r;
-        if(e<lh*1.1){ const g=grad(Ff,x,y); if(e/g.m<band(g)){ put(idx,2,dirc(g.x,g.y,true)); continue; } }
-        const tt=r/rf, aq=Math.abs(q);
-        if(aq<.1&&tt>.28&&tt<.88){ put(idx,0,dirc(-dy,dx,false)); continue; }   // vein
-        put(idx,fl>.55?2:online?1:0,ramp((.08+.3*tt+.12*(1-aq))*vital+.28*fl+.07*charge));
-        continue;
-      }
-      const rb=R*B*1.12*petalR(th-rot-Math.PI/NF,NF,LB,t,.02);
-      if(r<rb){
-        const e=rb-r;
-        if(e<lh*1.1){ const g=grad(Fb,x,y); if(e/g.m<band(g)){ put(idx,1,dirc(g.x,g.y,true)); continue; } }
-        put(idx,0,ramp((.1+.3*r/rb)*vital)); continue;
-      }
-      if(fl>0){ // pollen ring blasting outward after a send
-        const ringR=R*(1.08+(tb-.38)*1.5);
-        if(Math.abs(r-ringR)<lh*.9&&hash(i,j+(tb*12|0))<.5*fl) put(idx,fl>.5?2:1,hash(i+5,j)>.6?STAR:PLUS);
-      }
-    }
-  }
-}
-
-function frame(now){
-  requestAnimationFrame(frame);
-  const online=!pill.classList.contains('off'), t=now/1000;
-  const active=charge>.04||t-burstAt<2.2||Math.abs((online?1:.42)-bloom)>.01;
-  if(document.hidden||!P||now-lastF<(RM.matches?400:active?40:80)) return;
-  const dt=Math.min(.1,(now-lastF)/1000); lastF=now;
-  bloom+=((online?1:.42)-bloom)*(1-Math.exp(-dt*1.6));
-  charge*=Math.exp(-dt*.9);
-  const tb=t-burstAt;
-  for(const b of bufs) b.set(tmpl);
-  drawStars(t); drawAura(t,tb,online); drawFlower(t,tb,online);
-  for(let k=0;k<3;k++) LY[k].textContent=dec.decode(bufs[k]);
-}
-grid();
-addEventListener('resize',grid); addEventListener('load',measure);
-if(window.ResizeObserver) new ResizeObserver(measure).observe(pill);
-
-// keyboard-safe composer: visualViewport knows the real visible area — lift the pill
-// above whatever the keyboard covers (webview resize behavior is inconsistent)
-const vv=window.visualViewport;
-function fitKb(){
-  if(!vv) return;
-  const kb=Math.max(0,innerHeight-(vv.height+vv.offsetTop));
-  stage.style.transform=kb>60?`translateY(${-kb-12}px)`:'';
-  measure();
-  // the lift is a .25s transition — remeasure once it lands so the flower/aura
-  // don't freeze around a mid-slide position
-  clearTimeout(fitKb.t); fitKb.t=setTimeout(measure,300);
-}
-if(vv){ vv.addEventListener('resize',fitKb); vv.addEventListener('scroll',fitKb); }
-stage.addEventListener('transitionend',measure);
-requestAnimationFrame(frame);
-</script>
-
-<!-- live mode: bottom sheet owned by live.js/live.css. kept out of .stage so the
-     keyboard-lift transform can never clip the fixed-position sheet. -->
-<div class="lv-scrim" id="lv-scrim" hidden></div>
-<section class="lv-sheet" id="lv-sheet" role="dialog" aria-modal="true" aria-label="Live sign mode" hidden>
-  <div class="lv-grip"></div>
-  <header class="lv-head">
-    <div class="lv-title">live<span class="lv-eng" id="lv-eng"></span></div>
-    <div class="lv-badge" id="lv-badge"><i></i><span id="lv-badge-t">off</span></div>
-    <button class="lv-x" id="lv-x" aria-label="Close live mode">×</button>
-  </header>
-  <div class="lv-view" id="lv-view">
-    <video id="lv-cam" playsinline muted autoplay></video>
-    <canvas id="lv-skel"></canvas>
-    <div class="lv-cover" id="lv-cover" hidden>
-      <div class="lv-card">
-        <div class="lv-card-t" id="lv-card-t"></div>
-        <div class="lv-card-m" id="lv-card-m"></div>
-        <div class="lv-card-b" id="lv-card-b"></div>
-      </div>
-    </div>
-  </div>
-  <div class="lv-read">
-    <span class="lv-rlab">reading</span>
-    <span class="lv-rguess dim" id="lv-guess">—</span>
-    <span class="lv-rdist" id="lv-dist"></span>
-  </div>
-  <div class="lv-act" id="lv-act"><i></i><span id="lv-act-t"></span></div>
-  <div class="lv-hold">
-    <div class="lv-hold-bar"><i id="lv-hold-i"></i></div>
-    <div class="lv-hint" id="lv-hint">hold an open palm to listen · palms together to stop</div>
-  </div>
-</section>
-<script src="live.js"></script>
+<script type="module" src="js/app.js"></script>
+<script type="module" src="js/compose.js"></script>
+<script type="module" src="js/pose.js"></script>
+<script type="module" src="js/skeleton.js"></script>
+<script type="module" src="js/live.js"></script>
+<script type="module" src="js/actions.js"></script>
+<script type="module" src="js/macro.js"></script>
+<script type="module" src="js/teach.js"></script>
+<script type="module" src="js/library.js"></script>
 </body>
 </html>
