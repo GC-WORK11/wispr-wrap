@@ -11,8 +11,8 @@ contain screen captures and must never be committed to this public repo.
 ```
 phone-composer stand-in            REAL product path                  real OS effect
 ┌────────────────────┐   HTTP    ┌──────────────────────────────┐
-│ kpstream.py        │──────────▶│ server/wfd.py on :8874       │    ┌────────────────────────┐
-│  synthetic kp42    │ /live/kp  │  scratch HOME, DISPLAY :97   │    │ Xvfb :97 + xfwm4 (4    │
+│ kpstream.py        │──────────▶│ server/wfd.py on :887x       │    ┌────────────────────────┐
+│  synthetic kp42    │ /live/kp  │  scratch HOME, DISPLAY :9x   │    │ Xvfb :9x + xfwm4 (4    │
 │  clips, 15 Hz      │           │  -> endpointer -> DTW bank   │──▶ │  workspaces) + real    │
 │                    │           │  -> commands.tsv argv spawn  │    │ apps: wish SinkEdit,   │
 │ curl /teach,/bank, │           └──────────────────────────────┘    │ xfce4-terminal,        │
@@ -23,8 +23,9 @@ phone-composer stand-in            REAL product path                  real OS ef
 Everything fires through the REAL path — the daemon's HTTP endpoints or
 the argv a real binding spawns (wmctrl/xdotool/xclip/ffmpeg/…). No
 verifier calls an implementation function to produce an effect. The
-pairing key lives only in `/tmp/wf-realrun/env` (mode 600) and is
-redacted from every artifact by `sanitize_dir`.
+pairing key lives only in `/tmp/wf-realrun-<tag>/env` (mode 600,
+`<tag>` = worktree basename) and is redacted from every artifact by
+`sanitize_dir`.
 
 ### Boot / repro
 
@@ -40,7 +41,7 @@ Per feature: `before.txt after.txt diff.txt shot.png run.log RESULT`.
 
 | subsystem                | status | detail |
 |--------------------------|--------|--------|
-| X server                 | ✅ Xvfb :97 1280x800, XTEST + XI2 2.0 | real display, real input injection |
+| X server                 | ✅ Xvfb :97-:105 (first free) 1280x800, XTEST + XI2 2.0 | real display, real input injection |
 | window manager           | ✅ xfwm4, 4 EWMH workspaces | real focus/tile/workspace semantics |
 | inject tools             | ✅ xdotool wmctrl xprop xwininfo xclip ffmpeg xmodmap | |
 | GUI apps                 | ✅ wish(Tk text editor) xfce4-terminal xmessage thunar google-chrome libreoffice | |
@@ -70,7 +71,7 @@ Per feature: `before.txt after.txt diff.txt shot.png run.log RESULT`.
 | macro | sign -> multi-effect chain (open window, type, close, step log) | proofs/realrun/macro | `tools/realrun/verify_macro.sh` | VERIFIED |
 | context | same sign -> different marker per focused app | proofs/realrun/context | `tools/realrun/verify_context.sh` | VERIFIED |
 | observe | reported-without-effect mode (route probe) | proofs/realrun/observe | `tools/realrun/verify_observe.sh` | PENDING |
-| record | real XI2 input -> macro.json (type/keys/click steps, mode 600) | proofs/realrun/record | `tools/realrun/verify_record.sh` | FAILED |
+| record | real XI2 input -> macro.json (type/keys/click steps, mode 600) | proofs/realrun/record | `tools/realrun/verify_record.sh` | VERIFIED |
 | confirm | tier-2 sign parks; /act/confirm fires; cancel buries | proofs/realrun/confirm | `tools/realrun/verify_confirm.sh` | VERIFIED |
 | auth | unpaired/wrong-key/proxied all refused on live surface | proofs/realrun/auth | `tools/realrun/verify_auth.sh` | VERIFIED |
 
