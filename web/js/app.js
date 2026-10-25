@@ -180,4 +180,20 @@ on('unpaired', () => {
   toast('unpaired — rescan QR', true);
 });
 
+// tray: LIVE toggle goes to the live sheet; teach/signs open their routes.
+// LIVE "off" while the sheet is closed is handled by live.js close().
+document.getElementById('tray-live').onclick = () => nav(current === 'live' ? '' : 'live');
+document.getElementById('tray-teach').onclick = () => nav('teach');
+document.getElementById('tray-signs').onclick = () => nav('signs');
+on('route', name => {
+  document.getElementById('tray-live').classList.toggle('on', name === 'live');
+  document.getElementById('tray-teach').classList.toggle('on', name === 'teach');
+  document.getElementById('tray-signs').classList.toggle('on', name === 'signs');
+});
+
+// service worker: vendored-shell offline + near-instant warm load (P7 lane owns sw.js)
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+
 applyRoute();
