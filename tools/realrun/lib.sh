@@ -16,9 +16,15 @@
 #  - a verify that cannot run on this box must say so and exit 77, never
 #    fake a result.
 
-REALRUN_STATE="${REALRUN_STATE:-/tmp/wf-realrun}"
+# State dir is namespaced PER WORKTREE: several agents share this box
+# (/workspace/wispr-wrap, wispr-wrap-pro, wispr-wrap-kiro all run the same
+# gate) and a shared /tmp/wf-realrun meant one agent's env/pids/windows
+# stomped another's — verifiers sourced a FOREIGN env and ran another
+# tree's helpers. Never again: the suffix comes from the repo dir name.
+_RR_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+REALRUN_STATE="${REALRUN_STATE:-/tmp/wf-realrun-$(basename "$_RR_ROOT")}"
 REALRUN_ENV="${REALRUN_ENV:-$REALRUN_STATE/env}"
-REALRUN_PROOFS="${REALRUN_PROOFS:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/proofs/realrun}"
+REALRUN_PROOFS="${REALRUN_PROOFS:-$_RR_ROOT/proofs/realrun}"
 
 log()  { printf '[realrun %s] %s\n' "$(date +%H:%M:%S)" "$*"; }
 die()  { printf '[realrun] FATAL: %s\n' "$*" >&2; exit 2; }

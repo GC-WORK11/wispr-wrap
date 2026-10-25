@@ -58,21 +58,21 @@ Per feature: `before.txt after.txt diff.txt shot.png run.log RESULT`.
 
 | feature | OS effect observed | proof dir | repro | verdict |
 |---------|--------------------|-----------|-------|---------|
-| pair_send | typed text lands in the focused real editor (sink file + WM_NAME diff) | proofs/realrun/pair_send | `tools/realrun/verify_pair_send.sh` | PENDING |
-| live_sign | sign -> marker file spawned; palm gate holds (no listen = no commit) | proofs/realrun/live_sign | `tools/realrun/verify_live_sign.sh` | PENDING |
-| open_app | sign -> new real app window (wmctrl -l diff, WM_CLASS) | proofs/realrun/open_app | `tools/realrun/verify_open_app.sh` | PENDING |
-| focus_app | sign -> _NET_ACTIVE_WINDOW changes (WM_NAME diff) | proofs/realrun/focus_app | `tools/realrun/verify_focus_app.sh` | PENDING |
-| close_window | sign -> window gone from client list | proofs/realrun/close_window | `tools/realrun/verify_close_window.sh` | PENDING |
-| tile | sign -> window geometry/maximized-state diff (xwininfo/xprop) | proofs/realrun/tile | `tools/realrun/verify_tile.sh` | PENDING |
-| workspace | sign -> desktop switch + window moved (_NET_WM_DESKTOP) | proofs/realrun/workspace | `tools/realrun/verify_workspace.sh` | PENDING |
-| volume | no audio backend on box | proofs/realrun/volume | `tools/realrun/verify_volume.sh` | PENDING |
-| screenshot | sign -> real PNG of the display (header+size) via bound argv | proofs/realrun/screenshot | `tools/realrun/verify_screenshot.sh` | PENDING |
-| macro | sign -> multi-effect chain (open window, type, close, step log) | proofs/realrun/macro | `tools/realrun/verify_macro.sh` | PENDING |
-| context | same sign -> different marker per focused app | proofs/realrun/context | `tools/realrun/verify_context.sh` | PENDING |
+| pair_send | typed text lands in the focused real editor (sink file + WM_NAME diff) | proofs/realrun/pair_send | `tools/realrun/verify_pair_send.sh` | VERIFIED |
+| live_sign | sign -> marker file spawned; palm gate holds (no listen = no commit) | proofs/realrun/live_sign | `tools/realrun/verify_live_sign.sh` | VERIFIED |
+| open_app | sign -> new real app window (wmctrl -l diff, WM_CLASS) | proofs/realrun/open_app | `tools/realrun/verify_open_app.sh` | VERIFIED |
+| focus_app | sign -> _NET_ACTIVE_WINDOW changes (WM_NAME diff) | proofs/realrun/focus_app | `tools/realrun/verify_focus_app.sh` | VERIFIED |
+| close_window | sign -> window gone from client list | proofs/realrun/close_window | `tools/realrun/verify_close_window.sh` | FAILED |
+| tile | sign -> window geometry/maximized-state diff (xwininfo/xprop) | proofs/realrun/tile | `tools/realrun/verify_tile.sh` | FAILED |
+| workspace | sign -> desktop switch + window moved (_NET_WM_DESKTOP) | proofs/realrun/workspace | `tools/realrun/verify_workspace.sh` | VERIFIED |
+| volume | no audio backend on box | proofs/realrun/volume | `tools/realrun/verify_volume.sh` | NEVER-ON-BOX |
+| screenshot | sign -> real PNG of the display (header+size) via bound argv | proofs/realrun/screenshot | `tools/realrun/verify_screenshot.sh` | VERIFIED |
+| macro | sign -> multi-effect chain (open window, type, close, step log) | proofs/realrun/macro | `tools/realrun/verify_macro.sh` | VERIFIED |
+| context | same sign -> different marker per focused app | proofs/realrun/context | `tools/realrun/verify_context.sh` | VERIFIED |
 | observe | reported-without-effect mode (route probe) | proofs/realrun/observe | `tools/realrun/verify_observe.sh` | PENDING |
-| record | real XI2 input -> macro.json (type/keys/click steps, mode 600) | proofs/realrun/record | `tools/realrun/verify_record.sh` | PENDING |
-| confirm | tier-2 sign parks; /act/confirm fires; cancel buries | proofs/realrun/confirm | `tools/realrun/verify_confirm.sh` | PENDING |
-| auth | unpaired/wrong-key/proxied all refused on live surface | proofs/realrun/auth | `tools/realrun/verify_auth.sh` | PENDING |
+| record | real XI2 input -> macro.json (type/keys/click steps, mode 600) | proofs/realrun/record | `tools/realrun/verify_record.sh` | FAILED |
+| confirm | tier-2 sign parks; /act/confirm fires; cancel buries | proofs/realrun/confirm | `tools/realrun/verify_confirm.sh` | FAILED |
+| auth | unpaired/wrong-key/proxied all refused on live surface | proofs/realrun/auth | `tools/realrun/verify_auth.sh` | VERIFIED |
 
 Legend: VERIFIED = real run + real effect + proof. PENDING = route not
 in the daemon yet (N1 mid-flight). NEVER-ON-BOX = box lacks the

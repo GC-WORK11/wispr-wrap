@@ -24,6 +24,7 @@ CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chro
 # stray chromes/stubs from a killed earlier run keep polling and racing us
 pkill -f "user-data-dir=/tmp/wf-chrome-teach" 2>/dev/null
 pkill -f "stub_wfd.py --port $PORT" 2>/dev/null
+rm -rf /tmp/wf-chrome-teach /tmp/wf-chrome-teach-old /tmp/wf-chrome-teach-load
 sleep 0.2
 
 python3 tests/stub_wfd.py --port "$PORT" >/tmp/wf-stub.log 2>&1 &
@@ -39,8 +40,13 @@ done
 curl -sf "http://127.0.0.1:$PORT/health" >/dev/null || { echo "stub never came up"; cat /tmp/wf-stub.log; exit 1; }
 
 echo "== selftest: teach a fake sign end-to-end =="
+# fresh profile every run — a reused dir can restore the previous
+# session's /selftest tab and race the stub with a second run.
+rm -rf /tmp/wf-chrome-teach
 timeout 120 "$CHROME_BIN" --headless=new --disable-gpu --no-sandbox \
-  --user-data-dir=/tmp/wf-chrome-teach --enable-logging=stderr --v=0 \
+  --user-data-dir=/tmp/wf-chrome-teach --no-first-run \
+  --disable-session-crashed-bubble --hide-crash-restore-bubble \
+  --enable-logging=stderr --v=0 \
   "http://127.0.0.1:$PORT/selftest" >/tmp/wf-chrome.log 2>&1 &
 CPID=$!
 

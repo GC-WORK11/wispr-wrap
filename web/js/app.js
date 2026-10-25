@@ -6,7 +6,11 @@
 // arrives once in the URL (?k=), then lives in localStorage
 const store = (() => { try { return localStorage; } catch (e) { return sessionStorage; } })();
 const K = new URLSearchParams(location.search).get('k') || store.getItem('wfk') || '';
-if (K) { store.setItem('wfk', K); if (location.search) history.replaceState(null, '', location.pathname); }
+if (K) {
+  store.setItem('wfk', K);
+  if (location.search)                       // keep #/route on deep links
+    history.replaceState(null, '', location.pathname + location.hash);
+}
 
 // ---------- transport ----------
 // All daemon endpoints share X-WF-Key auth (hmac-compared laptop-side).

@@ -18,8 +18,31 @@ ROOT="$(cd "$HERE/../.." && pwd)"
 # shellcheck disable=SC1090
 . "$HERE/lib.sh"
 
-D="${REALRUN_DISPLAY:-:97}"
-PORT="${REALRUN_PORT:-8874}"
+# Private display: the spec wants :97, but a sibling agent's stack may
+# already live there (their windows on a server WE started). A display
+# that answers xdpyinfo is FOREIGN-CONTAMINATED — never reuse it; the
+# gate's focus/window proofs need an empty, owned display.
+if [ -n "${REALRUN_DISPLAY:-}" ]; then
+    D="$REALRUN_DISPLAY"
+else
+    D=""
+    for cand in 97 98 99 100 101 102 103 104 105; do
+        [ -e "/tmp/.X${cand}-lock" ] && continue
+        DISPLAY=":$cand" xdpyinfo >/dev/null 2>&1 && continue
+        D=":$cand"; break
+    done
+    [ -n "$D" ] || die "no free display in :97-:105"
+fi
+# Private port: first free in 8874..8884 (keeps the spec's 8874 when free).
+if [ -n "${REALRUN_PORT:-}" ]; then
+    PORT="$REALRUN_PORT"
+else
+    PORT=""
+    for cand in 8874 8875 8876 8877 8878 8879 8880 8881 8882 8883 8884; do
+        ss -tln 2>/dev/null | grep -q ":$cand " || { PORT="$cand"; break; }
+    done
+    [ -n "$PORT" ] || die "no free port in 8874-8884"
+fi
 WFHOME="$REALRUN_STATE/home"
 BINDIR="$REALRUN_STATE/bin"
 STATE="$REALRUN_STATE"
@@ -33,20 +56,25 @@ teardown() {
     log "tearing down"
     for pidf in "$STATE"/pids.*; do
         [ -f "$pidf" ] || continue
-        kill "$(cat "$pidf" 2>/dev/null)" 2>/dev/null
+        _pid=$(cat "$pidf" 2>/dev/null)
+        # 'external' marks a server/WM we found running — never kill those
+        [ "$_pid" = "external" ] && { rm -f "$pidf"; continue; }
+        [ -n "$_pid" ] && kill "$_pid" 2>/dev/null
         rm -f "$pidf"
     done
-    # anything still holding the display: only OUR tagged children die
-    pkill -f "realrun-sink" 2>/dev/null
-    pkill -f "xfce4-terminal --title realrun" 2>/dev/null
-    [ "${1:-}" = "x" ] && kill "$(cat "$STATE/pids.xvfb" 2>/dev/null)" 2>/dev/null
+    # close only windows on OUR display (sibling agents use the same
+    # window names on their own displays — pkill -f would murder theirs)
+    for wid in $(DISPLAY="$D" xdotool search --name "^realrun" 2>/dev/null; \
+                 DISPLAY="$D" xdotool search --class SinkEdit 2>/dev/null); do
+        DISPLAY="$D" wmctrl -ic "$wid" 2>/dev/null
+    done
     rm -f "$STATE/env"
 }
 teardown
 [ "${1:-}" = "--teardown" ] && { log "down"; exit 0; }
 
 # ---------- required tools ----------------------------------------------
-for t in python3 curl Xvfb xdotool wmctrl xprop xwininfo xclip ffmpeg setsid; do
+for t in python3 curl Xvfb xdpyinfo xdotool wmctrl xprop xwininfo xclip ffmpeg setsid ss; do
     req "$t"
 done
 WM=""
@@ -76,18 +104,30 @@ DISPLAY="$D" xdpyinfo -ext XTEST 2>/dev/null | grep -q XTEST \
     || die "XTEST missing on $D — input injection impossible"
 
 # ---------- window manager ----------------------------------------------
-if ! DISPLAY="$D" xprop -root _NET_SUPPORTING_WM_CHECK >/dev/null 2>&1; then
+# Verify, don't trust: the check can pass transiently (a sibling agent's
+# WM probing the same display) — wait, re-probe, then take over if the
+# display is still unmanaged. EWMH focus/desktop proofs REQUIRE a WM.
+wm_present() { DISPLAY="$D" xprop -root _NET_SUPPORTING_WM_CHECK 2>/dev/null \
+    | grep -q "window id"; }
+if ! wm_present; then
     log "starting WM: $WM"
     DISPLAY="$D" setsid "$WM" --compositor=off >/dev/null 2>&1 || \
         DISPLAY="$D" setsid "$WM" >/dev/null 2>&1 &
     echo $! > "$STATE/pids.wm"
-    for _ in $(seq 1 50); do
-        DISPLAY="$D" xprop -root _NET_SUPPORTING_WM_CHECK 2>/dev/null | grep -q "window id" && break
-        sleep 0.2
-    done
+    for _ in $(seq 1 50); do wm_present && break; sleep 0.2; done
 else
-    echo "external" > "$STATE/pids.wm"
+    # found a WM already managing the display — treat as external, but
+    # prove it's stable (two probes a second apart) else take over anyway
+    sleep 1
+    if wm_present; then
+        echo "external" > "$STATE/pids.wm"
+    else
+        DISPLAY="$D" setsid "$WM" --compositor=off >/dev/null 2>&1 &
+        echo $! > "$STATE/pids.wm"
+        for _ in $(seq 1 50); do wm_present && break; sleep 0.2; done
+    fi
 fi
+wm_present || die "no window manager on $D — focus/desktop proofs impossible"
 log "wm ready: $(DISPLAY="$D" wmctrl -m 2>/dev/null | head -1)"
 
 # ---------- real apps ----------------------------------------------------
@@ -138,8 +178,6 @@ TERMSINK=$TERMSINK
 MARKERS=$MARKERS
 TERM_WID=$TERM_WID
 TERM2_WID=$TERM2_WID
-ROOT=$ROOT
-HERE=$HERE
 STATE=$STATE
 EOF
 chmod 600 "$STATE/env"
