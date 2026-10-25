@@ -165,6 +165,7 @@ export const App = {
     sheetTeach: document.getElementById('sheet-teach'),
     sheetSigns: document.getElementById('sheet-signs'),
     sheetActions: document.getElementById('sheet-actions'),
+    sheetMacro: document.getElementById('sheet-macro'),
   },
   // Wispr dictation bridge (Android app injects window.WF)
   wispr: {
