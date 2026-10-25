@@ -251,11 +251,58 @@ class LaptopEngineTest(unittest.TestCase):
         self.assertTrue(st["teach"]["active"], st["teach"])
         self.assertEqual(st["teach"]["name"], "NOD")
 
+    def test_a_redundant_palm_hold_keeps_the_last_reading(self):
+        # an open hand held still while already listening is not news: the reading strip
+        # (last_match) keeps the last sign instead of flipping to "listening"
+        def open_hand(wx=0.5, wy=0.62):
+            pts = [None] * 21
+            pts[0] = (wx, wy)
+            for f, (base, dx) in enumerate(((5, -0.04), (9, -0.013), (13, 0.013), (17, 0.04))):
+                for k in range(4):                       # MCP .. tip, straight up
+                    pts[base + k] = (wx + dx, wy - 0.05 - 0.03 * k)
+            for k in range(1, 5):                        # thumb out to the side
+                pts[k] = (wx - 0.03 - 0.02 * k, wy - 0.01 * k)
+            return [{"x": 0, "y": 0, "score": 0}] * 21 + [{"x": x, "y": y, "score": 0.95} for x, y in pts]
+        sess = "phone-palm"
+        self.d.req("POST", "/live/kp", {"t_ms": 1000, "session": sess, "points": open_hand()})
+        s, r = self.d.req("POST", "/live/listen", {"on": True})
+        self.assertEqual(s, 200, r)
+        s, st = self.d.req("GET", "/live/state")
+        before = st["last_match"]
+        modes = []
+        for i in range(1, 40):
+            s, r = self.d.req("POST", "/live/kp", {"t_ms": 1000 + i * 66, "session": sess, "points": open_hand()})
+            if r.get("mode"):
+                modes.append(r["mode"])
+        self.assertIn("PALM-OPEN", modes, "the held open hand did not read as the palm hold")
+        s, st = self.d.req("GET", "/live/state")
+        self.assertTrue(st["listening"])
+        self.assertEqual(st["last_match"], before, "a redundant PALM-OPEN replaced the reading")
+
     def test_bad_source_is_refused(self):
         s, r = self.d.req("POST", "/live/source", {"source": "webcam9"})
         self.assertEqual(s, 409, r)
         self.assertFalse(r["ok"])
         self.assertEqual(r["camera"], "phone")
+
+
+class StrictJsonTest(unittest.TestCase):
+    def test_replies_are_strict_json(self):
+        # a bank with ONE sign has no runner-up: margin is infinite. The app's JSON.parse
+        # rejects Infinity, so every reply must be strict JSON (non-finite -> null).
+        sys.path.insert(0, BASE)
+        home = tempfile.mkdtemp(prefix="wf-json-")
+        old_home = os.environ.get("HOME")
+        os.environ["HOME"] = home          # wfd writes its key/bank paths under HOME at import
+        try:
+            import wfd  # noqa: E402  (imports without serving)
+        finally:
+            os.environ["HOME"] = old_home or ""
+            shutil.rmtree(home, ignore_errors=True)
+        out = json.dumps(wfd._finite({"m": {"margin": float("inf"), "d": float("nan"), "ok": 0.5},
+                                      "l": [float("-inf"), 1.0]}))
+        json.loads(out, parse_constant=lambda c: self.fail("non-strict JSON: " + c))
+        self.assertEqual(json.loads(out), {"m": {"margin": None, "d": None, "ok": 0.5}, "l": [None, 1.0]})
 
 
 class DyingEngineTest(unittest.TestCase):

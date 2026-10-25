@@ -53,11 +53,14 @@ def wire(rows, hz, t0_ms, units, w, h):
     return out
 
 
+EP_KW = {}       # --ep quiet_s=0.5 ... (endpointer knob overrides; defaults = shipped)
+
+
 class Stream:
     """One continuous kp42 stream into one endpointer (the daemon's LIVE['ep'])."""
 
     def __init__(self, units, w, h):
-        self.ep = endpointer.Endpointer(palm_sign=None, namaste_sign=None)
+        self.ep = endpointer.Endpointer(palm_sign=None, namaste_sign=None, **EP_KW)
         self.t = 0.0
         self.units, self.w, self.h = units, w, h
 
@@ -131,20 +134,30 @@ def main():
     ap.add_argument("--signers", default="6,7,8,9,10")
     ap.add_argument("--units", default="norm", choices=("norm", "px"))
     ap.add_argument("--json")
+    ap.add_argument("--ep", action="append", default=[], help="endpointer knob, e.g. quiet_s=0.5")
+    ap.add_argument("--quiet", action="store_true", help="only the ALL line")
     a = ap.parse_args()
+    for kv in a.ep:
+        k, v = kv.split("=", 1)
+        EP_KW[k] = float(v)
     allrows, per, ms = [], {}, []
     for sg in [int(x) for x in a.signers.split(",") if x]:
         rows, tsegs, mms, thr = run_signer(a.kp, sg, a.units, TAUGHT, NEG)
         allrows += [dict(r, signer=sg) for r in rows]
         ms += mms
         per[sg] = dict(summarize(rows), teach_segments=tsegs)
-        print(f"signer {sg} ({a.units}): {json.dumps(per[sg])}", flush=True)
+        if not a.quiet:
+            print(f"signer {sg} ({a.units}): {json.dumps(per[sg])}", flush=True)
     tot = summarize(allrows)
     ms.sort()
     q = (lambda p: round(ms[min(len(ms) - 1, int(p * len(ms)))], 2)) if ms else (lambda p: None)
     tot["match_ms_p50"], tot["match_ms_p95"] = q(0.5), q(0.95)
     tot["reject_threshold"] = thr
-    print(f"ALL ({a.units}): {json.dumps(tot)}")
+    segs = [r["segs"] for r in allrows]
+    tot["perform_segments_per_clip"] = {str(k): segs.count(k) for k in sorted(set(segs))}
+    tot["teach_segments_per_3_takes"] = sorted(
+        (v for p in per.values() for v in p["teach_segments"].values()))
+    print(f"ALL ({a.units}, ep {EP_KW or 'shipped'}): {json.dumps(tot)}")
     if a.json:
         with open(a.json, "w") as f:
             json.dump({"units": a.units, "taught": TAUGHT, "neg": NEG, "per_signer": per,

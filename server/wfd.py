@@ -939,6 +939,7 @@ def live_kp(data):
         for ev in events:
             if ev.get("type") == "mode":
                 name = ev.get("name", "")
+                was = LIVE["listening"]
                 if name == PALM_SIGN:
                     LIVE["listening"] = True
                 elif name == NAMASTE_SIGN:
@@ -948,10 +949,13 @@ def live_kp(data):
                             OPS.flush()  # held prefix resolves at session end
                         except Exception:
                             pass
-                LIVE["last_match"] = {
-                    "gloss": name, "dist": 0.0, "at_ms": t_ms,
-                    "accepted": True, "mode": True,
-                    "label": "listening" if LIVE["listening"] else "stopped"}
+                # a hold that changes nothing (an open hand at rest while
+                # already listening) must not replace the last sign reading
+                if LIVE["listening"] != was:
+                    LIVE["last_match"] = {
+                        "gloss": name, "dist": 0.0, "at_ms": t_ms,
+                        "accepted": True, "mode": True,
+                        "label": "listening" if LIVE["listening"] else "stopped"}
                 out["mode"] = name
             elif ev.get("type") == "segment":
                 out.update(_on_segment(ev.get("frames") or [], t_ms))
@@ -1371,6 +1375,17 @@ def laptop_report():
             "laptop": st}
 
 
+def _finite(o):
+    """Non-finite floats -> None, recursively (for strict JSON)."""
+    if isinstance(o, float):
+        return o if o == o and o not in (float("inf"), float("-inf")) else None
+    if isinstance(o, dict):
+        return {k: _finite(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_finite(v) for v in o]
+    return o
+
+
 def authed(headers):
     return hmac.compare_digest(headers.get("X-WF-Key", ""), SECRET)
 
@@ -1389,7 +1404,10 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def _jreply(self, code, obj):
-        return self._reply(code, json.dumps(obj).encode(), "application/json")
+        # strict JSON: Python writes inf/nan as Infinity/NaN, which JSON.parse
+        # rejects — one infinite margin (a bank with a single sign) made the
+        # whole /live/state reply unreadable to the app
+        return self._reply(code, json.dumps(_finite(obj)).encode(), "application/json")
 
     def _proxied(self):
         """Forwarded headers => the request came through a tunnel/proxy.

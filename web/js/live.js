@@ -25,7 +25,7 @@ sheet.innerHTML = `
   <div class="sheet-head">
     <h1>live<span class="lv-eng" id="lv-eng"></span></h1>
     <button class="lv-src" id="lv-src" hidden></button>
-    <div class="lv-badge" id="lv-badge"><i></i><span id="lv-badge-t">off</span></div>
+    <div class="lv-badge" id="lv-badge" role="button" tabindex="0" title="tap to listen / stop"><i></i><span id="lv-badge-t">off</span></div>
     <button class="sheet-x" id="lv-x" aria-label="Close live mode">×</button>
   </div>
   <div class="sheet-body lv-body">
@@ -62,7 +62,7 @@ const video = $('lv-cam'), skel = $('lv-skel'), cover = $('lv-cover'),
       holdI = $('lv-hold-i'), hint = $('lv-hint'), xbtn = $('lv-x'), srcBtn = $('lv-src'),
       viewEl = $('lv-view');
 
-const HINT_DEF = 'hold an open palm to listen · palms together to stop';
+const HINT_DEF = 'hold an open palm (or tap idle) to listen · palms together to stop';
 const KP_MS = 83;        // ~12 Hz keypoint frames (spec: 10-15 Hz)
 const ST_MS = 167;       // ~6 Hz state poll while open
 
@@ -146,9 +146,18 @@ export const CamPref = {
   get() { try { return localStorage.getItem('wf.camera') === 'laptop' ? 'laptop' : 'phone'; } catch (e) { return 'phone'; } },
   set(v) { try { localStorage.setItem('wf.camera', v === 'laptop' ? 'laptop' : 'phone'); } catch (e) {} },
 };
-export async function setCamera(src) {
-  const r = await App.api.post('/live/source', { source: src }).catch(() => null);
-  return r && r.json ? Object.assign({ status: r.status }, r.json) : { ok: false, status: 0, message: 'the laptop did not answer' };
+/* one switch at a time, in call order: the daemon is threaded, so a sheet
+   closing ("phone") and the next one opening ("laptop") could otherwise land
+   in the wrong order and leave the camera off */
+let camQ = Promise.resolve();
+export function setCamera(src) {
+  const run = async () => {
+    const r = await App.api.post('/live/source', { source: src }).catch(() => null);
+    return r && r.json ? Object.assign({ status: r.status }, r.json) : { ok: false, status: 0, message: 'the laptop did not answer' };
+  };
+  const p = camQ.then(run, run);
+  camQ = p.catch(() => {});
+  return p;
 }
 
 /* LaptopFeed — while the laptop camera is the source its engine's POST
@@ -538,6 +547,19 @@ async function usePhone() {
   boot();
 }
 srcBtn.onclick = () => { if (S.remote) usePhone(); else useLaptop(); };
+/* tap the badge = listen / stop — the same switch as the open-palm hold and
+   palms together, for when a hand pose is not the convenient way */
+async function toggleListen() {
+  if (!S.open) return;
+  const on = !badge.classList.contains('listen');
+  const r = await App.api.post('/live/listen', { on }).catch(() => null);
+  if (r && r.ok) {
+    setBadge(on ? 'listen' : '', on ? 'listening' : 'idle');
+    hint.textContent = on ? 'listening — sign a command' : HINT_DEF;
+  }
+}
+badge.onclick = toggleListen;
+badge.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleListen(); } };
 
 /* ---------- orchestration ---------- */
 async function open() {
