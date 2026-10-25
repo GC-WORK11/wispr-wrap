@@ -320,6 +320,20 @@ function showMatch(m, viaPoll) {
   }
   if (!viaPoll) App.pollState();
 }
+/* what the laptop really did with a fired sign (the action worker's result,
+   not the match): fired / held for a laptop-side confirm / refused + why */
+function showAction(la) {
+  const t = la && la.t_ms != null ? la.t_ms : 0;
+  if (S.seenAct === undefined) { S.seenAct = t; return; }   // first poll: the baseline, not news
+  if (!la || la.observe || !la.result || t === S.seenAct) return;
+  S.seenAct = t;
+  const what = la.label || (la.glosses || []).join(' + ') || 'sign';
+  const res = la.result || {};
+  const detail = String(res.detail || '').replace(/\s*\(pid \d+\)/, '');
+  if (la.pending || res.pending) actFlash('held for confirm · ' + what);
+  else if (la.ok) actFlash('fired · ' + what + (detail ? ' — ' + detail : ''));
+  else actFlash('not run · ' + what + (la.error ? ' — ' + la.error : ''));
+}
 function actFlash(txt) {
   actT.textContent = txt;
   actEl.classList.add('show');
@@ -331,6 +345,7 @@ function renderState(j) {
   const listening = !!(j.listening || j.mode === 'listening' || j.state === 'listening');
   setBadge(listening ? 'listen' : '', listening ? 'listening' : 'idle');
   if (j.last_match) showMatch(j.last_match, true);
+  showAction(j.last_action);
   const pend = Array.isArray(j.pending) ? j.pending : [];
   renderPending(pend);
   if (!listening && !S.seenMatch) { guessEl.textContent = '—'; guessEl.classList.add('dim'); distEl.textContent = ''; whyEl.textContent = ''; }
