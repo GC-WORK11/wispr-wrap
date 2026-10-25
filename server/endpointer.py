@@ -146,8 +146,10 @@ class Endpointer:
         self._prev = [None, None]     # last _Hand per slot
         self._t = None                # last frame time (s)
         self._ema = None
-        self._palm = [{"since": None, "armed": True} for _ in range(2)]
+        self._palm = [{"since": None, "armed": False, "seen": False}
+                      for _ in range(2)]
         self._nam = {"since": None, "armed": True}
+        self._n = 0                   # frames seen before the current one
 
     @property
     def active(self):
@@ -225,6 +227,7 @@ class Endpointer:
                     events.append(self._close(t, "quiet"))
             else:
                 self._quiet = None
+        self._n += 1
         return events
 
     def _close(self, t, how):
@@ -246,10 +249,24 @@ class Endpointer:
             gap = _d(a.cx, a.cy, b.cx, b.cy)
             together = gap <= self.namaste_gap * (a.palm + b.palm) / 2.0
 
-        # held open palm — but hands-together means namaste, never palm
+        # held open palm — but hands-together means namaste, never palm.
+        # A palm that is ALREADY resting in view when the stream starts is
+        # not a deliberate presentation: arm on hand entry (absent->present
+        # after the first frame) or after the hand closes past rearm_ratio.
+        # Without this, a static rest pose fires PALM-OPEN by accident
+        # (measured: 155/320 LSA64 signer-6 clips, 125 of them in the
+        # leading rest pad at ~0.47 s).
         for i, h in enumerate(hands):
             st = self._palm[i]
+            if h.present and not st["seen"]:
+                st["seen"] = True
+                if self._n > 0:       # entered view after the stream began
+                    st["armed"] = True
+            elif not h.present and st["seen"]:
+                st["seen"] = False
+                st["armed"] = True    # leaving view re-arms the next entry
             held_open = h.present and not together and \
+                self._state != "active" and \
                 h.openness >= self.open_ratio and h.speed <= self.hold_v
             if held_open:
                 if st["since"] is None:
@@ -261,8 +278,7 @@ class Endpointer:
                                    "t_ms": int(t * 1000)})
             else:
                 st["since"] = None
-                if (not h.present) or h.openness <= self.rearm_ratio or \
-                        h.speed > self.hold_v * 2.0:
+                if (not h.present) or h.openness <= self.rearm_ratio:
                     st["armed"] = True
 
         # held palms-together (namaste)
