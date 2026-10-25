@@ -116,12 +116,14 @@ DISPLAY="$D" xdpyinfo -ext XTEST 2>/dev/null | grep -q XTEST \
 # display is still unmanaged. EWMH focus/desktop proofs REQUIRE a WM.
 wm_present() { DISPLAY="$D" xprop -root _NET_SUPPORTING_WM_CHECK 2>/dev/null \
     | grep -q "window id"; }
-if ! wm_present; then
-    log "starting WM: $WM"
-    DISPLAY="$D" setsid "$WM" --compositor=off >/dev/null 2>&1 || \
-        DISPLAY="$D" setsid "$WM" >/dev/null 2>&1 &
+start_wm() {   # spawn detached; never foreground-block on the WM
+    DISPLAY="$D" setsid "$WM" --compositor=off </dev/null >/dev/null 2>&1 &
     echo $! > "$STATE/pids.wm"
     for _ in $(seq 1 50); do wm_present && break; sleep 0.2; done
+}
+if ! wm_present; then
+    log "starting WM: $WM"
+    start_wm
 else
     # found a WM already managing the display — treat as external, but
     # prove it's stable (two probes a second apart) else take over anyway
@@ -129,9 +131,7 @@ else
     if wm_present; then
         echo "external" > "$STATE/pids.wm"
     else
-        DISPLAY="$D" setsid "$WM" --compositor=off >/dev/null 2>&1 &
-        echo $! > "$STATE/pids.wm"
-        for _ in $(seq 1 50); do wm_present && break; sleep 0.2; done
+        start_wm
     fi
 fi
 wm_present || die "no window manager on $D — focus/desktop proofs impossible"

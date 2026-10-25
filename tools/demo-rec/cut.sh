@@ -6,18 +6,25 @@
 # Reads chapters.tsv (name <TAB> seconds-since-rec-start <TAB> note),
 # cuts [mark, next-mark) per chapter with a small tail pad, re-encodes
 # (keyframe-exact cuts), concatenates everything to demo.mp4, and writes
-# /tmp/demo/CLIPS.tsv with real durations.
+# CLIPS.tsv with real durations.
+#
+# Outputs (duplicated):
+#   /tmp/demo/clips/*.mp4, /tmp/demo/demo.mp4, /tmp/demo/CLIPS.tsv
+#   <repo>/demo/rough-cuts/*.mp4, <repo>/demo/demo.mp4, <repo>/demo/CLIPS.tsv
+# (repo demo/ is gitignored — videos stay local.)
 set -u
 cd "$(dirname "$0")"
 DEMO=/tmp/demo
 RAW=$DEMO/raw.mp4
 CH=$DEMO/chapters.tsv
 CL=$DEMO/clips
+REPO_DEMO="$(cd ../.. && pwd)/demo"
+RCL=$REPO_DEMO/rough-cuts
 
 [ -f "$RAW" ] || { echo "no $RAW"; exit 1; }
 [ -f "$CH" ] || { echo "no $CH — run drive.py first"; exit 1; }
-mkdir -p "$CL"
-rm -f "$CL"/ch-*.mp4 "$CL"/list.txt "$DEMO/CLIPS.tsv"
+mkdir -p "$CL" "$RCL"
+rm -f "$CL"/ch-*.mp4 "$CL"/list.txt "$DEMO/CLIPS.tsv" "$RCL"/*.mp4
 
 # read marks
 declare -a NAMES TIMES NOTES
@@ -56,4 +63,9 @@ D=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$DEMO/demo.mp4")
 echo "demo.mp4 = ${D}s"
 python3 -c "import sys; d=float('$D'); sys.exit(0 if d < 300 else 1)" \
   || echo "WARN: demo.mp4 exceeds 5 minutes"
+
+cp -f "$CL"/ch-*.mp4 "$RCL/" 2>/dev/null
+cp -f "$DEMO/demo.mp4" "$REPO_DEMO/demo.mp4"
+cp -f "$DEMO/CLIPS.tsv" "$REPO_DEMO/CLIPS.tsv"
 echo "--- clips ---"; cat "$DEMO/CLIPS.tsv"
+echo "repo copy -> $REPO_DEMO (rough-cuts/ + demo.mp4)"

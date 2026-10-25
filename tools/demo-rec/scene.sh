@@ -20,31 +20,65 @@
 # commands.tsv it uses are seeded here, nothing touches ~/.
 set -u
 cd "$(dirname "$0")"
-D=":110"
 DEMO=/tmp/demo
 WFD_PORT=8742
-REPLAY_PORT=8877
-CDP_PORT=9223
+REPLAY_PORT=8877                 # hardcoded in web/js/pose.js — must be ours
 LOGS=$DEMO/logs
 OUT=$DEMO/out
 DEMOHOME=$DEMO/home
 
-pids_file=$DEMO/pids
+# --- free display + CDP port --------------------------------------------
+# Sibling agents on this box scan :97-:105 for their own Xvfb and have
+# grabbed :93/:110/:111/:147 ad hoc — hardcoding a display collided.
+# We probe a wide range, take the first truly free one, and start Xvfb
+# immediately: the X lock + a live xdpyinfo are how every lane here
+# knows a display is owned.
+pick_display() {
+  local d
+  for d in 116 118 120 122 124 126 128 130 132 134 136 138 140 142 144 \
+           146 148 150 152 154 156 158 160 165 170 175 180 185 190 195; do
+    [ -e "/tmp/.X${d}-lock" ] && continue
+    DISPLAY=":$d" xdpyinfo >/dev/null 2>&1 && continue
+    echo ":$d"; return 0
+  done
+  return 1
+}
+pick_port() {  # first unbound port from the list
+  local p
+  for p in "$@"; do
+    ss -tln "sport = :$p" 2>/dev/null | grep -q LISTEN || { echo "$p"; return 0; }
+  done
+  return 1
+}
 
 clean() {
+  D=$(cat "$DEMO/display" 2>/dev/null || true)
   if [ -f "$pids_file" ]; then
     while read -r p; do kill "$p" 2>/dev/null; done < "$pids_file"
     rm -f "$pids_file"
   fi
-  # scoped kills only: OUR display number and OUR /tmp/demo paths are
-  # unique on this box — never pkill patterns a sibling could match.
-  pkill -f "Xvfb $D " 2>/dev/null
+  # scoped kills only: OUR recorded display and OUR /tmp/demo paths —
+  # never pkill patterns a sibling could match.
+  [ -n "${D:-}" ] && pkill -f "Xvfb $D " 2>/dev/null
   pkill -f "user-data-dir=$DEMO/chr" 2>/dev/null
   pkill -f "$DEMO/run-sink.sh" 2>/dev/null
   sleep 0.4
 }
+pids_file=$DEMO/pids
 [ "${1:-}" = "--clean" ] && { clean; echo "cleaned"; exit 0; }
 clean
+D=$(pick_display) || { echo "no free display in probe range"; exit 1; }
+CDP_PORT=$(pick_port 9224 9225 9226 9227 9228 9229 9230 9234 9238 9242) \
+  || { echo "no free CDP port"; exit 1; }
+echo "$D" > "$DEMO/display"
+mkdir -p "$LOGS" "$OUT"
+cat > "$DEMO/env" <<EOF
+DEMO_DISPLAY=$D
+WFD_PORT=$WFD_PORT
+REPLAY_PORT=$REPLAY_PORT
+CDP_PORT=$CDP_PORT
+EOF
+
 rm -rf "$DEMOHOME" "$DEMO/chr-app" "$DEMO/chr-tabs"
 mkdir -p "$DEMOHOME/.config/wf" "$LOGS" "$OUT" "$DEMO/clips" "$DEMOHOME/Pictures" "$DEMO/assets"
 : > "$pids_file"
@@ -74,8 +108,8 @@ guard_port() {  # $1=port — bound by a leftover of ours: kill; by anyone else:
   exit 1
 }
 guard_port $WFD_PORT
-guard_port $REPLAY_PORT
-guard_port $CDP_PORT
+guard_port $REPLAY_PORT   # the page hardcodes :8877 — if a foreign
+                          # service owns it the seam would feed garbage
 
 # --- display + wm ----------------------------------------------------
 Xvfb "$D" -screen 0 1920x1080x24 >>"$LOGS/xvfb.log" 2>&1 &
@@ -97,14 +131,14 @@ exec /bin/sh -i
 SH
 chmod +x "$DEMO/fired.sh"
 
-cat > "$DEMO/title.sh" <<'SH'
+cat > "$DEMO/title.sh" <<SH
 #!/bin/sh
 printf '\n'
 printf '    ╦ ╦╦╔═╗╔═╗╦═╗  ╦ ╦╦═╗╔═╗╔═╗  ═══ live e2e demo\n'
 printf '    ║║║║╚═╗╠═╝╠╦╝  ║║║║╠╦╝╠═╣╠═╝  phone → laptop\n'
 printf '    ╚╩╝╩╚═╝╩  ╩╚═  ╚╩╝╩╚═╩ ╩╩    sign → real OS action\n\n'
-printf '    display :110 (Xvfb 1920x1080)  pose source: kp42 replay\n'
-printf '    daemon  :8742                  replay :8877\n\n'
+printf '    display $D (Xvfb 1920x1080)  pose source: kp42 replay\n'
+printf '    daemon  :$WFD_PORT                  replay :$REPLAY_PORT\n\n'
 exec tail -f /dev/null
 SH
 chmod +x "$DEMO/title.sh"

@@ -31,8 +31,20 @@ def main():
         sys.stderr.write("xinput-shim: only 'test-xi2 --root' is "
                          "implemented (got %r)\n" % (argv,))
         return 2
-    from Xlib import display
-    from Xlib.ext import xinput
+    try:
+        from Xlib import display
+        from Xlib.ext import xinput
+    except ImportError:
+        # The daemon runs this with a SCRATCH HOME — python-xlib lives in
+        # the real user's site dir, which $HOME no longer points at.
+        # Resolve it from the passwd entry, not the environment.
+        import os as _os
+        import pwd as _pwd
+        _home = _pwd.getpwuid(_os.getuid()).pw_dir
+        sys.path.append("%s/.local/lib/python%d.%d/site-packages" % (
+            _home, sys.version_info.major, sys.version_info.minor))
+        from Xlib import display
+        from Xlib.ext import xinput
     d = display.Display()
     xinput.query_version(d)
     root = d.screen().root
