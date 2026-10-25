@@ -2,12 +2,9 @@
 # verify_macro — sign -> a REAL multi-step chain fires (open window ->
 # wait -> type into editor -> close window -> marker log).
 #
-# Honest scope note: the daemon today routes bound actions as argv
-# (commands.tsv). A "macro" a user can bind TODAY is an argv that runs a
-# script — so the bound argv here is `python3 <state>/macro_chain.py`, a
-# real user-level script driving REAL OS tools (xdotool/wmctrl/xmessage),
-# never implementation functions. The engine-level kind:"macro" bank
-# action is probed too and reported honestly (expected: not routed).
+# Two paths are proved: (1) the user-argv macro (a script driving real
+# OS tools) and (2) the engine-level kind:"macro" bank action routed
+# through the action provider (type + wait steps).
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$HERE/lib.sh"; load_env
@@ -67,21 +64,35 @@ echo "=== sink ==="; cat "$SINK" 2>/dev/null
 DISPLAY="$D" wmctrl -l > "$PROOF/after.txt"
 shot "$PROOF/after.png"
 
-# --- engine-level probe (kind:macro routing — expected not routed) ------
-# teach a sign whose bank action is a real kind:macro object (the teach
-# path stores action dicts opaquely — the honest way to carry one today)
-code=$(call POST /teach/begin '{"name":"RR-MACRO2","takes":1,"label":"engine macro","action":{"kind":"macro","steps":[{"argv":["/usr/bin/touch","'$MARKERS'/macro-engine"]}]},"tier":0}')
-echo "teach/begin kind:macro -> $code" | tee -a "$PROOF/probe.txt"
+# --- engine-level probe: kind:macro through the action provider ----------
+# Steps use type_text (no argv), so no first-use confirm parks the chain;
+# focus the sink editor and require the chained step to type there.
+ENGINE_TXT="MACRO-ENGINE-OK"
+python3 - "$STATE/macro-engine.json" "$ENGINE_TXT" <<'PY'
+import json, sys
+path, txt = sys.argv[1], sys.argv[2]
+json.dump({"name": "RR-MACRO2", "takes": 1, "label": "engine macro",
+           "action": {"kind": "macro", "tier": 0, "steps": [
+               {"step": "type", "text": txt + "\n"},
+               {"step": "wait_ms", "ms": 100}]}}, open(path, "w"))
+PY
+DISPLAY="$D" xdotool windowactivate --sync "$TERM_WID" 2>/dev/null; sleep 0.4
+code=$(call POST /teach/begin "@$STATE/macro-engine.json")
+echo "teach/begin kind:macro -> $code $(call_body | head -c 200)" | tee -a "$PROOF/probe.txt"
 python3 "$HERE/kpstream.py" --base "$BASE" --key "$KEY" --fps 40 teach:RR-MACRO2 >/dev/null
 sleep 0.3
 call POST /teach/end '{}' >/dev/null
+python3 "$HERE/kpstream.py" --base "$BASE" --key "$KEY" --fps 40 palm >/dev/null 2>&1
+sleep 0.3
 python3 "$HERE/kpstream.py" --base "$BASE" --key "$KEY" --fps 40 sign:RR-MACRO2 >/dev/null 2>&1
-sleep 0.6
+for i in $(seq 1 20); do grep -q "$ENGINE_TXT" "$SINK" 2>/dev/null && break; sleep 0.2; done
 call GET /live/state > /dev/null
 call_body | python3 -c 'import json,sys; s=json.load(sys.stdin); print("last_match:", s.get("last_match"))' | tee -a "$PROOF/probe.txt"
-[ -f "$MARKERS/macro-engine" ] \
-    && echo "kind:macro ROUTED (engine dispatch landed)" | tee -a "$PROOF/probe.txt" \
-    || echo "kind:macro bound action NOT routed — daemon routes argv only today (engine dispatch PENDING)" | tee -a "$PROOF/probe.txt"
+if grep -q "$ENGINE_TXT" "$SINK" 2>/dev/null; then
+    echo "kind:macro ROUTED (engine provider ran the chain; sink received $ENGINE_TXT)" | tee -a "$PROOF/probe.txt"
+else
+    echo "kind:macro bound action NOT routed through the provider" | tee -a "$PROOF/probe.txt"
+fi
 
 N=$(grep -c . "$STEPS" 2>/dev/null)
 if [ "$N" -ge 4 ] && grep -q "MACRO-STEP-OK" "$SINK"; then
