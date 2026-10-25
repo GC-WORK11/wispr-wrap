@@ -21,6 +21,11 @@ rm -f "$RESULT" /tmp/wf-stub.log /tmp/wf-stub-old.log /tmp/wf-chrome.log /tmp/wf
 CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
 [ -n "$CHROME_BIN" ] || { echo "no chrome/chromium found"; exit 2; }
 
+# stray chromes/stubs from a killed earlier run keep polling and racing us
+pkill -f "user-data-dir=/tmp/wf-chrome-teach" 2>/dev/null
+pkill -f "stub_wfd.py --port $PORT" 2>/dev/null
+sleep 0.2
+
 python3 tests/stub_wfd.py --port "$PORT" >/tmp/wf-stub.log 2>&1 &
 STUB=$!
 OLDSTUB=""; CPID=""
@@ -56,8 +61,13 @@ PY
 echo "  selftest PASS"
 
 # chrome console must be quiet of uncaught errors
-if grep -qiE "Uncaught|Unhandled" /tmp/wf-chrome.log; then
-  echo "FAIL: uncaught errors in chrome console"; grep -iE "Uncaught|Unhandled" /tmp/wf-chrome.log | head; exit 1
+if grep -iE "Uncaught|Unhandled" /tmp/wf-chrome.log \
+   | grep -qv "chrome-extension://"; then
+  echo "FAIL: uncaught errors in chrome console"
+  # only errors from OUR pages count — chrome-extension:// noise is
+  # from the host's installed extensions, not the app.
+  grep -iE "Uncaught|Unhandled" /tmp/wf-chrome.log \
+    | grep -v "chrome-extension://" | head; exit 1
 fi
 
 echo "== old-daemon feature detect =="

@@ -33,7 +33,16 @@ Four pieces, all session state, stdlib only, thread-safe:
    the phone can show "OPEN + …" live while the user is still signing —
    composition-in-progress is part of the /live/state surface.
 
-   The table is ~/.config/wf/compositions.json, hot-reloaded by mtime:
+   Composition tables are PER-PROFILE namespaces: a sequence defined
+   under "default" does not hold (or fire) signs under "cooking".
+   Programmatic set_composition() writes the active profile's table;
+   a flat file "sequences" table belongs to the profile the file
+   declares ("profile" key, absent -> "default").  save() flattens the
+   union of all tables under the current profile so a saved session
+   keeps composing where it was saved (namespaces merge — documented).
+
+   The table is ~/.config/wf/compositions.json, hot-reloaded by
+   (mtime_ns, size):
 
        {"window_ms": 1200,
         "profile": "default",
@@ -339,7 +348,10 @@ class SignFlowOps:
         d = it["dist"]
         if rsn == "threshold" and self.bank is not None and \
                 isinstance(d, (int, float)) and math.isfinite(d):
-            near = d <= self.bank.reject_threshold * 1.5
+            # "the miss was close": within 2x of the accept bar — far
+            # enough to be an almost-sign, not random noise.  (0.99 on a
+            # 0.6 bar is a near miss the UI should surface honestly.)
+            near = d <= self.bank.reject_threshold * 2
         ev = {"type": "reject", "gloss": it["gloss"], "dist": d,
               "reason": rsn, "near": near, "t_ms": it["t"],
               "profile": self.profile}
@@ -577,9 +589,15 @@ class SignFlowOps:
         path = path or self.compositions_path or DEFAULT_COMP_PATH
         signs = dict(self._file_profile_signs)
         signs.update(self._profile_signs)
+        # flat file can name one profile only — the union of every
+        # table is written under the CURRENT profile so a saved session
+        # keeps composing after reload (namespaces merge on save).
+        merged = {}
+        for t in self._comp_by_profile.values():
+            merged.update(t)
         data = {"version": 1, "window_ms": self.window_ms,
                 "profile": self.profile, "profile_signs": signs,
-                "sequences": {" ".join(k): v for k, v in self._comp.items()}}
+                "sequences": {" ".join(k): v for k, v in merged.items()}}
         d = os.path.dirname(path)
         if d:
             os.makedirs(d, exist_ok=True)
@@ -598,23 +616,26 @@ class SignFlowOps:
                 pass
             raise
         with self._lock:
-            self._comp_mtime = os.stat(path).st_mtime_ns
+            st = os.stat(path)
+            self._comp_mtime = (st.st_mtime_ns, st.st_size)
         return path
 
     def set_composition(self, seq, action):
-        """Bind a sequence programmatically (action=None removes)."""
+        """Bind a sequence in the ACTIVE profile's table
+        (action=None removes).  The same glosses may compose
+        differently per profile — contexts are real namespaces."""
         key = norm_seq(seq)
         if not key:
             return False
         with self._lock:
+            tbl = self._tbl()
             if action is None:
-                self._comp.pop(key, None)
+                tbl.pop(key, None)
             else:
-                self._comp[key] = action
-            self._prefixes = {k[:i] for k in self._comp
-                              for i in range(1, len(k))}
+                tbl[key] = action
             ev = {"type": "compositions", "ok": True, "via": "api",
-                  "n": len(self._comp), "t_ms": self._clock()}
+                  "n": len(tbl), "profile": self.profile,
+                  "t_ms": self._clock()}
         self._dispatch([("event", ev)])
         return True
 
@@ -622,8 +643,9 @@ class SignFlowOps:
         return self.set_composition(seq, None)
 
     def compositions(self):
+        """The ACTIVE profile's composition table, display-ready."""
         with self._lock:
-            return {" ".join(k): v for k, v in self._comp.items()}
+            return {" ".join(k): v for k, v in self._tbl().items()}
 
     # ------------------------------------------------------------------
     # profiles
@@ -669,10 +691,12 @@ class SignFlowOps:
         with self._lock:
             s |= set(self._profile_signs.values())
             s |= set(self._file_profile_signs.values())
-            for v in self._comp.values():
-                if isinstance(v, dict) and \
-                        isinstance(v.get("profiles"), dict):
-                    s |= set(v["profiles"].keys())
+            s |= set(self._comp_by_profile.keys())
+            for t in self._comp_by_profile.values():
+                for v in t.values():
+                    if isinstance(v, dict) and \
+                            isinstance(v.get("profiles"), dict):
+                        s |= set(v["profiles"].keys())
         if self.bank is not None:
             try:
                 for r in self.bank.list():
@@ -750,7 +774,8 @@ class SignFlowOps:
                     "observe": self.observe, "window_ms": self.window_ms,
                     "pending": [i["gloss"] for i in self._pending],
                     "pending_due_ms": due,
-                    "n_compositions": len(self._comp),
+                    "n_compositions": len(self._tbl()),
+                    "comp_profiles": sorted(self._comp_by_profile),
                     "profile_signs": self.profile_signs(),
                     "stats": self.stats(),
                     "recent": list(self._recent)}

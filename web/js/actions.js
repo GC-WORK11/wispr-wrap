@@ -344,4 +344,5 @@ async function build() {
 q.addEventListener('input', build);
 $('act-x').onclick = () => close(null);
 
-export const Actions = { pick, catalog, describe };
+export const Actions = { pick, catalog, describe,
+                         _cat: () => CAT };      // selftest debug seam
