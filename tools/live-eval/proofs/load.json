@@ -1,0 +1,78 @@
+{
+ "arm": "load",
+ "engine": "n/a (real wfd.py)",
+ "modes": {
+  "loopback": {
+   "assets": [
+    "/",
+    "/manifest.webmanifest",
+    "/icon.svg"
+   ],
+   "cold_fetch_ms": {
+    "/": 0.94,
+    "/manifest.webmanifest": 0.75,
+    "/icon.svg": 0.63
+   },
+   "warm_fetch_ms": {
+    "/": {
+     "p50": 0.38,
+     "p95": 2.49
+    },
+    "/manifest.webmanifest": {
+     "p50": 0.78,
+     "p95": 5.29
+    },
+    "/icon.svg": {
+     "p50": 0.44,
+     "p95": 2.62
+    }
+   },
+   "shell_total_ms": {
+    "p50": 2.36,
+    "p95": 7.18
+   },
+   "response_meta": {
+    "/": {
+     "status": 200,
+     "bytes": 27292,
+     "cache_control": null,
+     "etag": null,
+     "last_modified": null,
+     "connection": null,
+     "server": "BaseHTTP/0.6 Python/3.13.5"
+    },
+    "/manifest.webmanifest": {
+     "status": 200,
+     "bytes": 402,
+     "cache_control": null,
+     "etag": null,
+     "last_modified": null,
+     "connection": null,
+     "server": "BaseHTTP/0.6 Python/3.13.5"
+    },
+    "/icon.svg": {
+     "status": 200,
+     "bytes": 2503,
+     "cache_control": null,
+     "etag": null,
+     "last_modified": null,
+     "connection": null,
+     "server": "BaseHTTP/0.6 Python/3.13.5"
+    }
+   },
+   "service_worker_present": true,
+   "cache_headers_present": false
+  }
+ },
+ "daemon_start_ms": 58.9,
+ "meta": {
+  "tool": "tools/live-eval/run_eval.py",
+  "seed": 7,
+  "engine": "contract",
+  "reject_threshold": 0.45,
+  "kp_floor_calibrated": 2.878,
+  "still_motion_p99": 1.919,
+  "python": "3.13.5",
+  "utc": "2026-10-25T11:40:59Z"
+ }
+}

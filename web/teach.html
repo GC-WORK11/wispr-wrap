@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#f4f5f8">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Wispr Wrap">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="stylesheet" href="teach.css">
+<title>Wispr Wrap — Signs</title>
+</head>
+<body>
+<header>
+  <a class="back" href="/" aria-label="Back to composer" title="composer">‹</a>
+  <span class="brand">signs <em>· teach your own</em></span>
+  <span class="dot-label" id="dotLabel">offline</span>
+  <span class="dot" id="dot"></span>
+</header>
+
+<div class="banner warn" id="banner" hidden>
+  <span style="flex:1" id="bannerText"></span>
+  <button id="bannerBtn" hidden>retry</button>
+</div>
+
+<main>
+  <div class="lib-head">
+    <h1>your signs</h1>
+    <span class="count" id="libCount"></span>
+  </div>
+  <section id="signs" aria-live="polite"></section>
+  <div class="empty" id="empty" hidden>
+    no signs yet — <b>teach your first one</b>.<br>
+    a sign is a gesture <i>you</i> choose, bound to an action on your laptop.<br>
+    three takes, ~90 seconds, runs offline.
+  </div>
+  <button class="teach-cta" id="teachBtn">+ teach a sign</button>
+</main>
+
+<!-- ============ teach wizard ============ -->
+<div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-label="Teach a sign">
+  <div class="wiz-head">
+    <span class="wiz-title" id="wizTitle">teach a sign</span>
+    <button class="x" id="wizClose" aria-label="Close">×</button>
+  </div>
+  <ol class="steps" id="wizSteps"><li></li><li></li><li></li></ol>
+  <div class="wiz-body">
+
+    <!-- step 1 · name -->
+    <section class="wstep" data-step="name">
+      <h2>name it</h2>
+      <p class="lead">anything you'll remember — it's <i>your</i> sign, not a fixed language.
+        the gloss is how the bank stores it.</p>
+      <div class="field-row">
+        <input id="nameIn" type="text" placeholder="e.g. open browser" autocomplete="off"
+               autocorrect="off" autocapitalize="characters" maxlength="32" enterkeyhint="next">
+        <div class="gloss-preview" id="glossPre"></div>
+      </div>
+      <div class="errline" id="nameErr"></div>
+      <div class="wiz-foot">
+        <button class="btn ghost" id="nameCancel">cancel</button>
+        <button class="btn pri" id="nameNext" disabled>start recording</button>
+      </div>
+    </section>
+
+    <!-- step 2 · perform -->
+    <section class="wstep" data-step="record">
+      <h2 id="recTitle"><span id="recVerb">perform it</span> · <span id="recGloss" style="color:var(--acc)"></span></h2>
+      <p class="lead" id="recLead">three takes, same sign. hold still, wait for the count,
+        then sign once — it stops on its own when your hands drop.</p>
+      <div class="stage" id="stage">
+        <video id="vid" muted playsinline autoplay></video>
+        <canvas id="skel"></canvas>
+        <div class="count" id="countNum"></div>
+        <div class="recdot" id="recdot"><i></i>REC</div>
+        <div class="stage-hint" id="stageHint"></div>
+        <div class="cam-err" id="camErr" hidden></div>
+      </div>
+      <div class="takebar" id="takebar"></div>
+      <div class="rec-row">
+        <button class="btn" id="recBack">back</button>
+        <button class="btn pri" id="recBtn">record take 1</button>
+      </div>
+      <div class="errline" id="recErr"></div>
+    </section>
+
+    <!-- step 3 · preview / bind -->
+    <section class="wstep" data-step="bind">
+      <h2>check the takes</h2>
+      <p class="lead">what the daemon scores — wrist path + hand shape per take.
+        redo any that feel off, keep at least one, then pick what it fires.</p>
+      <div class="takes" id="takes"></div>
+      <div style="height:22px"></div>
+      <h2 id="bindActH">bind an action</h2>
+      <div class="act-cat" id="actCat">
+        <div class="cat-h">actions</div>
+        <div id="actRows"></div>
+      </div>
+      <div class="errline" id="bindErr"></div>
+      <div class="wiz-foot">
+        <button class="btn ghost" id="bindBack">record more</button>
+        <button class="btn pri" id="saveBtn" disabled>make it live</button>
+      </div>
+    </section>
+
+    <!-- step 4 · done -->
+    <section class="wstep" data-step="done">
+      <div class="done-wrap">
+        <div class="done-mark">✓</div>
+        <h2 id="doneTitle">live</h2>
+        <p class="lead" id="doneLead"></p>
+        <div class="wiz-foot" style="max-width:340px;margin:0 auto">
+          <button class="btn" id="doneLib">sign library</button>
+          <button class="btn pri" id="doneAgain">teach another</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="teach.js" defer></script>
+</body>
+</html>

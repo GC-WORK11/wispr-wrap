@@ -1,0 +1,160 @@
+<!doctype html>
+<!-- selftest — drives web/teach.html end-to-end against tests/stub_wfd.py.
+     Injects a fake kp42 tracker (WFFakeTrack seam), performs the full wizard:
+     name → 3 takes → preview → bind open_app → save → library → +take → delete.
+     Reports into #result AND POSTs /_result so a headless run is observable.
+     Not shipped to users: lives outside web/. -->
+<html><head><meta charset="utf-8"><title>teach selftest</title>
+<style>body{font:13px ui-monospace,monospace;padding:18px;background:#f4f5f8;color:#0f172a}
+#result{font-size:16px;font-weight:700;margin-bottom:10px}
+#log{white-space:pre-wrap;color:#64748b}iframe{width:390px;height:720px;border:1px solid #cbd5e1;border-radius:12px;background:#fff}</style>
+</head><body>
+<div id="result">RUNNING</div>
+<div id="log"></div>
+<iframe id="fr" src="/teach.html?k=teach-stub-key"></iframe>
+<script>
+const KEY = 'teach-stub-key', logEl = document.getElementById('log'), resEl = document.getElementById('result');
+const errs = [], steps = [];
+const fr = document.getElementById('fr');
+const win = fr.contentWindow;
+const log = m => { steps.push(m); logEl.textContent += m + '\n'; };
+win.addEventListener('error', e => errs.push('iframe: ' + e.message));
+addEventListener('error', e => errs.push('driver: ' + e.message));
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function until(fn, what, ms = 12000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(60); }
+  throw new Error('timeout waiting for ' + what);
+}
+const $ = id => win.document.getElementById(id);
+
+/* ---- fake kp42 tracker: a moving left hand, no right hand ---- */
+let pumpOn = false, handsOn = false;
+function fakePts(t) {
+  const pts = [];
+  for (let i = 0; i < 42; i++) pts.push({ x: 0, y: 0, score: 0 });
+  if (handsOn) {
+    const wx = .45 + .13 * Math.sin(t / 210), wy = .55 + .09 * Math.cos(t / 260);
+    const F = [[0,0],[-.03,-.05],[-.05,-.10],[-.07,-.14],[-.08,-.17],
+               [-.01,-.06],[-.01,-.11],[-.01,-.15],[-.01,-.18],
+               [.01,-.06],[.02,-.11],[.03,-.15],[.03,-.18],
+               [.03,-.05],[.05,-.10],[.06,-.13],[.07,-.16],
+               [.05,-.03],[.08,-.06],[.10,-.08],[.11,-.10]];
+    for (let i = 0; i < 21; i++)
+      pts[i] = { x: wx + F[i][0] + .004 * Math.sin(t / 60 + i), y: wy + F[i][1], score: .9 };
+  }
+  return pts;
+}
+win.WFFakeTrack = {
+  start(video, cb) {
+    pumpOn = true;
+    const iv = setInterval(() => cb({ t_ms: performance.now(), points: fakePts(performance.now()) }), 33);
+    return { stop() { pumpOn = false; clearInterval(iv); } };
+  },
+};
+
+async function doTake(expect) {
+  handsOn = true;
+  await sleep(1500);            // hands in view ~1.5s (page needs >1.2s before auto-stop)
+  handsOn = false;              // hands drop — the page should end the take itself
+  await until(() => win.WFTeach.state.takes === expect, 'take ' + expect + ' captured');
+  log('take ' + expect + ' captured (' + win.WFTeach.state.kept + ' kept)');
+  handsOn = true;
+}
+
+async function main() {
+  await until(() => win.WFTeach && win.WFTeach.state, 'WFTeach boot');
+  Object.assign(win.WFTeach.T, { beat: 45, go: 60, cap: 4000, grace: 350, min: 6 });
+  await until(() => ! $('teachBtn').disabled, 'library probe (daemon up)');
+  log('page loaded, daemon probed, library empty=' + (win.WFTeach.state.library === 0));
+
+  /* --- wizard: name --- */
+  $('teachBtn').click();
+  await until(() => $('sheet') && !$('sheet').hidden, 'wizard open');
+  $('nameIn').value = 'test browser sign';
+  $('nameIn').dispatchEvent(new win.Event('input', { bubbles: true }));
+  await until(() => !$('nameNext').disabled, 'gloss preview');
+  if (!$('glossPre').textContent.includes('TEST-BROWSER-SIGN')) throw new Error('gloss preview wrong: ' + $('glossPre').textContent);
+  log('gloss preview → TEST-BROWSER-SIGN');
+  $('nameNext').click();
+
+  /* --- record ×3 --- */
+  await until(() => $('recBtn') && !$('recBtn').disabled && win.WFTeach.WFTrack.kind === 'fake', 'tracker armed');
+  log('tracker: ' + win.WFTeach.WFTrack.kind);
+  for (let i = 1; i <= 3; i++) {
+    await until(() => !$('recBtn').disabled, 'record button ' + i);
+    $('recBtn').click();
+    await doTake(i);
+    await sleep(120);
+  }
+  await until(() => win.document.querySelector('.wstep[data-step="bind"].on'), 'bind step');
+  await until(() => win.document.querySelectorAll('#takes .take').length === 3, 'three take previews');
+  log('3 take previews drawn');
+
+  /* --- bind open_app --- */
+  const rows = [...win.document.querySelectorAll('.arow')];
+  const app = rows.find(r => r.querySelector('.a-name').textContent === 'open app');
+  if (!app) throw new Error('open_app row missing');
+  app.click();
+  const argv = app.querySelector('input[data-k="argv"]');
+  argv.value = 'notify-send hi';
+  argv.dispatchEvent(new win.Event('input', { bubbles: true }));
+  await until(() => !$('saveBtn').disabled, 'save enabled');
+  if (!app.querySelector('.a-confirm')) throw new Error('tier-2 confirm note missing');
+  log('open_app bound · argv=notify-send hi · tier 2 confirm note shown');
+  $('saveBtn').click();
+
+  /* --- verify in bank --- */
+  await until(() => win.document.querySelector('.wstep[data-step="done"].on'), 'done step');
+  const bank = await (await fetch('/bank', { headers: { 'X-WF-Key': KEY } })).json();
+  const sign = (bank.signs || []).find(s => s.gloss === 'TEST-BROWSER-SIGN');
+  if (!sign) throw new Error('sign not in bank: ' + JSON.stringify(bank));
+  if (sign.exemplar_count !== 3) throw new Error('exemplar_count=' + sign.exemplar_count);
+  if (!sign.action || sign.action.type !== 'open_app' || sign.action.argv !== 'notify-send hi')
+    throw new Error('bad action: ' + JSON.stringify(sign.action));
+  if (sign.tier !== 2) throw new Error('tier=' + sign.tier);
+  log('bank verified: TEST-BROWSER-SIGN · 3 exemplars · open_app · tier 2');
+  handsOn = false;
+
+  /* --- library: add a take --- */
+  $('doneLib').click();
+  await until(() => win.document.querySelector('.sign'), 'library card');
+  const addBtn = [...win.document.querySelectorAll('.sign .btn')].find(b => b.textContent === '+ take');
+  addBtn.click();
+  await until(() => $('recBtn') && !$('recBtn').disabled, 'add-take tracker');
+  $('recBtn').click();
+  await doTake(1);
+  await until(() => !$('saveBtn').disabled, 'add-take save enabled');
+  $('saveBtn').click();
+  await until(() => win.document.querySelector('.wstep[data-step="done"].on'), 'add done');
+  const b2 = await (await fetch('/bank', { headers: { 'X-WF-Key': KEY } })).json();
+  const s2 = (b2.signs || []).find(s => s.gloss === 'TEST-BROWSER-SIGN');
+  if (!s2 || s2.exemplar_count !== 4) throw new Error('add_exemplar failed: ' + JSON.stringify(s2));
+  log('add_exemplar verified: 4 exemplars');
+  handsOn = false;
+  $('doneLib').click();
+
+  /* --- library: delete --- */
+  await until(() => win.document.querySelector('.sign'), 'library card again');
+  const del = [...win.document.querySelectorAll('.sign .btn')].find(b => b.textContent === 'delete');
+  del.click(); await sleep(80);
+  const del2 = [...win.document.querySelectorAll('.sign .btn')].find(b => b.textContent === 'sure?');
+  (del2 || del).click();
+  await until(() => win.WFTeach.state.library === 0, 'sign deleted');
+  log('delete verified: library empty');
+
+  finish(errs.length === 0, errs);
+}
+
+function finish(pass, errs) {
+  const out = { pass, errs, steps };
+  resEl.textContent = pass ? 'SELFTEST PASS' : 'SELFTEST FAIL — ' + (errs[0] || 'see log');
+  resEl.style.color = pass ? '#15803d' : '#b91c1c';
+  document.title = resEl.textContent;
+  fetch('/_result', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(out) })
+    .catch(() => {});
+}
+main().catch(e => { errs.push(e.message); log('FAIL ' + e.message); finish(false, errs); });
+</script>
+</body></html>

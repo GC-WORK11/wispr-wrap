@@ -1,0 +1,599 @@
+{
+ "arm": "false_accept",
+ "sim_seconds": 300,
+ "seed": 7,
+ "fps": 30,
+ "kp_noise": 1.2,
+ "modes": {
+  "shipped": {
+   "ep_floor": 0.02,
+   "frames": 9072,
+   "sim_seconds": 302.2,
+   "commits": 1,
+   "commit_kinds": {
+    "flush": 1
+   },
+   "tentatives": 0,
+   "matches_accepted": 0,
+   "routed_fires": 0,
+   "fires_per_hour": 0.0,
+   "by_hit": {},
+   "fired": [],
+   "feed_wall_s": 0.1
+  },
+  "kp": {
+   "ep_floor": 2.878486129984897,
+   "frames": 9072,
+   "sim_seconds": 302.2,
+   "commits": 65,
+   "commit_kinds": {
+    "still_hold": 65
+   },
+   "tentatives": 66,
+   "matches_accepted": 17,
+   "routed_fires": 17,
+   "fires_per_hour": 202.5,
+   "by_hit": {
+    "SWIPE-L": 3,
+    "V-DRAW": 1,
+    "SWIPE-DN": 5,
+    "HOOK": 2,
+    "SWIPE-UP": 1,
+    "SWIPE-R": 2,
+    "SHAKE": 3
+   },
+   "fired": [
+    {
+     "t_ms": 16556,
+     "hit": "SWIPE-L",
+     "d": 0.1428,
+     "kind": "still_hold",
+     "routed": true
+    },
+    {
+     "t_ms": 29682,
+     "hit": "V-DRAW",
+     "d": 0.2915,
+     "kind": "still_hold",
+     "routed": true
+    },
+    {
+     "t_ms": 47172,
+     "hit": "SWIPE-L",
+     "d": 0.3922,
+     "kind": "still_hold",
+     "routed": true
+    },
+    {
+     "t_ms": 65561,
+     "hit": "SWIPE-L",
+     "d": 0.0593,
+     "kind": "still_hold",
+     "routed": true
+    },
+    {
+     "t_ms": 75789,
+     "hit": "SWIPE-DN",
+     "d": 0.4362,
+     "kind": "still_hold",
+     "routed": true
+    },
+    {
+     "t_ms": 84081,
+     "hit": "HOOK",
+     "d": 0.2978,
+     "kind": "still_hold",
+     "routed": true
+    },
+    {
+     "t_ms": 97205,
+     "hit": "HOOK",
+     "d": 0.3566,
+     "kind": "still_hold",
+     "routed": true
+    },
+    {
+     "t_ms": 127829,
+     "hit": "SWIPE-UP",
+     "d": 0.4493,
+     "kind": "still_hold",
+     "routed": true
+    },
+    {
+     "t_ms": 131860,
+     "hit": "SWIPE-R",
+     "d": 0.1325,
+     "kind": "still_hold",
+     "routed": true
+    },
+    {
+     "t_ms": 149353,
+     "hit": "SWIPE-DN",
+     "d": 0.2563,
+     "kind": "still_hold",
+     "routed": true
+    },
+    {
+     "t_ms": 178339,
+     "hit": "SHAKE",
+     "d": 0.3179,
+     "kind": "still_hold",
+     "routed": true
+    },
+    {
+     "t_ms": 180906,
+     "hit": "SHAKE",
+     "d": 0.3708,
+     "kind": "still_hold",
+     "routed": true
+    },
+    {
+     "t_ms": 201896,
+     "hit": "SWIPE-R",
+     "d": 0.2817,
+     "kind": "still_hold",
+     "routed": true
+    },
+    {
+     "t_ms": 213356,
+     "hit": "SWIPE-DN",
+     "d": 0.3716,
+     "kind": "still_hold",
+     "routed": true
+    },
+    {
+     "t_ms": 225548,
+     "hit": "SWIPE-DN",
+     "d": 0.2954,
+     "kind": "still_hold",
+     "routed": true
+    },
+    {
+     "t_ms": 244676,
+     "hit": "SHAKE",
+     "d": 0.3583,
+     "kind": "still_hold",
+     "routed": true
+    },
+    {
+     "t_ms": 290365,
+     "hit": "SWIPE-DN",
+     "d": 0.1077,
+     "kind": "still_hold",
+     "routed": true
+    }
+   ],
+   "feed_wall_s": 0.38
+  },
+  "kp_fluent": {
+   "ep_floor": 2.878486129984897,
+   "frames": 9072,
+   "sim_seconds": 302.2,
+   "commits": 113,
+   "commit_kinds": {
+    "fluent": 113
+   },
+   "tentatives": 0,
+   "matches_accepted": 56,
+   "routed_fires": 56,
+   "fires_per_hour": 667.05,
+   "by_hit": {
+    "SWIPE-UP": 6,
+    "V-DRAW": 6,
+    "SWIPE-DN": 10,
+    "SWIPE-L": 14,
+    "CIRCLE-CCW": 1,
+    "SWIPE-R": 11,
+    "HOOK": 5,
+    "SHAKE": 3
+   },
+   "fired": [
+    {
+     "t_ms": 666,
+     "hit": "SWIPE-UP",
+     "d": 0.3559,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 2165,
+     "hit": "V-DRAW",
+     "d": 0.4344,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 2831,
+     "hit": "SWIPE-DN",
+     "d": 0.1053,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 4130,
+     "hit": "SWIPE-UP",
+     "d": 0.3248,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 4929,
+     "hit": "SWIPE-L",
+     "d": 0.0851,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 5562,
+     "hit": "SWIPE-DN",
+     "d": 0.4235,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 8759,
+     "hit": "CIRCLE-CCW",
+     "d": 0.311,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 15890,
+     "hit": "SWIPE-L",
+     "d": 0.135,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 17056,
+     "hit": "SWIPE-R",
+     "d": 0.3696,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 20187,
+     "hit": "SWIPE-R",
+     "d": 0.377,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 28982,
+     "hit": "SWIPE-UP",
+     "d": 0.1376,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 30248,
+     "hit": "SWIPE-DN",
+     "d": 0.1172,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 33845,
+     "hit": "SWIPE-DN",
+     "d": 0.4481,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 35177,
+     "hit": "SWIPE-UP",
+     "d": 0.2954,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 35877,
+     "hit": "HOOK",
+     "d": 0.337,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 48004,
+     "hit": "SWIPE-R",
+     "d": 0.2528,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 48604,
+     "hit": "SWIPE-L",
+     "d": 0.0388,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 49336,
+     "hit": "SWIPE-L",
+     "d": 0.1369,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 52735,
+     "hit": "HOOK",
+     "d": 0.3407,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 54201,
+     "hit": "SWIPE-L",
+     "d": 0.3768,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 55367,
+     "hit": "V-DRAW",
+     "d": 0.3282,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 57599,
+     "hit": "SWIPE-DN",
+     "d": 0.4298,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 58265,
+     "hit": "SWIPE-L",
+     "d": 0.137,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 64995,
+     "hit": "SWIPE-L",
+     "d": 0.0592,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 66394,
+     "hit": "SWIPE-DN",
+     "d": 0.3221,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 67160,
+     "hit": "SWIPE-L",
+     "d": 0.4007,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 82782,
+     "hit": "V-DRAW",
+     "d": 0.392,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 83382,
+     "hit": "SWIPE-DN",
+     "d": 0.3567,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 86545,
+     "hit": "SWIPE-L",
+     "d": 0.1728,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 89110,
+     "hit": "SWIPE-R",
+     "d": 0.3479,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 89743,
+     "hit": "SWIPE-R",
+     "d": 0.2766,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 91542,
+     "hit": "V-DRAW",
+     "d": 0.4175,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 96572,
+     "hit": "HOOK",
+     "d": 0.4028,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 102301,
+     "hit": "SWIPE-UP",
+     "d": 0.1629,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 104899,
+     "hit": "SWIPE-R",
+     "d": 0.1266,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 129729,
+     "hit": "SWIPE-L",
+     "d": 0.0814,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 131161,
+     "hit": "SWIPE-R",
+     "d": 0.1036,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 148420,
+     "hit": "SWIPE-DN",
+     "d": 0.2416,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 177672,
+     "hit": "SHAKE",
+     "d": 0.3323,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 180239,
+     "hit": "SHAKE",
+     "d": 0.345,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 183505,
+     "hit": "SWIPE-L",
+     "d": 0.3374,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 184604,
+     "hit": "SWIPE-R",
+     "d": 0.3529,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 185737,
+     "hit": "SWIPE-L",
+     "d": 0.267,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 186536,
+     "hit": "SWIPE-UP",
+     "d": 0.3626,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 189002,
+     "hit": "HOOK",
+     "d": 0.2379,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 190368,
+     "hit": "SWIPE-L",
+     "d": 0.1902,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 191401,
+     "hit": "V-DRAW",
+     "d": 0.4228,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 193767,
+     "hit": "SWIPE-R",
+     "d": 0.3533,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 198397,
+     "hit": "SWIPE-R",
+     "d": 0.0685,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 198897,
+     "hit": "SWIPE-L",
+     "d": 0.3443,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 199996,
+     "hit": "V-DRAW",
+     "d": 0.327,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 200796,
+     "hit": "SWIPE-R",
+     "d": 0.2226,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 205127,
+     "hit": "HOOK",
+     "d": 0.1622,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 224881,
+     "hit": "SWIPE-DN",
+     "d": 0.3266,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 244009,
+     "hit": "SHAKE",
+     "d": 0.3547,
+     "kind": "fluent",
+     "routed": true
+    },
+    {
+     "t_ms": 289698,
+     "hit": "SWIPE-DN",
+     "d": 0.1303,
+     "kind": "fluent",
+     "routed": true
+    }
+   ],
+   "feed_wall_s": 0.55
+  }
+ },
+ "engine": "contract",
+ "reject_threshold": 0.45,
+ "meta": {
+  "tool": "tools/live-eval/run_eval.py",
+  "seed": 7,
+  "engine": "contract",
+  "reject_threshold": 0.45,
+  "kp_floor_calibrated": 2.878,
+  "still_motion_p99": 1.919,
+  "python": "3.13.5",
+  "utc": "2026-10-25T11:40:59Z"
+ }
+}

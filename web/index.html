@@ -127,6 +127,20 @@
     opacity:0; transform:translateY(-4px); transition:opacity .3s, transform .3s;
   }
   .status.show { opacity:1; transform:none; }
+
+  /* live toggle — second pill row under the send arrow. styled inline so the
+     chip looks right before live.css finishes loading (it only styles the sheet) */
+  .lrow { display:flex; justify-content:flex-end; width:100%; padding:7px 2px 0 0; }
+  .livebtn {
+    display:inline-flex; align-items:center; gap:7px; height:26px; padding:0 11px;
+    border-radius:999px; border:1px solid rgba(255,255,255,.16); cursor:pointer;
+    background:transparent; color:#9c9c9c; font:inherit; font-size:10.5px; letter-spacing:.14em;
+    transition:transform .12s, border-color .2s, color .2s;
+  }
+  .livebtn:active { transform:scale(.94); border-color:rgba(255,255,255,.4); }
+  .livebtn .lv-o { font-size:9px; color:#5a5a5a; transition:color .25s; }
+  .livebtn.on { color:#ececec; border-color:rgba(255,255,255,.32); }
+  .livebtn.on .lv-o { color:#4a7dff; }
 </style>
 </head>
 <body>
@@ -155,6 +169,9 @@
             <path d="M12 19V5"/><path d="M5 12l7-7 7 7"/>
           </svg>
         </button>
+      </div>
+      <div class="lrow">
+        <button class="livebtn" id="livebtn" aria-haspopup="dialog" aria-expanded="false" aria-label="Live sign mode"><span class="lv-o">◉</span>LIVE</button>
       </div>
     </div>
     <div class="status" id="toast"></div>
@@ -522,5 +539,39 @@ if(vv){ vv.addEventListener('resize',fitKb); vv.addEventListener('scroll',fitKb)
 stage.addEventListener('transitionend',measure);
 requestAnimationFrame(frame);
 </script>
+
+<!-- live mode: bottom sheet owned by live.js/live.css. kept out of .stage so the
+     keyboard-lift transform can never clip the fixed-position sheet. -->
+<div class="lv-scrim" id="lv-scrim" hidden></div>
+<section class="lv-sheet" id="lv-sheet" role="dialog" aria-modal="true" aria-label="Live sign mode" hidden>
+  <div class="lv-grip"></div>
+  <header class="lv-head">
+    <div class="lv-title">live<span class="lv-eng" id="lv-eng"></span></div>
+    <div class="lv-badge" id="lv-badge"><i></i><span id="lv-badge-t">off</span></div>
+    <button class="lv-x" id="lv-x" aria-label="Close live mode">×</button>
+  </header>
+  <div class="lv-view" id="lv-view">
+    <video id="lv-cam" playsinline muted autoplay></video>
+    <canvas id="lv-skel"></canvas>
+    <div class="lv-cover" id="lv-cover" hidden>
+      <div class="lv-card">
+        <div class="lv-card-t" id="lv-card-t"></div>
+        <div class="lv-card-m" id="lv-card-m"></div>
+        <div class="lv-card-b" id="lv-card-b"></div>
+      </div>
+    </div>
+  </div>
+  <div class="lv-read">
+    <span class="lv-rlab">reading</span>
+    <span class="lv-rguess dim" id="lv-guess">—</span>
+    <span class="lv-rdist" id="lv-dist"></span>
+  </div>
+  <div class="lv-act" id="lv-act"><i></i><span id="lv-act-t"></span></div>
+  <div class="lv-hold">
+    <div class="lv-hold-bar"><i id="lv-hold-i"></i></div>
+    <div class="lv-hint" id="lv-hint">hold an open palm to listen · palms together to stop</div>
+  </div>
+</section>
+<script src="live.js"></script>
 </body>
 </html>

@@ -19,7 +19,9 @@ root = d.screen().root
 CLIP = d.intern_atom("CLIPBOARD")
 TARGETS = d.intern_atom("TARGETS")
 TIMESTAMP = d.intern_atom("TIMESTAMP")
-MULTIPLE = d.intern_atom("MULTIPLE")
+# MULTIPLE is deliberately NOT advertised: we never implemented it, and
+# advertising then refusing is an ICCCM lie — clients fall back to
+# one-by-one requests (which every real client does anyway).
 ATOM = d.intern_atom("ATOM")
 URI_LIST = d.intern_atom("text/uri-list")
 GNOME_FILES = d.intern_atom("x-special/gnome-copied-files")
@@ -28,7 +30,7 @@ PLAIN = d.intern_atom("text/plain")
 STRING = d.intern_atom("STRING")
 MIME_ATOM = d.intern_atom(mime) if is_img else 0
 
-offered = [TARGETS, TIMESTAMP, MULTIPLE] + ([MIME_ATOM] if is_img else []) \
+offered = [TARGETS, TIMESTAMP] + ([MIME_ATOM] if is_img else []) \
         + [GNOME_FILES, URI_LIST, UTF8, PLAIN, STRING]
 
 win = root.create_window(0, 0, 1, 1, 0, 0, X.InputOnly)
@@ -81,8 +83,6 @@ while True:
         elif ev.target == TIMESTAMP:
             ev.requestor.change_property(prop, Xatom.INTEGER, 32, [own_time])
             ok = True
-        elif ev.target == MULTIPLE:
-            ok = False  # clients request one-by-one; refuse MULTIPLE
         else:
             r = payload_for(ev.target)
             if r:

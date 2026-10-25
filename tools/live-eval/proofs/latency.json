@@ -1,0 +1,1265 @@
+{
+ "arm": "latency",
+ "seed": 7,
+ "fps": 30,
+ "kp_noise": 1.2,
+ "modes": {
+  "shipped": {
+   "ep_floor": 0.02,
+   "commits": 40,
+   "commit_kinds": {
+    "flush": 40
+   },
+   "detect_lag_ms": {
+    "p50": 801,
+    "p95": 868,
+    "mean": 810.2
+   },
+   "decide_ms": {
+    "p50": 3.666,
+    "p95": 3.979,
+    "max": 4.044
+   },
+   "match_only_ms": {
+    "p50": 3.663,
+    "p95": 3.977
+   },
+   "sign_end_to_decide_ms": {
+    "p50": 804.7,
+    "p95": 872.0
+   },
+   "per_commit": [
+    {
+     "gloss": "SWIPE-R",
+     "kind": "flush",
+     "detect_lag_ms": 768,
+     "match_ms": 3.88016,
+     "route_ms": 0.002385,
+     "decide_ms": 3.882545,
+     "fired": false,
+     "path_len": 39
+    },
+    {
+     "gloss": "SWIPE-R",
+     "kind": "flush",
+     "detect_lag_ms": 868,
+     "match_ms": 3.589305,
+     "route_ms": 0.00449,
+     "decide_ms": 3.593795,
+     "fired": true,
+     "path_len": 48
+    },
+    {
+     "gloss": "SWIPE-R",
+     "kind": "flush",
+     "detect_lag_ms": 801,
+     "match_ms": 3.907457,
+     "route_ms": 0.003722,
+     "decide_ms": 3.911179,
+     "fired": true,
+     "path_len": 49
+    },
+    {
+     "gloss": "SWIPE-R",
+     "kind": "flush",
+     "detect_lag_ms": 834,
+     "match_ms": 3.563816,
+     "route_ms": 0.00258,
+     "decide_ms": 3.566396,
+     "fired": true,
+     "path_len": 48
+    },
+    {
+     "gloss": "SWIPE-L",
+     "kind": "flush",
+     "detect_lag_ms": 768,
+     "match_ms": 3.558903,
+     "route_ms": 0.001523,
+     "decide_ms": 3.560426,
+     "fired": true,
+     "path_len": 38
+    },
+    {
+     "gloss": "SWIPE-L",
+     "kind": "flush",
+     "detect_lag_ms": 867,
+     "match_ms": 3.701505,
+     "route_ms": 0.001489,
+     "decide_ms": 3.702994,
+     "fired": true,
+     "path_len": 31
+    },
+    {
+     "gloss": "SWIPE-L",
+     "kind": "flush",
+     "detect_lag_ms": 801,
+     "match_ms": 3.399824,
+     "route_ms": 0.001473,
+     "decide_ms": 3.401297,
+     "fired": true,
+     "path_len": 53
+    },
+    {
+     "gloss": "SWIPE-L",
+     "kind": "flush",
+     "detect_lag_ms": 734,
+     "match_ms": 4.042851,
+     "route_ms": 0.001423,
+     "decide_ms": 4.044274,
+     "fired": true,
+     "path_len": 34
+    },
+    {
+     "gloss": "SWIPE-DN",
+     "kind": "flush",
+     "detect_lag_ms": 834,
+     "match_ms": 3.701334,
+     "route_ms": 0.000614,
+     "decide_ms": 3.701948,
+     "fired": false,
+     "path_len": 43
+    },
+    {
+     "gloss": "SWIPE-DN",
+     "kind": "flush",
+     "detect_lag_ms": 835,
+     "match_ms": 3.570804,
+     "route_ms": 0.001901,
+     "decide_ms": 3.572705,
+     "fired": true,
+     "path_len": 48
+    },
+    {
+     "gloss": "SWIPE-DN",
+     "kind": "flush",
+     "detect_lag_ms": 901,
+     "match_ms": 3.528142,
+     "route_ms": 0.001654,
+     "decide_ms": 3.529796,
+     "fired": true,
+     "path_len": 46
+    },
+    {
+     "gloss": "SWIPE-DN",
+     "kind": "flush",
+     "detect_lag_ms": 801,
+     "match_ms": 3.447604,
+     "route_ms": 0.002636,
+     "decide_ms": 3.45024,
+     "fired": true,
+     "path_len": 43
+    },
+    {
+     "gloss": "SWIPE-UP",
+     "kind": "flush",
+     "detect_lag_ms": 768,
+     "match_ms": 3.73047,
+     "route_ms": 0.001601,
+     "decide_ms": 3.732071,
+     "fired": true,
+     "path_len": 48
+    },
+    {
+     "gloss": "SWIPE-UP",
+     "kind": "flush",
+     "detect_lag_ms": 734,
+     "match_ms": 3.544399,
+     "route_ms": 0.001791,
+     "decide_ms": 3.54619,
+     "fired": true,
+     "path_len": 52
+    },
+    {
+     "gloss": "SWIPE-UP",
+     "kind": "flush",
+     "detect_lag_ms": 768,
+     "match_ms": 3.82344,
+     "route_ms": 0.002374,
+     "decide_ms": 3.825814,
+     "fired": true,
+     "path_len": 43
+    },
+    {
+     "gloss": "SWIPE-UP",
+     "kind": "flush",
+     "detect_lag_ms": 767,
+     "match_ms": 3.360868,
+     "route_ms": 0.001688,
+     "decide_ms": 3.362556,
+     "fired": true,
+     "path_len": 38
+    },
+    {
+     "gloss": "CIRCLE-CW",
+     "kind": "flush",
+     "detect_lag_ms": 834,
+     "match_ms": 3.370538,
+     "route_ms": 0.001576,
+     "decide_ms": 3.372114,
+     "fired": true,
+     "path_len": 46
+    },
+    {
+     "gloss": "CIRCLE-CW",
+     "kind": "flush",
+     "detect_lag_ms": 834,
+     "match_ms": 3.839686,
+     "route_ms": 0.001826,
+     "decide_ms": 3.841512,
+     "fired": true,
+     "path_len": 50
+    },
+    {
+     "gloss": "CIRCLE-CW",
+     "kind": "flush",
+     "detect_lag_ms": 768,
+     "match_ms": 3.590856,
+     "route_ms": 0.0019,
+     "decide_ms": 3.592756,
+     "fired": true,
+     "path_len": 49
+    },
+    {
+     "gloss": "CIRCLE-CW",
+     "kind": "flush",
+     "detect_lag_ms": 868,
+     "match_ms": 3.995166,
+     "route_ms": 0.001503,
+     "decide_ms": 3.996669,
+     "fired": true,
+     "path_len": 39
+    },
+    {
+     "gloss": "CIRCLE-CCW",
+     "kind": "flush",
+     "detect_lag_ms": 868,
+     "match_ms": 3.545546,
+     "route_ms": 0.000622,
+     "decide_ms": 3.546168,
+     "fired": false,
+     "path_len": 46
+    },
+    {
+     "gloss": "CIRCLE-CCW",
+     "kind": "flush",
+     "detect_lag_ms": 901,
+     "match_ms": 3.813856,
+     "route_ms": 0.001921,
+     "decide_ms": 3.815777,
+     "fired": false,
+     "path_len": 57
+    },
+    {
+     "gloss": "CIRCLE-CCW",
+     "kind": "flush",
+     "detect_lag_ms": 768,
+     "match_ms": 3.565157,
+     "route_ms": 0.000624,
+     "decide_ms": 3.565781,
+     "fired": false,
+     "path_len": 43
+    },
+    {
+     "gloss": "CIRCLE-CCW",
+     "kind": "flush",
+     "detect_lag_ms": 801,
+     "match_ms": 3.541052,
+     "route_ms": 0.00318,
+     "decide_ms": 3.544232,
+     "fired": true,
+     "path_len": 36
+    },
+    {
+     "gloss": "ZIGZAG",
+     "kind": "flush",
+     "detect_lag_ms": 768,
+     "match_ms": 3.957636,
+     "route_ms": 0.002554,
+     "decide_ms": 3.96019,
+     "fired": true,
+     "path_len": 49
+    },
+    {
+     "gloss": "ZIGZAG",
+     "kind": "flush",
+     "detect_lag_ms": 801,
+     "match_ms": 3.937437,
+     "route_ms": 0.004867,
+     "decide_ms": 3.942304,
+     "fired": true,
+     "path_len": 40
+    },
+    {
+     "gloss": "ZIGZAG",
+     "kind": "flush",
+     "detect_lag_ms": 734,
+     "match_ms": 3.976713,
+     "route_ms": 0.002099,
+     "decide_ms": 3.978812,
+     "fired": true,
+     "path_len": 41
+    },
+    {
+     "gloss": "ZIGZAG",
+     "kind": "flush",
+     "detect_lag_ms": 767,
+     "match_ms": 3.46416,
+     "route_ms": 0.001694,
+     "decide_ms": 3.465854,
+     "fired": true,
+     "path_len": 50
+    },
+    {
+     "gloss": "SHAKE",
+     "kind": "flush",
+     "detect_lag_ms": 868,
+     "match_ms": 3.663344,
+     "route_ms": 0.002881,
+     "decide_ms": 3.666225,
+     "fired": true,
+     "path_len": 55
+    },
+    {
+     "gloss": "SHAKE",
+     "kind": "flush",
+     "detect_lag_ms": 801,
+     "match_ms": 3.680477,
+     "route_ms": 0.000587,
+     "decide_ms": 3.681064,
+     "fired": false,
+     "path_len": 46
+    },
+    {
+     "gloss": "SHAKE",
+     "kind": "flush",
+     "detect_lag_ms": 868,
+     "match_ms": 3.580775,
+     "route_ms": 0.000596,
+     "decide_ms": 3.581371,
+     "fired": false,
+     "path_len": 51
+    },
+    {
+     "gloss": "SHAKE",
+     "kind": "flush",
+     "detect_lag_ms": 768,
+     "match_ms": 3.917955,
+     "route_ms": 0.002911,
+     "decide_ms": 3.920866,
+     "fired": true,
+     "path_len": 39
+    },
+    {
+     "gloss": "V-DRAW",
+     "kind": "flush",
+     "detect_lag_ms": 767,
+     "match_ms": 3.476877,
+     "route_ms": 0.001728,
+     "decide_ms": 3.478605,
+     "fired": true,
+     "path_len": 47
+    },
+    {
+     "gloss": "V-DRAW",
+     "kind": "flush",
+     "detect_lag_ms": 835,
+     "match_ms": 3.773307,
+     "route_ms": 0.000891,
+     "decide_ms": 3.774198,
+     "fired": false,
+     "path_len": 54
+    },
+    {
+     "gloss": "V-DRAW",
+     "kind": "flush",
+     "detect_lag_ms": 868,
+     "match_ms": 3.675009,
+     "route_ms": 0.002139,
+     "decide_ms": 3.677148,
+     "fired": true,
+     "path_len": 55
+    },
+    {
+     "gloss": "V-DRAW",
+     "kind": "flush",
+     "detect_lag_ms": 834,
+     "match_ms": 3.796499,
+     "route_ms": 0.00195,
+     "decide_ms": 3.798449,
+     "fired": true,
+     "path_len": 53
+    },
+    {
+     "gloss": "HOOK",
+     "kind": "flush",
+     "detect_lag_ms": 867,
+     "match_ms": 3.652346,
+     "route_ms": 0.001568,
+     "decide_ms": 3.653914,
+     "fired": true,
+     "path_len": 50
+    },
+    {
+     "gloss": "HOOK",
+     "kind": "flush",
+     "detect_lag_ms": 867,
+     "match_ms": 3.668893,
+     "route_ms": 0.00147,
+     "decide_ms": 3.670363,
+     "fired": true,
+     "path_len": 53
+    },
+    {
+     "gloss": "HOOK",
+     "kind": "flush",
+     "detect_lag_ms": 735,
+     "match_ms": 3.942471,
+     "route_ms": 0.001471,
+     "decide_ms": 3.943942,
+     "fired": true,
+     "path_len": 41
+    },
+    {
+     "gloss": "HOOK",
+     "kind": "flush",
+     "detect_lag_ms": 768,
+     "match_ms": 3.554212,
+     "route_ms": 0.001533,
+     "decide_ms": 3.555745,
+     "fired": true,
+     "path_len": 55
+    }
+   ]
+  },
+  "kp": {
+   "ep_floor": 2.878486129984897,
+   "commits": 38,
+   "commit_kinds": {
+    "still_hold": 38
+   },
+   "detect_lag_ms": {
+    "p50": 667,
+    "p95": 700,
+    "mean": 669.3
+   },
+   "decide_ms": {
+    "p50": 3.326,
+    "p95": 5.186,
+    "max": 5.883
+   },
+   "match_only_ms": {
+    "p50": 3.321,
+    "p95": 5.181
+   },
+   "sign_end_to_decide_ms": {
+    "p50": 670.1,
+    "p95": 703.3
+   },
+   "per_commit": [
+    {
+     "gloss": "SWIPE-R",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 2.945572,
+     "route_ms": 0.003347,
+     "decide_ms": 2.948919,
+     "fired": true,
+     "path_len": 33
+    },
+    {
+     "gloss": "SWIPE-R",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 3.012055,
+     "route_ms": 0.001948,
+     "decide_ms": 3.014003,
+     "fired": true,
+     "path_len": 35
+    },
+    {
+     "gloss": "SWIPE-R",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 3.193516,
+     "route_ms": 0.001492,
+     "decide_ms": 3.195008,
+     "fired": true,
+     "path_len": 37
+    },
+    {
+     "gloss": "SWIPE-R",
+     "kind": "still_hold",
+     "detect_lag_ms": 700,
+     "match_ms": 3.047261,
+     "route_ms": 0.001879,
+     "decide_ms": 3.04914,
+     "fired": true,
+     "path_len": 44
+    },
+    {
+     "gloss": "SWIPE-L",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 3.066033,
+     "route_ms": 0.001651,
+     "decide_ms": 3.067684,
+     "fired": true,
+     "path_len": 35
+    },
+    {
+     "gloss": "SWIPE-L",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 3.113169,
+     "route_ms": 0.002537,
+     "decide_ms": 3.115706,
+     "fired": true,
+     "path_len": 42
+    },
+    {
+     "gloss": "SWIPE-L",
+     "kind": "still_hold",
+     "detect_lag_ms": 666,
+     "match_ms": 2.98567,
+     "route_ms": 0.001396,
+     "decide_ms": 2.987066,
+     "fired": true,
+     "path_len": 32
+    },
+    {
+     "gloss": "SWIPE-DN",
+     "kind": "still_hold",
+     "detect_lag_ms": 666,
+     "match_ms": 3.205079,
+     "route_ms": 0.001799,
+     "decide_ms": 3.206878,
+     "fired": true,
+     "path_len": 32
+    },
+    {
+     "gloss": "SWIPE-DN",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 2.91498,
+     "route_ms": 0.001533,
+     "decide_ms": 2.916513,
+     "fired": true,
+     "path_len": 39
+    },
+    {
+     "gloss": "SWIPE-DN",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 2.911163,
+     "route_ms": 0.001718,
+     "decide_ms": 2.912881,
+     "fired": true,
+     "path_len": 32
+    },
+    {
+     "gloss": "SWIPE-DN",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 3.390698,
+     "route_ms": 0.001801,
+     "decide_ms": 3.392499,
+     "fired": true,
+     "path_len": 37
+    },
+    {
+     "gloss": "SWIPE-UP",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 2.852335,
+     "route_ms": 0.001358,
+     "decide_ms": 2.853693,
+     "fired": true,
+     "path_len": 38
+    },
+    {
+     "gloss": "SWIPE-UP",
+     "kind": "still_hold",
+     "detect_lag_ms": 700,
+     "match_ms": 3.32111,
+     "route_ms": 0.004582,
+     "decide_ms": 3.325692,
+     "fired": true,
+     "path_len": 41
+    },
+    {
+     "gloss": "SWIPE-UP",
+     "kind": "still_hold",
+     "detect_lag_ms": 666,
+     "match_ms": 3.110875,
+     "route_ms": 0.001579,
+     "decide_ms": 3.112454,
+     "fired": true,
+     "path_len": 32
+    },
+    {
+     "gloss": "CIRCLE-CW",
+     "kind": "still_hold",
+     "detect_lag_ms": 666,
+     "match_ms": 2.872941,
+     "route_ms": 0.001415,
+     "decide_ms": 2.874356,
+     "fired": true,
+     "path_len": 37
+    },
+    {
+     "gloss": "CIRCLE-CW",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 3.061992,
+     "route_ms": 0.002155,
+     "decide_ms": 3.064147,
+     "fired": true,
+     "path_len": 39
+    },
+    {
+     "gloss": "CIRCLE-CW",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 3.069669,
+     "route_ms": 0.001829,
+     "decide_ms": 3.071498,
+     "fired": true,
+     "path_len": 38
+    },
+    {
+     "gloss": "CIRCLE-CW",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 2.982633,
+     "route_ms": 0.001589,
+     "decide_ms": 2.984222,
+     "fired": true,
+     "path_len": 33
+    },
+    {
+     "gloss": "CIRCLE-CCW",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 3.360242,
+     "route_ms": 0.001953,
+     "decide_ms": 3.362195,
+     "fired": true,
+     "path_len": 33
+    },
+    {
+     "gloss": "CIRCLE-CCW",
+     "kind": "still_hold",
+     "detect_lag_ms": 666,
+     "match_ms": 5.181397,
+     "route_ms": 0.004809,
+     "decide_ms": 5.186206,
+     "fired": true,
+     "path_len": 42
+    },
+    {
+     "gloss": "CIRCLE-CCW",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 3.605531,
+     "route_ms": 0.00226,
+     "decide_ms": 3.607791,
+     "fired": true,
+     "path_len": 34
+    },
+    {
+     "gloss": "CIRCLE-CCW",
+     "kind": "still_hold",
+     "detect_lag_ms": 666,
+     "match_ms": 2.963035,
+     "route_ms": 0.002174,
+     "decide_ms": 2.965209,
+     "fired": true,
+     "path_len": 32
+    },
+    {
+     "gloss": "ZIGZAG",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 2.95994,
+     "route_ms": 0.002065,
+     "decide_ms": 2.962005,
+     "fired": true,
+     "path_len": 43
+    },
+    {
+     "gloss": "ZIGZAG",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 5.877406,
+     "route_ms": 0.005333,
+     "decide_ms": 5.882739,
+     "fired": true,
+     "path_len": 36
+    },
+    {
+     "gloss": "ZIGZAG",
+     "kind": "still_hold",
+     "detect_lag_ms": 666,
+     "match_ms": 3.748602,
+     "route_ms": 0.002448,
+     "decide_ms": 3.75105,
+     "fired": true,
+     "path_len": 39
+    },
+    {
+     "gloss": "ZIGZAG",
+     "kind": "still_hold",
+     "detect_lag_ms": 666,
+     "match_ms": 3.810277,
+     "route_ms": 0.0022,
+     "decide_ms": 3.812477,
+     "fired": true,
+     "path_len": 43
+    },
+    {
+     "gloss": "SHAKE",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 3.618713,
+     "route_ms": 0.002456,
+     "decide_ms": 3.621169,
+     "fired": true,
+     "path_len": 41
+    },
+    {
+     "gloss": "SHAKE",
+     "kind": "still_hold",
+     "detect_lag_ms": 700,
+     "match_ms": 3.650517,
+     "route_ms": 0.002477,
+     "decide_ms": 3.652994,
+     "fired": true,
+     "path_len": 40
+    },
+    {
+     "gloss": "SHAKE",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 3.419023,
+     "route_ms": 0.001495,
+     "decide_ms": 3.420518,
+     "fired": true,
+     "path_len": 45
+    },
+    {
+     "gloss": "SHAKE",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 3.474113,
+     "route_ms": 0.001872,
+     "decide_ms": 3.475985,
+     "fired": true,
+     "path_len": 32
+    },
+    {
+     "gloss": "V-DRAW",
+     "kind": "still_hold",
+     "detect_lag_ms": 666,
+     "match_ms": 3.531911,
+     "route_ms": 0.001779,
+     "decide_ms": 3.53369,
+     "fired": true,
+     "path_len": 38
+    },
+    {
+     "gloss": "V-DRAW",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 3.356582,
+     "route_ms": 0.001975,
+     "decide_ms": 3.358557,
+     "fired": true,
+     "path_len": 45
+    },
+    {
+     "gloss": "V-DRAW",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 3.4739,
+     "route_ms": 0.002332,
+     "decide_ms": 3.476232,
+     "fired": true,
+     "path_len": 45
+    },
+    {
+     "gloss": "V-DRAW",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 3.32476,
+     "route_ms": 0.0016,
+     "decide_ms": 3.32636,
+     "fired": true,
+     "path_len": 45
+    },
+    {
+     "gloss": "HOOK",
+     "kind": "still_hold",
+     "detect_lag_ms": 666,
+     "match_ms": 3.51979,
+     "route_ms": 0.002516,
+     "decide_ms": 3.522306,
+     "fired": true,
+     "path_len": 44
+    },
+    {
+     "gloss": "HOOK",
+     "kind": "still_hold",
+     "detect_lag_ms": 666,
+     "match_ms": 3.663395,
+     "route_ms": 0.001981,
+     "decide_ms": 3.665376,
+     "fired": true,
+     "path_len": 43
+    },
+    {
+     "gloss": "HOOK",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 3.649789,
+     "route_ms": 0.001787,
+     "decide_ms": 3.651576,
+     "fired": true,
+     "path_len": 39
+    },
+    {
+     "gloss": "HOOK",
+     "kind": "still_hold",
+     "detect_lag_ms": 667,
+     "match_ms": 3.629503,
+     "route_ms": 0.001891,
+     "decide_ms": 3.631394,
+     "fired": true,
+     "path_len": 45
+    }
+   ]
+  },
+  "kp_fluent": {
+   "ep_floor": 2.878486129984897,
+   "commits": 38,
+   "commit_kinds": {
+    "fluent": 38
+   },
+   "detect_lag_ms": {
+    "p50": 0,
+    "p95": 33,
+    "mean": 2.6
+   },
+   "decide_ms": {
+    "p50": 3.006,
+    "p95": 3.373,
+    "max": 3.41
+   },
+   "match_only_ms": {
+    "p50": 3.003,
+    "p95": 3.371
+   },
+   "sign_end_to_decide_ms": {
+    "p50": 3.0,
+    "p95": 36.2
+   },
+   "per_commit": [
+    {
+     "gloss": "SWIPE-R",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 3.237034,
+     "route_ms": 0.003836,
+     "decide_ms": 3.24087,
+     "fired": true,
+     "path_len": 13
+    },
+    {
+     "gloss": "SWIPE-R",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 2.860794,
+     "route_ms": 0.001563,
+     "decide_ms": 2.862357,
+     "fired": true,
+     "path_len": 15
+    },
+    {
+     "gloss": "SWIPE-R",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 2.886277,
+     "route_ms": 0.00133,
+     "decide_ms": 2.887607,
+     "fired": true,
+     "path_len": 17
+    },
+    {
+     "gloss": "SWIPE-R",
+     "kind": "fluent",
+     "detect_lag_ms": 33,
+     "match_ms": 3.097529,
+     "route_ms": 0.001486,
+     "decide_ms": 3.099015,
+     "fired": true,
+     "path_len": 24
+    },
+    {
+     "gloss": "SWIPE-L",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 3.126372,
+     "route_ms": 0.002848,
+     "decide_ms": 3.12922,
+     "fired": true,
+     "path_len": 15
+    },
+    {
+     "gloss": "SWIPE-L",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 3.31427,
+     "route_ms": 0.001875,
+     "decide_ms": 3.316145,
+     "fired": true,
+     "path_len": 22
+    },
+    {
+     "gloss": "SWIPE-L",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 3.003433,
+     "route_ms": 0.002127,
+     "decide_ms": 3.00556,
+     "fired": true,
+     "path_len": 12
+    },
+    {
+     "gloss": "SWIPE-DN",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 2.947207,
+     "route_ms": 0.001543,
+     "decide_ms": 2.94875,
+     "fired": true,
+     "path_len": 12
+    },
+    {
+     "gloss": "SWIPE-DN",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 3.40865,
+     "route_ms": 0.00182,
+     "decide_ms": 3.41047,
+     "fired": true,
+     "path_len": 19
+    },
+    {
+     "gloss": "SWIPE-DN",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 3.043946,
+     "route_ms": 0.00153,
+     "decide_ms": 3.045476,
+     "fired": true,
+     "path_len": 12
+    },
+    {
+     "gloss": "SWIPE-DN",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 2.914839,
+     "route_ms": 0.001268,
+     "decide_ms": 2.916107,
+     "fired": true,
+     "path_len": 17
+    },
+    {
+     "gloss": "SWIPE-UP",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 3.207382,
+     "route_ms": 0.001974,
+     "decide_ms": 3.209356,
+     "fired": true,
+     "path_len": 18
+    },
+    {
+     "gloss": "SWIPE-UP",
+     "kind": "fluent",
+     "detect_lag_ms": 34,
+     "match_ms": 3.346149,
+     "route_ms": 0.003387,
+     "decide_ms": 3.349536,
+     "fired": true,
+     "path_len": 21
+    },
+    {
+     "gloss": "SWIPE-UP",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 3.242666,
+     "route_ms": 0.001745,
+     "decide_ms": 3.244411,
+     "fired": true,
+     "path_len": 12
+    },
+    {
+     "gloss": "CIRCLE-CW",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 2.954794,
+     "route_ms": 0.001673,
+     "decide_ms": 2.956467,
+     "fired": true,
+     "path_len": 17
+    },
+    {
+     "gloss": "CIRCLE-CW",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 2.8594,
+     "route_ms": 0.001468,
+     "decide_ms": 2.860868,
+     "fired": true,
+     "path_len": 19
+    },
+    {
+     "gloss": "CIRCLE-CW",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 3.25705,
+     "route_ms": 0.00155,
+     "decide_ms": 3.2586,
+     "fired": true,
+     "path_len": 18
+    },
+    {
+     "gloss": "CIRCLE-CW",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 2.949662,
+     "route_ms": 0.001357,
+     "decide_ms": 2.951019,
+     "fired": true,
+     "path_len": 13
+    },
+    {
+     "gloss": "CIRCLE-CCW",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 2.890508,
+     "route_ms": 0.001479,
+     "decide_ms": 2.891987,
+     "fired": true,
+     "path_len": 13
+    },
+    {
+     "gloss": "CIRCLE-CCW",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 3.301699,
+     "route_ms": 0.001804,
+     "decide_ms": 3.303503,
+     "fired": true,
+     "path_len": 22
+    },
+    {
+     "gloss": "CIRCLE-CCW",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 2.864584,
+     "route_ms": 0.001217,
+     "decide_ms": 2.865801,
+     "fired": true,
+     "path_len": 14
+    },
+    {
+     "gloss": "CIRCLE-CCW",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 2.859173,
+     "route_ms": 0.001253,
+     "decide_ms": 2.860426,
+     "fired": true,
+     "path_len": 12
+    },
+    {
+     "gloss": "ZIGZAG",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 3.276056,
+     "route_ms": 0.004836,
+     "decide_ms": 3.280892,
+     "fired": true,
+     "path_len": 23
+    },
+    {
+     "gloss": "ZIGZAG",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 2.95174,
+     "route_ms": 0.001611,
+     "decide_ms": 2.953351,
+     "fired": true,
+     "path_len": 16
+    },
+    {
+     "gloss": "ZIGZAG",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 2.868638,
+     "route_ms": 0.001947,
+     "decide_ms": 2.870585,
+     "fired": true,
+     "path_len": 19
+    },
+    {
+     "gloss": "ZIGZAG",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 3.283062,
+     "route_ms": 0.001466,
+     "decide_ms": 3.284528,
+     "fired": true,
+     "path_len": 23
+    },
+    {
+     "gloss": "SHAKE",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 2.902154,
+     "route_ms": 0.001562,
+     "decide_ms": 2.903716,
+     "fired": true,
+     "path_len": 21
+    },
+    {
+     "gloss": "SHAKE",
+     "kind": "fluent",
+     "detect_lag_ms": 33,
+     "match_ms": 3.24507,
+     "route_ms": 0.002157,
+     "decide_ms": 3.247227,
+     "fired": true,
+     "path_len": 20
+    },
+    {
+     "gloss": "SHAKE",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 2.830432,
+     "route_ms": 0.002377,
+     "decide_ms": 2.832809,
+     "fired": true,
+     "path_len": 25
+    },
+    {
+     "gloss": "SHAKE",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 2.858588,
+     "route_ms": 0.001485,
+     "decide_ms": 2.860073,
+     "fired": true,
+     "path_len": 12
+    },
+    {
+     "gloss": "V-DRAW",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 3.371353,
+     "route_ms": 0.001777,
+     "decide_ms": 3.37313,
+     "fired": true,
+     "path_len": 18
+    },
+    {
+     "gloss": "V-DRAW",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 3.143936,
+     "route_ms": 0.00145,
+     "decide_ms": 3.145386,
+     "fired": true,
+     "path_len": 25
+    },
+    {
+     "gloss": "V-DRAW",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 3.056387,
+     "route_ms": 0.001561,
+     "decide_ms": 3.057948,
+     "fired": true,
+     "path_len": 25
+    },
+    {
+     "gloss": "V-DRAW",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 3.150653,
+     "route_ms": 0.001774,
+     "decide_ms": 3.152427,
+     "fired": true,
+     "path_len": 25
+    },
+    {
+     "gloss": "HOOK",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 2.863449,
+     "route_ms": 0.001639,
+     "decide_ms": 2.865088,
+     "fired": true,
+     "path_len": 24
+    },
+    {
+     "gloss": "HOOK",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 2.836131,
+     "route_ms": 0.001429,
+     "decide_ms": 2.83756,
+     "fired": true,
+     "path_len": 23
+    },
+    {
+     "gloss": "HOOK",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 3.179884,
+     "route_ms": 0.00145,
+     "decide_ms": 3.181334,
+     "fired": true,
+     "path_len": 19
+    },
+    {
+     "gloss": "HOOK",
+     "kind": "fluent",
+     "detect_lag_ms": 0,
+     "match_ms": 2.838871,
+     "route_ms": 0.001202,
+     "decide_ms": 2.840073,
+     "fired": true,
+     "path_len": 25
+    }
+   ]
+  }
+ },
+ "not_measured": [
+  "keypoints->daemon LAN POST (~3-10ms per PRD)",
+  "real action spawn / xdotool (~10-40ms per PRD)"
+ ],
+ "engine": "contract",
+ "reject_threshold": 0.45,
+ "meta": {
+  "tool": "tools/live-eval/run_eval.py",
+  "seed": 7,
+  "engine": "contract",
+  "reject_threshold": 0.45,
+  "kp_floor_calibrated": 2.878,
+  "still_motion_p99": 1.919,
+  "python": "3.13.5",
+  "utc": "2026-10-25T11:40:59Z"
+ }
+}
