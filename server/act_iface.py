@@ -587,6 +587,11 @@ class ActionProvider:
         return None
 
     def verify_focus(self, expect_wm_class=None):
+        # ctx-dict callers (macro step guard) carry the expectation under
+        # expect_wm_class/expected_class — unwrap either shape.
+        if isinstance(expect_wm_class, dict):
+            expect_wm_class = (expect_wm_class.get("expect_wm_class") or
+                               expect_wm_class.get("expected_class"))
         f = self.focused_app()
         if f is None or not (f.wm_class or f.instance):
             return False                       # can't see focus -> refuse

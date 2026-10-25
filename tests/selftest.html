@@ -101,12 +101,17 @@ async function main() {
 
   /* --- @ picker: bind a tier-2 command --- */
   $('tw-pick').click();
-  await until(() => visible($('sheet-actions')) &&
-              $$('#act-list .act-row').length > 0, 'picker rows');
-  const cmdRow = $$('#act-list .act-row')
+  await until(() => visible($('sheet-actions')), 'picker open');
+  const findRow = () => $$('#act-list .act-row')
     .find(r => (r.querySelector('.act-name') || {}).textContent ===
                'Terminal command');
-  if (!cmdRow) throw new Error('Terminal command row missing');
+  let cmdRow = null;
+  try { cmdRow = await until(findRow, 'x', 9000); } catch (e) {}
+  if (!cmdRow) {
+    const A = (await win.import('./js/actions.js')).Actions;
+    throw new Error('Terminal command row missing — cat=' +
+                    JSON.stringify(A._cat()));
+  }
   const argvIn = cmdRow.querySelector('.act-input');
   argvIn.value = 'notify-send hi';
   argvIn.dispatchEvent(new win.Event('input', { bubbles: true }));

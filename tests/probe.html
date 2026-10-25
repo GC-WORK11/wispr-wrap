@@ -1,0 +1,31 @@
+<!doctype html><html><body>
+<iframe id="fr" src="/index.html?k=teach-stub-key" style="width:390px;height:700px"></iframe>
+<script>
+const win = document.getElementById('fr').contentWindow;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const out = {};
+(async () => {
+  try {
+    for (let i=0;i<120;i++){ if (win.document.readyState==='complete' && win.document.getElementById('tw-name')) break; await sleep(80); }
+    out.boot = true;
+    const r = await fetch('/act', {headers:{'X-WF-Key':'teach-stub-key'}});
+    out.actStatus = r.status;
+    const j = await r.json();
+    out.actKeys = Object.keys(j); out.apps = (j.apps||[]).length; out.tools=(j.tools||[]).length;
+    win.document.getElementById('tray-teach').click();
+    await sleep(500);
+    win.document.getElementById('tw-name').value='x';
+    win.document.getElementById('tw-name').dispatchEvent(new win.Event('input',{bubbles:true}));
+    await sleep(150);
+    win.document.getElementById('tw-name-next').click();
+    await sleep(800);
+    const pk = win.document.getElementById('tw-pick');
+    out.pick = !!pk;
+    if (pk) { pk.click(); await sleep(1200); }
+    out.rows = [...win.document.querySelectorAll('#act-list .act-row')].map(x=>x.querySelector('.act-name')?.textContent);
+    out.sect = [...win.document.querySelectorAll('#act-list .act-sect')].map(x=>x.textContent);
+    out.note = (win.document.getElementById('act-note')||{}).textContent;
+  } catch(e) { out.err = e.message; }
+  fetch('/_result', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(out)}).catch(()=>{});
+})();
+</script></body></html>

@@ -117,6 +117,9 @@ class H(BaseHTTPRequestHandler):
         p = self.path.split("?")[0]
         if p == "/health":
             return self._reply(200, b"ok")
+        if p == "/probe":
+            with open(os.path.join(HERE, "probe.html"), "rb") as f:
+                return self._reply(200, f.read(), "text/html; charset=utf-8")
         if p == "/selftest":
             with open(os.path.join(HERE, "selftest.html"), "rb") as f:
                 return self._reply(200, f.read(), "text/html; charset=utf-8")

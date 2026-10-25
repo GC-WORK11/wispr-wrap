@@ -52,6 +52,42 @@ BASE_MS = [time.monotonic() * 1000.0]
 # 0.0004 keeps realism (no frozen landmarks) while staying under exit_v.
 JITTER = 0.0004
 
+# Handshape isolation: synth.render_clip draws an OPEN palm everywhere.
+# A still open palm is the endpointer's listen-mode sign by definition —
+# any still lead/tail of a "sign" clip would fire PALM-OPEN mid-clip and
+# pollute the listen-gate proof (the sign itself would turn listening
+# on). So sign/teach clips wear a FIST: fingertips curled to 30% reach,
+# wrist+MCP anchors identical -> the centroid trajectory (what DTW
+# matches on) is unchanged, but openness ~0.7 < 1.35 -> never a mode
+# event. Only the dedicated palm/namaste clips stay open-palmed.
+TIPS = (4, 8, 12, 16, 20)
+
+
+def _fist_block(pts):
+    """Curl one 21-point hand's tips toward the wrist; anchors kept."""
+    if not pts:
+        return pts
+    w = pts[0]
+    out = []
+    for i, p in enumerate(pts):
+        if i in TIPS:
+            out.append({"x": w["x"] + (p["x"] - w["x"]) * 0.30,
+                        "y": w["y"] + (p["y"] - w["y"]) * 0.30,
+                        "score": p["score"]})
+        else:
+            out.append(dict(p))
+    return out
+
+
+def fistify(frames):
+    """Rewrite both hands of every present frame to the fist shape."""
+    for f in frames:
+        ps = f.get("points") or []
+        if len(ps) == 42 and ps[0].get("score", 0) + \
+                ps[21].get("score", 0) > 0:
+            f["points"] = _fist_block(ps[:21]) + _fist_block(ps[21:])
+    return frames
+
 # The gate's sign grammar — every bound gloss gets its OWN motion-distinct
 # path so the DTW bank never confuses two bound glosses (it is direction
 # sensitive: swipe-left != swipe-right). Same kinematics the e2e lane uses.
@@ -174,9 +210,9 @@ def main():
                 path = synth.sign_paths()[name]
             else:
                 path = synth.unknown_path(7)
-            ok &= emit(synth.render_clip(path, n_motion=18, lead=4,
-                                         tail=10, absent=10,
-                                         jitter=JITTER),
+            ok &= emit(fistify(synth.render_clip(
+                        path, n_motion=18, lead=4,
+                        tail=10, absent=10, jitter=JITTER)),
                        a.base, a.key, a.fps, a.quiet)
         else:
             print(f"unknown clip {c!r}", file=sys.stderr)

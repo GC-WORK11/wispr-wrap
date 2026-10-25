@@ -472,13 +472,23 @@ class SignBank:
             # fraction of the hand's own size is a hold, not a motion:
             # collapse it to its centroid BEFORE resampling so it lands
             # on the same all-zero normalized point as any other hold.
+            #
+            # The floor is hand-scale RELATIVE only.  An absolute pixel
+            # floor (the original max(2.0, frac*px)) silently collapsed
+            # every normalized-space path — real phone keypoints and the
+            # e2e synth are 0..1, where a genuine SWIPE's rms is ~0.2 and
+            # everything under 2.0 read as "still".  When no hand scale
+            # is measurable at all the gate fires only on literal stillness.
             mx = sum(p[0] for p in raw) / npts
             my = sum(p[1] for p in raw) / npts
             rms = math.sqrt(sum((p[0] - mx) ** 2 + (p[1] - my) ** 2
                                 for p in raw) / npts)
             hand_px = (sum(scales[dom]) / len(scales[dom])) \
                 if scales[dom] else 0.0
-            if rms < max(2.0, self.still_frac * hand_px):
+            if hand_px > 0:
+                if rms < self.still_frac * hand_px:
+                    raw = [(mx, my)] * npts
+            elif rms < 1e-9:
                 raw = [(mx, my)] * npts
         traj = _normalize(_resample(raw, RESAMPLE_N))
         # Per-hand clip shape = upper median of observed dims; a hand

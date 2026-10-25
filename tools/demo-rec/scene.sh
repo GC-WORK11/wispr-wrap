@@ -97,15 +97,16 @@ for i in $(seq 1 30); do
 done
 
 # --- windows ----------------------------------------------------------
-spawn_term() {  # title, command
-  DISPLAY=$D xfce4-terminal --title "$1" --font="Monospace 11" \
-    --execute "$2" >>"$LOGS/term-$1.log" 2>&1 &
+spawn_term() {  # title, argv... (--execute takes separate args, not one string)
+  local t=$1; shift
+  DISPLAY=$D xfce4-terminal --title "$t" --font="Monospace 11" \
+    --execute "$@" >>"$LOGS/term-$t.log" 2>&1 &
   echo $! >> "$pids_file"
 }
-spawn_term wf-editor "python3 $PWD/sink.py"
-spawn_term wf-log    "tail -f $LOGS/wfd.log"
-spawn_term wf-proof  "watch -n 1 -t 'ls -la $OUT $DEMOHOME/Pictures 2>/dev/null; echo; cat $DEMO/markers.log 2>/dev/null'"
-spawn_term wf-title  "$DEMO/title.sh"
+spawn_term wf-editor python3 "$PWD/sink.py"
+spawn_term wf-log    tail -f "$LOGS/wfd.log"
+spawn_term wf-proof  watch -n 1 -t ls -la "$OUT" "$DEMOHOME/Pictures" ';' echo ';' cat "$DEMO/markers.log"
+spawn_term wf-title  bash "$DEMO/title.sh"
 
 # the tabbed browser for the context chapter — two real tabs
 DISPLAY=$D google-chrome --user-data-dir=$DEMO/chr-tabs \

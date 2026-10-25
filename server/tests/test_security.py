@@ -180,7 +180,13 @@ class WfdCase(unittest.TestCase):
     # ---- contract: bounded request bodies ----------------------------------
     def test_live_kp_body_cap_413(self):
         self.need("POST", "/live/kp")
-        status, _, _ = self.req("POST", "/live/kp", body=b"x" * MAX_BODY)
+        # just over the /live/kp cap (256 KB): the daemon replies 413
+        # before reading the body — a body small enough to land in the
+        # socket buffer is the only shape whose 413 a client can ever
+        # read back.  (A MAX_BODY-sized send dies on EPIPE mid-write,
+        # which is correct but leaves no response to assert on.)
+        status, _, _ = self.req("POST", "/live/kp",
+                                body=b"x" * (256 * 1024 + 1))
         self.assertEqual(status, 413, "oversized /live/kp was not rejected")
         self.assertEqual(self.req("GET", "/health", auth=False)[0], 200,
                          "daemon died after oversized body")
