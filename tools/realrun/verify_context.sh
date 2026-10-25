@@ -2,12 +2,10 @@
 # verify_context — the SAME sign produces a DIFFERENT real effect
 # depending on which app is focused.
 #
-# Honest scope: the provider-level context_dispatch action (per_app
-# tables routed inside act_iface) has no daemon route today — probed
-# below. The user-reachable path that DOES exist is a bound argv: a
-# script that reads the focused window and dispatches differently — a
-# real binding a user could write. We prove both facts: the effect is
-# real and observable, and the engine-level route is pending.
+# Two real paths are proved: (1) a bound argv script that reads the
+# focused window and dispatches differently (a user binding), and
+# (2) the engine-level {"kind":"context","by_wm_class":...} action
+# carried by teach/PUT-bank through the action provider.
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$HERE/lib.sh"; load_env
@@ -55,20 +53,39 @@ python3 "$HERE/kpstream.py" --base "$BASE" --key "$KEY" --fps 40 sign:RR-CTX >/d
 sleep 0.8
 ls "$MARKERS"/ctx-* > "$PROOF/focus2.txt" 2>/dev/null || echo "no marker yet" > "$PROOF/focus2.txt"
 
-# engine-level probe: context_dispatch action routing via teach-carried
-# action dict (stored opaquely) — the honest "is the provider wired" test
-rm -f "$MARKERS/ctx-engine"
-code=$(call POST /teach/begin '{"name":"RR-CTX2","takes":1,"label":"ctx engine","action":{"kind":"context","by_wm_class":{"sinkedit":{"argv":["/usr/bin/touch","'$MARKERS'/ctx-engine"]},"default":{"argv":["/usr/bin/true"]},"tier":0}}')
-echo "teach/begin kind:context -> $code" | tee "$PROOF/probe.txt"
+# engine-level probe: context_dispatch action routing via the teach-
+# carried action dict. type_text (not argv) keeps the first-use gate out
+# of the way; focus the sink editor and require the routed text in it.
+ENGINE_TXT="CTX-ENGINE-OK"
+engine_json() {
+    python3 - "$STATE/ctx-engine.json" "$ENGINE_TXT" <<'PY'
+import json, sys
+path, txt = sys.argv[1], sys.argv[2]
+action = {"kind": "context", "tier": 0,
+          "by_wm_class": {"SinkEdit": {"type": "type_text",
+                                       "text": txt + "\n"}},
+          "default": {"type": "type_text", "text": "CTX-DEFAULT-WRONG\n"}}
+json.dump({"name": "RR-CTX2", "takes": 1, "label": "ctx engine",
+           "action": action}, open(path, "w"))
+PY
+}
+engine_json
+DISPLAY="$D" xdotool windowactivate --sync "$TERM_WID" 2>/dev/null; sleep 0.4
+code=$(call POST /teach/begin "@$STATE/ctx-engine.json")
+echo "teach/begin kind:context -> $code $(call_body | head -c 200)" | tee "$PROOF/probe.txt"
 python3 "$HERE/kpstream.py" --base "$BASE" --key "$KEY" --fps 40 teach:RR-CTX2 >/dev/null 2>&1
 sleep 0.3; call POST /teach/end '{}' >/dev/null
+python3 "$HERE/kpstream.py" --base "$BASE" --key "$KEY" --fps 40 palm >/dev/null 2>&1
+sleep 0.3
 python3 "$HERE/kpstream.py" --base "$BASE" --key "$KEY" --fps 40 sign:RR-CTX2 >/dev/null 2>&1
-sleep 0.6
+for i in $(seq 1 20); do grep -q "$ENGINE_TXT" "$SINK" 2>/dev/null && break; sleep 0.2; done
 call GET /live/state > /dev/null
 call_body | python3 -c 'import json,sys; s=json.load(sys.stdin); print("last_match:", s.get("last_match"))' | tee -a "$PROOF/probe.txt"
-[ -f "$MARKERS/ctx-engine" ] \
-    && echo "context_dispatch ROUTED" | tee -a "$PROOF/probe.txt" \
-    || echo "context_dispatch action NOT routed by daemon (PENDING)" | tee -a "$PROOF/probe.txt"
+if grep -q "$ENGINE_TXT" "$SINK" 2>/dev/null; then
+    echo "context_dispatch ROUTED (focused SinkEdit -> type_text; sink received $ENGINE_TXT)" | tee -a "$PROOF/probe.txt"
+else
+    echo "context_dispatch action NOT routed by daemon (PENDING)" | tee -a "$PROOF/probe.txt"
+fi
 
 snapshot > "$PROOF/after.txt"
 DIFFED=$(comm -13 <(sort "$PROOF/focus1.txt") <(sort "$PROOF/focus2.txt"))

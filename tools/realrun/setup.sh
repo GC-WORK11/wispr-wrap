@@ -140,8 +140,15 @@ log "wm ready: $(DISPLAY="$D" wmctrl -m 2>/dev/null | head -1)"
 # ---------- real apps ----------------------------------------------------
 SINK="$STATE/sink.txt"
 TERMSINK="$STATE/term-sink.txt"
-MARKERS="$STATE/markers"; mkdir -p "$MARKERS"
+MARKERS="$STATE/markers"; rm -rf "$MARKERS"; mkdir -p "$MARKERS"
 : > "$SINK"; : > "$TERMSINK"
+# A fresh scratch HOME per boot: stale bank rows/commands from a previous
+# gate run otherwise collide with this run's synthetic clips (the same
+# path can match an old gloss and dispatch the old binding).
+rm -f "$WFHOME/.config/wf/signbank.json" \
+      "$WFHOME/.config/wf/commands.tsv" \
+      "$WFHOME/.config/wf/approved.json" \
+      "$WFHOME/.config/wf/compositions.json"
 
 # Window names are namespaced by worktree ($TAG): sibling agents run the
 # same gate and their teardown does `pkill -f "realrun-sink"` — a shared

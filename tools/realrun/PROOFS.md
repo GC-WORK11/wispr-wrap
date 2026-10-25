@@ -69,8 +69,8 @@ Per feature: `before.txt after.txt diff.txt shot.png run.log RESULT`.
 | volume | no audio backend on box | proofs/realrun/volume | `tools/realrun/verify_volume.sh` | NEVER-ON-BOX |
 | screenshot | sign -> real PNG of the display (header+size) via bound argv | proofs/realrun/screenshot | `tools/realrun/verify_screenshot.sh` | VERIFIED |
 | macro | sign -> multi-effect chain (open window, type, close, step log) | proofs/realrun/macro | `tools/realrun/verify_macro.sh` | VERIFIED |
-| context | same sign -> different marker per focused app | proofs/realrun/context | `tools/realrun/verify_context.sh` | VERIFIED |
-| observe | reported-without-effect mode (route probe) | proofs/realrun/observe | `tools/realrun/verify_observe.sh` | PENDING |
+| context | same sign -> different effect per focused app (user argv + engine context_dispatch) | proofs/realrun/context | `tools/realrun/verify_context.sh` | VERIFIED |
+| observe | POST /live/mode observe: match + would-fire reported, no dispatch; live control fires | proofs/realrun/observe | `tools/realrun/verify_observe.sh` | VERIFIED |
 | record | real XI2 input -> macro.json (type/keys/click steps, mode 600) | proofs/realrun/record | `tools/realrun/verify_record.sh` | VERIFIED |
 | confirm | tier-2 sign parks; /act/confirm fires; cancel buries | proofs/realrun/confirm | `tools/realrun/verify_confirm.sh` | VERIFIED |
 | auth | unpaired/wrong-key/proxied all refused on live surface | proofs/realrun/auth | `tools/realrun/verify_auth.sh` | VERIFIED |

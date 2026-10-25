@@ -720,7 +720,7 @@ def _ops_sink(ev):
                 "action": ev.get("action"), "profile": ev.get("profile"),
                 "observe": t == "would-fire",
                 "ok": ev.get("ok"), "error": ev.get("error"),
-                "dispatched": True, "t_ms": ev.get("t_ms")}
+                "dispatched": t == "fire", "t_ms": ev.get("t_ms")}
 
 
 def _ops_exec(action, ctx):
