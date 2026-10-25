@@ -264,15 +264,27 @@ on('unpaired', () => {
   toast('unpaired — rescan QR', true);
 });
 
-// tray: LIVE toggle goes to the live sheet; teach/signs open their routes.
-// LIVE "off" while the sheet is closed is handled by live.js close().
+// rail: Go Live toggles the live view; compose/teach/signs are nav items.
+// LIVE "off" while the view is closed is handled by live.js close().
 document.getElementById('tray-live').onclick = () => nav(current === 'live' ? '' : 'live');
+document.getElementById('tray-compose').onclick = () => nav('');
 document.getElementById('tray-teach').onclick = () => nav('teach');
 document.getElementById('tray-signs').onclick = () => nav('signs');
 on('route', name => {
   document.getElementById('tray-live').classList.toggle('on', name === 'live');
+  document.getElementById('tray-compose').classList.toggle('on', name === '');
   document.getElementById('tray-teach').classList.toggle('on', name === 'teach');
   document.getElementById('tray-signs').classList.toggle('on', name === 'signs');
+});
+
+// rail foot: honest engine + bank info once the daemon reports it
+const railEng = document.getElementById('rail-eng');
+on('statusbar', s => {
+  if (!railEng) return;
+  const bits = [];
+  if (s.engine && s.engine !== 'none') bits.push(s.engine);
+  if (typeof s.bankSize === 'number') bits.push(s.bankSize + ' sign' + (s.bankSize === 1 ? '' : 's'));
+  railEng.textContent = s.online && s.paired ? bits.join(' · ') : '';
 });
 
 // service worker: vendored-shell offline + near-instant warm load
