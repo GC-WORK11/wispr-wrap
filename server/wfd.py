@@ -1523,13 +1523,21 @@ class Handler(BaseHTTPRequestHandler):
         path = os.path.normpath(os.path.join(WEB, name))
         if not path.startswith(WEB) or not os.path.isfile(path):
             return self._reply(404, b"nope")
-        ct = "text/html; charset=utf-8" if name.endswith(".html") else \
-             "application/javascript" if name.endswith(".js") else \
-             "text/css; charset=utf-8" if name.endswith(".css") else \
-             "application/manifest+json" if name.endswith(".webmanifest") else \
-             "image/svg+xml" if name.endswith(".svg") else \
-             "image/png" if name.endswith(".png") else \
-             "application/octet-stream"
+        MIME = {".html": "text/html; charset=utf-8",
+                ".css": "text/css; charset=utf-8",
+                ".js": "application/javascript",
+                ".mjs": "application/javascript",
+                ".json": "application/json",
+                ".webmanifest": "application/manifest+json",
+                ".svg": "image/svg+xml",
+                ".png": "image/png",
+                ".ico": "image/x-icon",
+                ".wasm": "application/wasm",
+                ".task": "application/octet-stream",
+                ".woff2": "font/woff2",
+                ".md": "text/plain; charset=utf-8"}
+        ct = MIME.get(os.path.splitext(name)[1].lower(),
+                      "application/octet-stream")
         with open(path, "rb") as f:
             self._reply(200, f.read(), ct)
 
