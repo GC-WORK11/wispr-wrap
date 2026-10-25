@@ -17,7 +17,7 @@
 import { App } from './app.js';
 import { Pose } from './pose.js';
 import { Skel } from './skeleton.js';
-import { KpLink } from './live.js';
+import { KpLink, CamPref, LaptopFeed, setCamera } from './live.js';
 import { Actions } from './actions.js';
 
 const sheet = App.el.sheetTeach;
@@ -108,7 +108,7 @@ const W = {
   gloss: '', label: '',
   takes: [],               // [{frames, hands}]
   action: null,
-  stream: null, engine: null, link: new KpLink(),
+  stream: null, engine: null, link: new KpLink(), feed: new LaptopFeed(), laptop: false,
   teaching: false, got: 0, cur: [], front: true,
   library: [],             // gloss set for dupe check
   busy: false,
@@ -164,6 +164,27 @@ async function startCapture() {
   recErr.textContent = '';
   camErr.hidden = true;
   W.link.reset();
+  /* the laptop webcam, when that is the chosen camera: the daemon starts
+     sf-engine; frames + take progress are polled (the engine's replies go
+     to the engine, not here). Falls back to this device's camera. */
+  if (CamPref.get() === 'laptop' && !window.WFFakeTrack) {
+    const r = await setCamera('laptop');
+    if (r.ok) {
+      W.laptop = true;
+      recLead.textContent = 'perform ' + W.gloss + ' in front of your laptop — sign once, drop your hands. three takes; video stays on the laptop.';
+      recEl.classList.add('on');
+      W.feed.start({
+        onFrame: (pts, t, f) => {
+          Skel.draw(skelC, pts, { video: { videoWidth: f.w || 4, videoHeight: f.h || 3 }, mirror: true });
+          W.cur.push({ t_ms: Math.round(t), points: pts });
+          if (W.cur.length > 400) W.cur.shift();
+        },
+        onState: st => { if (st && st.teach) onResp({ teach: st.teach }); },
+      });
+      return;
+    }
+    recErr.textContent = 'laptop camera unavailable (' + (r.message || 'refused') + ') — using this device\'s camera.';
+  }
   /* test seam: tests/selftest.html injects window.WFFakeTrack — a fake kp42
      source so headless Chrome drives the real wizard. Never defined in
      production; camera/model paths run untouched there. */
@@ -206,6 +227,8 @@ async function startCapture() {
 
 function stopCapture() {
   W.link.stop();
+  W.feed.stop();
+  if (W.laptop) { W.laptop = false; setCamera('phone'); }   // laptop webcam off
   recEl.classList.remove('on');
   if (W.stream) { for (const t of W.stream.getTracks()) t.stop(); W.stream = null; }
   vid.srcObject = null;

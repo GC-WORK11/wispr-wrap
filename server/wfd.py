@@ -1683,12 +1683,13 @@ class Handler(BaseHTTPRequestHandler):
                 ok, msg = LAPTOP.set_source(src)
                 if ok and LAPTOP.source != before:
                     # a new camera is a new stream: fresh endpointer, no half
-                    # segment; listening survives the switch, and the engine's
-                    # own session id is pre-bound so its first frame doesn't
-                    # reset again (a teach begun right after the switch holds)
-                    keep = LIVE["listening"]
+                    # segment; listening and an in-flight teach survive the
+                    # switch, and the engine's own session id is pre-bound so
+                    # its first frame doesn't reset again
+                    keep, teach = LIVE["listening"], dict(TEACH)
                     live_reset()
                     LIVE["listening"] = keep
+                    TEACH.update(teach)      # a camera switch is not a re-open
                     st0 = LAPTOP.status()
                     if LAPTOP.source == "laptop" and st0.get("pid"):
                         LIVE["session"] = "laptop-%d" % st0["pid"]

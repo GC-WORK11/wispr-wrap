@@ -119,3 +119,25 @@
   border: 1px solid rgba(120, 150, 240, .35); border-radius: 8px;
   padding: 4px 7px; pointer-events: none;
 }
+
+/* camera source toggle (shown only when the laptop has the camera engine) */
+.lv-src {
+  margin-left: auto; flex: none;
+  height: 24px; padding: 0 10px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--hairline);
+  font-family: inherit; font-size: 11px; font-weight: 600; line-height: 1;
+  letter-spacing: .02em; color: var(--muted-2);
+  cursor: pointer;
+}
+.lv-src[hidden] { display: none; }
+.lv-src:active { transform: scale(.96); }
+.lv-src:not([hidden]) ~ .sheet-x { margin-left: 0; }
+/* laptop-camera view: what runs and how fast, measured by the engine itself */
+.lv-laptop {
+  position: absolute; left: 10px; bottom: 10px; z-index: 3;
+  font: 500 10.5px/1 var(--mono); letter-spacing: .03em;
+  color: #d7e0f5; background: rgba(16, 20, 30, .62);
+  border: 1px solid rgba(160, 176, 210, .22); border-radius: 8px;
+  padding: 5px 8px; pointer-events: none;
+}
+.lv-laptop[hidden] { display: none; }

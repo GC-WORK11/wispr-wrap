@@ -240,6 +240,17 @@ class LaptopEngineTest(unittest.TestCase):
         self.assertEqual(st["teach"]["name"], "WAVE")
         self.assertTrue(st["session"].startswith("laptop-"), st["session"])
 
+    def test_teach_begun_before_the_switch_survives_it(self):
+        # teach.js: POST /teach/begin, then the wizard starts the laptop camera
+        s, r = self.d.req("POST", "/teach/begin", {"name": "nod", "takes": 3})
+        self.assertEqual(s, 200, r)
+        s, r = self.d.req("POST", "/live/source", {"source": "laptop"})
+        self.assertEqual(s, 200, r)
+        wait_for(lambda: self.d.req("GET", "/engine")[1]["laptop"]["frames"] > 5)
+        s, st = self.d.req("GET", "/live/state")
+        self.assertTrue(st["teach"]["active"], st["teach"])
+        self.assertEqual(st["teach"]["name"], "NOD")
+
     def test_bad_source_is_refused(self):
         s, r = self.d.req("POST", "/live/source", {"source": "webcam9"})
         self.assertEqual(s, 409, r)

@@ -24,6 +24,7 @@ if (!sheet) throw new Error('live: #sheet-live missing');
 sheet.innerHTML = `
   <div class="sheet-head">
     <h1>live<span class="lv-eng" id="lv-eng"></span></h1>
+    <button class="lv-src" id="lv-src" hidden></button>
     <div class="lv-badge" id="lv-badge"><i></i><span id="lv-badge-t">off</span></div>
     <button class="sheet-x" id="lv-x" aria-label="Close live mode">×</button>
   </div>
@@ -58,7 +59,7 @@ const video = $('lv-cam'), skel = $('lv-skel'), cover = $('lv-cover'),
       engEl = $('lv-eng'), badge = $('lv-badge'), badgeT = $('lv-badge-t'),
       guessEl = $('lv-guess'), distEl = $('lv-dist'), whyEl = $('lv-why'),
       actEl = $('lv-act'), actT = $('lv-act-t'), pendEl = $('lv-pend'),
-      holdI = $('lv-hold-i'), hint = $('lv-hint'), xbtn = $('lv-x'),
+      holdI = $('lv-hold-i'), hint = $('lv-hint'), xbtn = $('lv-x'), srcBtn = $('lv-src'),
       viewEl = $('lv-view');
 
 const HINT_DEF = 'hold an open palm to listen · palms together to stop';
@@ -117,6 +118,7 @@ export class KpLink {
       .then(r => {
         if (r.status === 403) { this.denied = true; this.stop(); if (this.onStatus) this.onStatus('denied'); return; }
         if (r.status === 404 || r.status === 405) { this.dead = true; this.stop(); if (this.onStatus) this.onStatus('dead'); return; }
+        if (r.status === 409) { if (this.onStatus) this.onStatus('inactive'); return; }   // the laptop camera is the source
         if (r.ok && r.json) {
           if (r.json.session && !this.session) this.session = r.json.session;
           if (this.onResp) this.onResp(r.json);
@@ -135,11 +137,56 @@ export class KpLink {
   }
 }
 
+/* ---------- which camera feeds the signs (phone | laptop) ----------
+   A preference, not a running camera: the laptop webcam (sign-flow's
+   sf-engine, started by the daemon) is on only while a live or teach sheet
+   is open with "laptop" chosen. Video never leaves the laptop — this page
+   gets the same keypoints the daemon scores, nothing else. */
+export const CamPref = {
+  get() { try { return localStorage.getItem('wf.camera') === 'laptop' ? 'laptop' : 'phone'; } catch (e) { return 'phone'; } },
+  set(v) { try { localStorage.setItem('wf.camera', v === 'laptop' ? 'laptop' : 'phone'); } catch (e) {} },
+};
+export async function setCamera(src) {
+  const r = await App.api.post('/live/source', { source: src }).catch(() => null);
+  return r && r.json ? Object.assign({ status: r.status }, r.json) : { ok: false, status: 0, message: 'the laptop did not answer' };
+}
+
+/* LaptopFeed — while the laptop camera is the source its engine's POST
+   replies never reach this page, so poll: /live/frame (the newest keypoint
+   frame -> skeleton, ~12 Hz) and, when asked, /live/state (teach progress). */
+export class LaptopFeed {
+  constructor() { this.t = null; this.st = null; this.last = -1; this.busy = false; }
+  start({ onFrame, onState, stateMs }) {
+    this.stop();
+    this.t = setInterval(() => {
+      if (this.busy) return;
+      this.busy = true;
+      App.api.get('/live/frame').then(r => {
+        const f = r && r.ok && r.json && r.json.frame;
+        if (f && f.source === 'laptop' && f.t_ms !== this.last && Array.isArray(f.points) && f.points.length === 42) {
+          this.last = f.t_ms;
+          if (onFrame) onFrame(f.points, f.t_ms, f);
+        }
+      }).catch(() => {}).finally(() => { this.busy = false; });
+    }, KP_MS);
+    if (onState) {
+      this.st = setInterval(() => {
+        App.api.get('/live/state').then(r => { if (r && r.ok && r.json) onState(r.json); }).catch(() => {});
+      }, stateMs || 250);
+    }
+  }
+  stop() {
+    if (this.t) { clearInterval(this.t); this.t = null; }
+    if (this.st) { clearInterval(this.st); this.st = null; }
+    this.last = -1;
+  }
+}
+
 /* ---------- session state ---------- */
 const S = {
   stream: null, front: true, engine: null,
-  link: new KpLink(), stT: null,
-  eng: { up: false, name: '', laptopCam: false },
+  link: new KpLink(), stT: null, feed: new LaptopFeed(),
+  eng: { up: false, name: '', laptopCam: false, camera: 'phone', laptop: null },
   seenAct: undefined, seenMatch: undefined,
   remote: false, open: false,
 };
@@ -150,6 +197,29 @@ function setBadge(cls, txt) {
 }
 function renderEng() {
   engEl.textContent = S.eng.name ? ' · ' + S.eng.name : '';
+}
+function renderSrc() {
+  srcBtn.hidden = !(S.open && S.eng.up && S.eng.laptopCam);
+  srcBtn.textContent = S.remote ? 'use this camera' : 'use laptop camera';
+}
+/* the honest one-liner over the laptop view: what runs, how fast */
+function laptopTag(text) {
+  let tag = viewEl.querySelector('.lv-laptop');
+  if (!tag) {
+    tag = document.createElement('div');
+    tag.className = 'lv-laptop';
+    viewEl.appendChild(tag);
+  }
+  tag.hidden = !text;
+  tag.textContent = text || '';
+}
+function laptopLine(l) {
+  if (!l) return 'laptop camera';
+  const bits = ['laptop camera'];
+  if (l.vision) bits.push(String(l.vision).replace('-wholebody', ''));
+  if (l.fps && l.fps.pose != null) bits.push(Math.round(l.fps.pose) + ' fps');
+  if (l.ms && l.ms.pose && l.ms.pose.p50 != null) bits.push('pose ' + Math.round(l.ms.pose.p50) + ' ms');
+  return bits.join(' · ');
 }
 
 /* ---------- overlay card ---------- */
@@ -193,9 +263,11 @@ async function probe() {
   if (!r.ok || !r.json) { engDown(); return; }
   S.eng.up = true;
   S.eng.name = r.json.engine || 'engine';
-  S.eng.laptopCam = !!(r.json.laptop_cam || r.json.laptopCam ||
-    /rust|kp53|webcam/i.test(S.eng.name));
+  S.eng.laptopCam = !!(r.json.laptop_cam || r.json.laptopCam);
+  S.eng.camera = r.json.camera || 'phone';
+  S.eng.laptop = r.json.laptop || null;
   renderEng();
+  renderSrc();
   if (lastCard && !cover.hidden) renderCard();
 }
 function engDown() {
@@ -333,7 +405,7 @@ function onKpResp(j) {
 
 /* ---------- camera ---------- */
 async function boot() {
-  if (S.remote) { useLaptop(); return; }
+  if (S.remote || (CamPref.get() === 'laptop' && canLaptop())) { useLaptop(); return; }
   /* dev seam first: a loopback kp42 replay service (tools/demo-rec) may be
      feeding frames. Probe is ~350 ms once; on a real phone it never
      answers and the camera path runs untouched. */
@@ -359,7 +431,7 @@ async function boot() {
           feedHold(pts, t);
         },
         onResp: onKpResp,
-        onStatus: s => { if (s === 'dead') probe(); if (s === 'denied') setBadge('err', 'unpaired'); },
+        onStatus: phoneStatus,
       });
       return;
     }
@@ -387,8 +459,13 @@ async function boot() {
   S.link.start(video, S.engine, {
     onFrame: (pts, t) => { Skel.draw(skel, pts, { video, mirror: S.front }); feedHold(pts, t); },
     onResp: onKpResp,
-    onStatus: s => { if (s === 'dead') probe(); if (s === 'denied') setBadge('err', 'unpaired'); },
+    onStatus: phoneStatus,
   });
+}
+function phoneStatus(s) {
+  if (s === 'dead') probe();
+  if (s === 'denied') setBadge('err', 'unpaired');
+  if (s === 'inactive' && !S.remote) probe().then(() => { if (S.eng.camera === 'laptop') useLaptop(); });
 }
 function stopCam() {
   if (S.stream) for (const t of S.stream.getTracks()) t.stop();
@@ -419,15 +496,48 @@ function laptopBtn() {
 }
 async function useLaptop() {
   S.remote = true;
+  CamPref.set('laptop');
   stopCam(); S.link.stop();
   if (S.engine) { try { S.engine.close(); } catch (e) {} S.engine = null; }
-  card('laptop camera',
-    'the laptop is watching its own webcam — sign at your laptop. ' +
-    'the reading strip still shows what the engine sees.',
-    [mkBtn('back to phone camera', () => { S.remote = false; boot(); })]);
-  /* no source-switch endpoint exists on wfd.py today — when the rust engine
-     reports a laptop cam it already owns the source; we just stop ours. */
+  renderSrc();
+  card('laptop camera', 'starting the laptop webcam…');
+  const r = await setCamera('laptop');
+  if (!S.open || !S.remote) return;
+  if (!r.ok) {
+    S.remote = false;
+    CamPref.set('phone');
+    renderSrc();
+    card('laptop camera unavailable', r.message || 'the laptop refused',
+      [mkBtn('use this camera', usePhone, true)]);
+    setBadge('err', 'laptop camera');
+    return;
+  }
+  S.eng.laptop = r.laptop || S.eng.laptop;
+  card('laptop camera', 'the laptop webcam is on — sign in front of your laptop. only keypoints reach this page; video stays on the laptop.');
+  let shown = false;
+  S.feed.start({
+    onFrame: (pts, t, f) => {
+      if (!shown) { shown = true; hideCard(); setBadge('', 'idle'); }
+      Skel.draw(skel, pts, { video: { videoWidth: f.w || 4, videoHeight: f.h || 3 }, mirror: true });
+      feedHold(pts, t);
+    },
+  });
+  laptopTag(laptopLine(S.eng.laptop));
+  clearInterval(S.engT);
+  S.engT = setInterval(() => { probe().then(() => { if (S.remote) laptopTag(laptopLine(S.eng.laptop)); }); }, 2000);
 }
+async function usePhone() {
+  const was = S.remote;
+  S.remote = false;
+  CamPref.set('phone');
+  S.feed.stop();
+  clearInterval(S.engT); S.engT = null;
+  laptopTag('');
+  renderSrc();
+  if (was) await setCamera('phone');
+  boot();
+}
+srcBtn.onclick = () => { if (S.remote) usePhone(); else useLaptop(); };
 
 /* ---------- orchestration ---------- */
 async function open() {
@@ -435,7 +545,7 @@ async function open() {
   S.seenAct = undefined; S.seenMatch = undefined;
   S.link.reset();
   hideCard();
-  probe();
+  await probe();
   boot();
   clearInterval(S.stT);
   S.stT = setInterval(() => {
@@ -448,11 +558,16 @@ async function open() {
 async function close() {
   S.open = false;
   S.link.stop();
+  S.feed.stop();
+  clearInterval(S.engT); S.engT = null;
+  laptopTag('');
+  if (S.remote) setCamera('phone');      // camera off with the sheet; the preference stays
   clearInterval(S.stT); S.stT = null;
   if (S.engine) { try { S.engine.close(); } catch (e) {} S.engine = null; }
   stopCam();
   GM.palmT = GM.namT = GM.lastT = 0;
   S.remote = false;
+  renderSrc();
   hideCard();
   const x = skel.getContext('2d');
   if (x) x.clearRect(0, 0, skel.width, skel.height);
