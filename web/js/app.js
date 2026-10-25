@@ -36,16 +36,22 @@ function off(evt, fn) { const l = listeners[evt] || []; const i = l.indexOf(fn);
 function emit(evt, data) { (listeners[evt] || []).slice().forEach(fn => { try { fn(data); } catch (e) { console.error('[app]', evt, e); } }); }
 
 // ---------- status state ----------
-// One object the statusbar renders; lanes read it for context
-// (e.g. teach knows if live is on). Polled: /health 3s, /status 3s,
-// /live/state faster while the live sheet is open (owned by live.js).
+// One object the statusbar renders; lanes read it for context.
+// Sources (the real daemon contract — there is no /status):
+//   GET /health      open      3s   — laptop link
+//   GET /engine      gated     on connect + 15s — engine name, bank size
+//   GET /live/state  gated     ~1s idle / ~6Hz while live sheet open — listening,
+//                                 last match, pending confirms, teach session
 const state = {
   online: false,
+  paired: !!K,
   engine: 'none',          // 'python-dtw' | 'rust-kp53' | 'none'
-  focus: '',               // active window class on the laptop
-  live: { on: false, listening: false, lastMatch: null, lastAct: null },
+  liveApi: false,          // daemon serves the live surface (not pre-merge)
+  focus: '',               // active window on the laptop (when the daemon reports it)
+  live: { on: false, listening: false, signing: false, lastMatch: null },
   lastSend: null,          // {t_ms, ok, into, kind}
-  confirms: [],            // tier>=2 actions parked for laptop-side confirm
+  confirms: [],            // tier>=2 actions parked for confirm
+  bankSize: null,
 };
 
 const linkDot = document.getElementById('link-dot');
@@ -56,40 +62,77 @@ function renderStatus() {
   linkDot.className = 'dot ' + (state.online ? 'on' : 'off');
   const bits = [];
   if (!state.online) bits.push('laptop offline — run: wrap start');
+  else if (!state.paired) bits.push('laptop connected — not paired');
   else {
     bits.push('laptop connected');
     if (state.focus) bits.push('→ ' + state.focus);
+    else if (state.lastSend && state.lastSend.into) bits.push('last into ' + state.lastSend.into);
   }
   statusText.textContent = bits.join('  ·  ');
-  statusLive.hidden = !(state.live.on && state.live.listening);
+  statusLive.hidden = !(state.live.listening);
+  emit('statusbar', state);
 }
 
 async function pollHealth() {
   try { await fetch('/health', { cache: 'no-store' }); setOnline(true); }
   catch (e) { setOnline(false); }
 }
-async function pollStatus() {
+// /live/state is the status surface: listening, last match (with the engine's
+// own reason), pending confirms, focused window when the act layer reports it.
+async function pollState() {
   if (!state.online) return;
-  const r = await req('GET', '/status').catch(() => null);
-  if (!r || !r.ok || !r.json) return;
+  if (!K) { state.paired = false; renderStatus(); return; }
+  const r = await req('GET', '/live/state').catch(() => null);
+  if (!r) return;
+  if (r.status === 403) { state.paired = false; renderStatus(); return; }
+  state.paired = true;
+  if (r.status === 404 || r.status === 405) {          // pre-merge daemon
+    if (state.liveApi) { state.liveApi = false; emit('liveapi', false); }
+    renderStatus(); return;
+  }
+  if (!r.ok || !r.json) return;
+  if (!state.liveApi) { state.liveApi = true; emit('liveapi', true); }
   const j = r.json;
-  state.engine = j.engine || 'none';
-  state.focus = j.focus || '';
-  if (j.live) Object.assign(state.live, j.live);
-  if (j.last_send) state.lastSend = j.last_send;
-  state.confirms = j.confirms || [];
-  emit('status', state);
+  const listening = !!(j.listening || j.mode === 'listening' || j.state === 'listening');
+  const prev = state.live.listening;
+  state.live.listening = listening;
+  state.live.signing = !!j.signing;
+  if (j.last_match !== undefined) state.live.lastMatch = j.last_match;
+  const focus = j.focus || j.focused || j.wm_class ||
+    (j.focused_app && (j.focused_app.wm_class || j.focused_app.title)) || '';
+  if (focus !== state.focus) state.focus = focus;
+  if (typeof j.bank_size === 'number') state.bankSize = j.bank_size;
+  const pend = Array.isArray(j.pending) ? j.pending : [];
+  if (pend.length !== state.confirms.length ||
+      pend.some((p, i) => p.id !== (state.confirms[i] || {}).id)) {
+    state.confirms = pend;
+    emit('confirms', pend);
+  }
+  if (listening !== prev) emit('listening', listening);
+  emit('livestate', j);
   renderStatus();
+}
+async function pollEngine() {
+  if (!state.online || !K) return;
+  const r = await req('GET', '/engine').catch(() => null);
+  if (r && r.ok && r.json) {
+    state.engine = r.json.engine || 'none';
+    if (typeof r.json.bank_size === 'number') state.bankSize = r.json.bank_size;
+    if (r.json.listening !== undefined) state.live.listening = !!r.json.listening;
+    renderStatus();
+  }
 }
 function setOnline(v) {
   if (v === state.online) return;
   state.online = v;
   emit(v ? 'online' : 'offline');
+  if (v) { pollEngine(); }
   renderStatus();
 }
 pollHealth();
 setInterval(pollHealth, 3000);
-setInterval(pollStatus, 3000);
+setInterval(pollState, 1200);
+setInterval(pollEngine, 15000);
 
 // ---------- router: hash routes = sheets ----------
 // Routes: '' or '#/' = compose, '#/live', '#/teach', '#/signs'
@@ -139,12 +182,51 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 // One canonical frame shape the app produces — every lane that sends
 // keypoints (live, teach) uses this so the daemon sees one format.
 //   {t_ms, seq, n:42, points:[{x,y,z,score}...], hands:2}
-// points: hand0 landmarks 0-20 then hand1 landmarks 21-41 (MediaPipe order),
-// normalized image coords [0,1], z relative to wrist, score 0..1 (0 = absent).
+// points: LEFT hand landmarks 0-20 then RIGHT landmarks 21-41 (MediaPipe
+// order), normalized image coords [0,1], score 0..1 (0 = absent hand).
+// This matches the daemon's signbank/endpointer kp42 contract exactly.
 let kpSeq = 0;
 function kpFrame(points) {
   return { t_ms: Math.round(performance.now()), seq: kpSeq++, n: points.length, hands: 2, points };
 }
+
+// ---------- pending-confirm strip ----------
+// tier>=2 actions park laptop-side; the daemon's /live/state exposes them
+// and POST /act/confirm {id} releases one. The composer shows them honestly.
+const confirmBar = document.getElementById('confirms');
+function renderConfirms(rows) {
+  if (!confirmBar) return;
+  confirmBar.textContent = '';
+  if (!rows.length) { confirmBar.hidden = true; return; }
+  confirmBar.hidden = false;
+  for (const p of rows) {
+    const row = document.createElement('div');
+    row.className = 'confirm-row';
+    const txt = document.createElement('span');
+    txt.className = 'confirm-txt';
+    txt.textContent = (p.label || p.gloss || 'action') + ' — held for confirm';
+    const yes = document.createElement('button');
+    yes.className = 'confirm-yes'; yes.textContent = 'run it';
+    const no = document.createElement('button');
+    no.className = 'confirm-no'; no.textContent = 'cancel';
+    yes.onclick = async () => {
+      yes.disabled = no.disabled = true;
+      const r = await req('POST', '/act/confirm', { id: p.id }).catch(() => null);
+      if (r && r.ok && r.json && r.json.fired) toast('fired ' + (p.label || p.gloss));
+      else if (r && r.ok) toast('done');
+      else toast('confirm failed' + (r ? ' (' + r.status + ')' : ''), true);
+      pollState();
+    };
+    no.onclick = async () => {
+      yes.disabled = no.disabled = true;
+      await req('POST', '/act/confirm', { id: p.id, cancel: true }).catch(() => null);
+      pollState();
+    };
+    row.append(txt, yes, no);
+    confirmBar.appendChild(row);
+  }
+}
+on('confirms', renderConfirms);
 
 // ---------- exports ----------
 export const App = {
@@ -152,7 +234,7 @@ export const App = {
   store,
   api: { get: p => req('GET', p), post: (p, b, h) => req('POST', p, b, h), del: p => req('DELETE', p), put: (p, b) => req('PUT', p, b) },
   on, off, emit,
-  state, renderStatus,
+  state, renderStatus, pollState, pollEngine,
   route, nav, back, routes, parseHash,
   toast, buzz, sleep,
   kpFrame,
@@ -177,6 +259,8 @@ export const App = {
 
 on('unpaired', () => {
   App.wispr.unpair();
+  state.paired = false;
+  renderStatus();
   toast('unpaired — rescan QR', true);
 });
 
@@ -191,7 +275,7 @@ on('route', name => {
   document.getElementById('tray-signs').classList.toggle('on', name === 'signs');
 });
 
-// service worker: vendored-shell offline + near-instant warm load (P7 lane owns sw.js)
+// service worker: vendored-shell offline + near-instant warm load
 if ('serviceWorker' in navigator) {
   addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }

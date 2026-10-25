@@ -43,6 +43,21 @@ def _tri(x):
     return 2 * x if x < 0.5 else 2 - 2 * x
 
 
+def _poly(*vts):
+    """Piecewise-linear path through vertices vts [(x,y)...] in the unit
+    box, constant-speed per segment. `bow` bends it per performance."""
+    def f(t, bow):
+        n = len(vts) - 1
+        u = min(max(t * n, 0.0), n - 1e-9)
+        i = int(u)
+        a, b = vts[i], vts[i + 1]
+        x = a[0] + (b[0] - a[0]) * (u - i)
+        y = a[1] + (b[1] - a[1]) * (u - i)
+        return (x + bow * 0.30 * math.sin(math.pi * t),
+                y + bow * 0.15 * math.sin(2 * math.pi * t))
+    return f
+
+
 SHAPES = {
     # gloss: (path(t, bow), handshape pose)
     "SWIPE-R":  (lambda t, b: (t, 0.5 + b * math.sin(math.pi * t)), "point"),
@@ -63,6 +78,38 @@ SHAPES = {
                  "point"),
     "PUSH":     (lambda t, b: (0.5 + b * 0.1,
                                0.6 - 0.5 * math.sin(math.pi * t)), "open"),
+    # --- extended vocab (eval lane: the 20-sign teach arm) -------------
+    # Deliberate near-neighbors stay in: INF vs EIGHT (rotated pair),
+    # DIAMOND vs SQUARE (rotated), CHECK vs V-DRAW (asymmetric V).
+    "INF":      (lambda t, b: (0.5 + 0.40 * math.sin(2 * math.pi * t),
+                               0.5 + 0.26 * math.sin(4 * math.pi * t)
+                               + b * 0.1), "point"),
+    "EIGHT":    (lambda t, b: (0.5 + 0.26 * math.sin(4 * math.pi * t)
+                               + b * 0.1,
+                               0.5 + 0.40 * math.sin(2 * math.pi * t)),
+                 "point"),
+    "DIAMOND":  (_poly((0.5, 0.08), (0.92, 0.5), (0.5, 0.92),
+                       (0.08, 0.5), (0.5, 0.08)), "open"),
+    "SQUARE":   (_poly((0.15, 0.15), (0.85, 0.15), (0.85, 0.85),
+                       (0.15, 0.85), (0.15, 0.15)), "open"),
+    "TRIANGLE": (_poly((0.5, 0.10), (0.88, 0.85), (0.12, 0.85),
+                       (0.5, 0.10)), "open"),
+    "SPIRAL":   (lambda t, b: (
+        0.5 + 0.42 * (1 - 0.8 * t) * math.cos(4 * math.pi * t - math.pi / 2),
+        0.5 + 0.42 * (1 - 0.8 * t) * math.sin(4 * math.pi * t - math.pi / 2)
+        + b * 0.1), "open"),
+    "M-DRAW":   (_poly((0.12, 0.85), (0.12, 0.15), (0.5, 0.62),
+                       (0.88, 0.15), (0.88, 0.85)), "point"),
+    "Z-DRAW":   (_poly((0.2, 0.22), (0.8, 0.22), (0.2, 0.82),
+                       (0.8, 0.82)), "point"),
+    "U-DRAW":   (_poly((0.25, 0.15), (0.25, 0.78), (0.5, 0.9),
+                       (0.75, 0.78), (0.75, 0.15)), "open"),
+    "STAR5":    (_poly((0.5, 0.08), (0.747, 0.84), (0.101, 0.37),
+                       (0.899, 0.37), (0.253, 0.84), (0.5, 0.08)), "point"),
+    "ARC":      (lambda t, b: (0.5 - 0.4 * math.cos(math.pi * t),
+                               0.78 - 0.55 * math.sin(math.pi * t)
+                               + b * 0.1), "point"),
+    "CHECK":    (_poly((0.12, 0.55), (0.38, 0.85), (0.88, 0.18)), "point"),
 }
 
 # Per-pose finger curl profiles (0=straight, 1=folded) thumb..pinky — only

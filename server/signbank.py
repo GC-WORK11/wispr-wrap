@@ -418,11 +418,37 @@ class SignBank:
         median of the per-frame bbox-normalized 21-pt flattens; a hand
         never observed gets median_descriptor's 0.0 fill, so
         hand-PRESENCE itself is measured evidence.
+
+        Two input shapes are accepted:
+          * wire frames [{"t_ms":..,"points":[{x,y,score}..],"hand"?}] —
+            the daemon path; and
+          * a RAW dominant-hand centroid path [(x,y), ...] — the eval/
+            parity path (tools/e2e-live/bank_adapter.py feeds plain
+            trajectories). Raw input carries no per-frame hand/shape
+            evidence, so shape stays None (see _score for what that
+            costs) and the stillness gate — calibrated on real hand-bbox
+            scale — does not apply; a degenerate raw arc still lands on
+            the all-zero normalized point via resample/normalize, the
+            same place the reference engine's degenerate-arc fallback
+            puts it.
         """
+        frames = list(frames or [])
+        if frames and not (isinstance(frames[0], dict)
+                           and "points" in frames[0]):
+            raw = []
+            for p in frames:
+                try:
+                    if isinstance(p, dict):
+                        raw.append((float(p["x"]), float(p["y"])))
+                    else:
+                        raw.append((float(p[0]), float(p[1])))
+                except (TypeError, ValueError, IndexError, KeyError):
+                    return [], None, 0, 1
+            return _normalize(_resample(raw, RESAMPLE_N)), None, len(raw), 1
         cents = [[], []]
         rows = [[], []]
         scales = [[], []]
-        for fr in frames or []:
+        for fr in frames:
             obs = _frame_hands(fr, self.min_score, self.min_keys)
             for h in range(N_HANDS):
                 c, s, bs = obs[h]
@@ -573,10 +599,25 @@ class SignBank:
                                    shape_ss) * math.sqrt(r)
                     d_s = math.sqrt(shape_ss * (w_s * SHAPE_DIMS) /
                                     (w_s * k))
+                elif shape is None and s.get("shape") is None:
+                    # NEITHER side carries a shape channel — only
+                    # reachable from raw-trajectory input (kp42 clips with
+                    # an observed hand always build a shape vector, and a
+                    # clip with no hand is refused at MIN_POINTS). A
+                    # traj-only bank IS the matcher.rs channels=2 engine:
+                    # the shape dims were never declared, so there is no
+                    # evidence to pay the average of — the fused distance
+                    # collapses to the pure traj distance (the parity
+                    # harness pins this; a uniform ~2.3x tax here would
+                    # silently move the operating point off the
+                    # reference's thresholds).
+                    d_f = d_t
+                    d_s = INF
                 else:
-                    # no shared shape evidence: wdist rescale collapses
-                    # to a uniform tax on the traj channel — the DP
-                    # scales linearly, so no second pass is needed.
+                    # one side carries shape the other lacks: unshared
+                    # dims -> the wdist rescale tax (missing evidence
+                    # pays the observed dims' average). The DP scales
+                    # linearly, so no second pass is needed.
                     d_f = d_t * math.sqrt(total_w / w_traj)
                     d_s = INF
                 if d_f < bf:
@@ -754,6 +795,19 @@ class SignBank:
 
     @classmethod
     def from_dict(cls, d):
+        """Parse a bank file. Three on-disk shapes are accepted — load
+        must never crash on a foreign bank (the e2e lane round-trips the
+        ref/Rust layout):
+
+          wf-signbank/1  {"templates":[{...,"samples":[{"traj","shape"}]}]}
+          rust/ref bank  {"templates":[{...,"samples":[[[x,y]..]]}]}
+                         (a sample is a bare resampled trajectory)
+          list-shaped    [{"gloss","samples":[[[x,y]..]]}, ...]
+                         (the bare templates array — the crash the
+                         parity harness caught: 'list' has no .get)
+        """
+        if isinstance(d, list):
+            d = {"templates": d}
         if not isinstance(d, dict) or "templates" not in d:
             raise ValueError("not a signbank file")
         b = cls(reject_threshold=d.get("reject_threshold", 0.6),
@@ -764,21 +818,49 @@ class SignBank:
                 still_frac=d.get("still_frac", 0.08),
                 space=d.get("space", "pixel"))
         for t in d.get("templates") or []:
+            if not isinstance(t, dict):
+                continue
+            raw_samples = t.get("samples")
+            if raw_samples is None and t.get("traj") is not None:
+                raw_samples = [t]            # a lone exemplar dict
             samples = []
-            for s in t.get("samples") or []:
-                shape = s.get("shape")
-                if shape is not None:
-                    shape = [(float(v) if v is not None else NAN)
-                             for v in shape]
-                samples.append({"traj": [(float(p[0]), float(p[1]))
-                                         for p in s.get("traj") or []],
-                                "shape": shape})
+            for s in raw_samples or []:
+                if isinstance(s, dict):
+                    traj_in = s.get("traj") or []
+                    shape = s.get("shape")
+                    if shape is not None:
+                        shape = [(float(v) if v is not None else NAN)
+                                 for v in shape]
+                elif isinstance(s, (list, tuple)):
+                    # rust/ref sample: a bare resampled trajectory —
+                    # no shape channel was ever captured for it.
+                    traj_in, shape = s, None
+                else:
+                    continue
+                traj = []
+                for p in traj_in:
+                    try:
+                        traj.append((float(p[0]), float(p[1])))
+                    except (TypeError, ValueError, IndexError, KeyError):
+                        continue     # a malformed point drops, not the file
+                samples.append({"traj": traj, "shape": shape})
+            gloss = str(t.get("gloss") or t.get("name") or "")
+            if not gloss:
+                continue
+            try:
+                tier = int(t.get("tier", 0) or 0)
+            except (TypeError, ValueError):
+                tier = 0
+            try:
+                us = int(t.get("user_samples", 0) or 0)
+            except (TypeError, ValueError):
+                us = 0
             b.templates.append({
-                "gloss": str(t.get("gloss", "")),
+                "gloss": gloss,
                 "label": t.get("label", ""),
-                "tier": int(t.get("tier", 0) or 0),
+                "tier": tier,
                 "action": t.get("action"),
-                "user_samples": int(t.get("user_samples", 0) or 0),
+                "user_samples": us,
                 "samples": samples})
         return b
 
