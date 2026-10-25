@@ -1,4 +1,51 @@
-/* actions.css — the @ picker sheet. Shares tokens from app.css. */
+/* actions.css — the @ picker sheet. Shares tokens from app.css.
+   Wide screens: centered modal card over a dimmed scrim (the sheet
+   element itself is the scrim — clicks on it cancel). Narrow: the
+   inner .sheet-card fills the sheet full-bleed like before. */
+
+#sheet-actions .sheet-card {
+  flex: 1; width: 100%; min-height: 0;
+  display: flex; flex-direction: column;
+}
+
+@media (min-width: 721px) {
+  #sheet-actions.sheet {
+    background: rgba(15, 23, 42, .28);
+    justify-content: center;
+    align-items: center;
+    padding: 28px;
+    animation-name: act-dim;
+  }
+  #sheet-actions .sheet-card {
+    flex: none;
+    max-width: 560px; max-height: 80vh;
+    background: var(--surface);
+    border-radius: var(--r-card);
+    box-shadow: var(--sh-2);
+    overflow: hidden;
+    animation: act-pop .26s var(--ease-spring);
+  }
+  /* soft-fill inputs inside the white card */
+  #sheet-actions .act-search .input,
+  #sheet-actions .act-input,
+  #sheet-actions .act-select {
+    background: var(--bg);
+    border-color: transparent;
+  }
+}
+@keyframes act-dim { from { opacity: 0; } to { opacity: 1; } }
+@keyframes act-pop {
+  from { opacity: 0; transform: scale(.95) translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* slim, quiet scrollbar inside the picker */
+#sheet-actions .sheet-body::-webkit-scrollbar { width: 10px; }
+#sheet-actions .sheet-body::-webkit-scrollbar-thumb {
+  background: #cfd7e4; border: 3px solid transparent;
+  border-radius: 8px; background-clip: padding-box;
+}
+#sheet-actions .sheet-body { scrollbar-width: thin; scrollbar-color: #cfd7e4 transparent; }
 
 .act-search { flex: none; padding: 0 18px 10px; }
 .act-note {
@@ -8,21 +55,27 @@
 }
 .act-note:empty { display: none; }
 
+/* small-caps muted group labels */
 .act-sect {
   font-size: 10.5px; font-weight: 700; letter-spacing: .14em;
   text-transform: uppercase; color: var(--muted);
-  margin: 14px 0 8px;
+  margin: 16px 0 8px;
 }
-.act-sect:first-child { margin-top: 4px; }
+.act-sect:first-child { margin-top: 6px; }
 
 /* apps grid */
-.act-apps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.act-apps {
+  display: grid; gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+}
 .act-app {
   appearance: none; border: 1px solid var(--hairline); background: var(--surface);
   border-radius: 14px; cursor: pointer; padding: 10px 6px;
   display: flex; flex-direction: column; align-items: center; gap: 6px;
-  font-family: inherit; transition: transform .12s, border-color .15s;
+  font-family: inherit;
+  transition: transform .12s, border-color .15s, box-shadow .18s;
 }
+.act-app:hover { border-color: #d8e0ee; box-shadow: var(--sh-1); }
 .act-app:active { transform: scale(.96); border-color: var(--accent); }
 .act-ic {
   width: 34px; height: 34px; border-radius: 9px;
@@ -36,25 +89,46 @@
   max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
-/* tool rows */
+/* tool rows — icon dot + title + honest subtitle + right affordance */
 .act-row {
   background: var(--surface); border: 1px solid var(--hairline);
-  border-radius: 14px; padding: 12px 14px; margin-bottom: 8px;
-  cursor: pointer; transition: border-color .15s;
+  border-radius: 16px; padding: 13px 14px; margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .18s;
 }
+.act-row:hover { border-color: #d8e0ee; box-shadow: var(--sh-1); }
 .act-row:active { border-color: var(--accent); }
 .act-row-top { display: flex; align-items: center; gap: 8px; }
+.act-dot {
+  flex: none; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent);
+}
+.act-dot.warn { background: var(--warn); }
 .act-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 620; letter-spacing: .01em; }
-.act-desc { font-size: 12px; color: var(--muted-2); margin-top: 3px; line-height: 1.5; }
-.act-arg { display: flex; gap: 8px; margin-top: 10px; }
-.act-input { flex: 1; min-width: 0; padding: 9px 11px; font-size: 14px; border-radius: 10px; }
-.act-input.act-bad { border-color: var(--danger); }
-.act-select { flex: 1; min-width: 0; padding: 9px 11px; font-size: 14px; border-radius: 10px; }
+.act-chev {
+  flex: none; color: var(--muted);
+  font-size: 16px; line-height: 1; margin-left: 2px;
+}
+/* desc + arg row align under the title, past the dot */
+.act-desc { font-size: 12px; color: var(--muted-2); margin: 3px 0 0 16px; line-height: 1.5; }
+.act-arg { display: flex; gap: 8px; margin: 10px 0 0 16px; }
+.act-input {
+  flex: 1; min-width: 0; padding: 9px 11px; font-size: 14px;
+  border-radius: 10px; background: var(--bg); border-color: transparent;
+}
+.act-input:focus { background: var(--surface); }
+.act-input.act-bad { border-color: var(--danger); background: var(--surface); }
+.act-select {
+  flex: 1; min-width: 0; padding: 9px 11px; font-size: 14px;
+  border-radius: 10px; background: var(--bg); border-color: transparent;
+}
+.act-select:focus { background: var(--surface); }
 .act-use {
   flex: none; appearance: none; cursor: pointer; font-family: inherit;
   font-size: 13px; font-weight: 650; padding: 0 16px; border-radius: 10px;
-  border: 1px solid var(--hairline); background: var(--surface); color: var(--accent);
+  border: 1px solid transparent; background: var(--accent-soft); color: var(--accent);
 }
+.act-use:hover { background: #e3ecff; }
 .act-use:active { transform: scale(.95); }
 
 .act-bound { display: flex; flex-wrap: wrap; gap: 6px; }

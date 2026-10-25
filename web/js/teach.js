@@ -38,8 +38,8 @@ sheet.innerHTML = `
       <div class="tw-gloss" id="tw-gloss"></div>
       <div class="errline" id="tw-name-err"></div>
       <div class="tw-foot">
-        <button class="btn-ghost" id="tw-name-cancel">cancel</button>
-        <button class="btn-primary" id="tw-name-next" disabled>record it</button>
+        <button class="btn btn-ghost" id="tw-name-cancel">cancel</button>
+        <button class="btn btn-primary" id="tw-name-next" disabled>record it</button>
       </div>
     </section>
 
@@ -55,8 +55,8 @@ sheet.innerHTML = `
       <div class="tw-takes" id="tw-takebar"></div>
       <div class="errline" id="tw-rec-err"></div>
       <div class="tw-foot">
-        <button class="btn-ghost" id="tw-rec-back">back</button>
-        <button class="btn-primary" id="tw-rec-done" disabled>bind it ›</button>
+        <button class="btn btn-ghost" id="tw-rec-back">back</button>
+        <button class="btn btn-primary" id="tw-rec-done" disabled>bind it ›</button>
       </div>
     </section>
 
@@ -64,13 +64,13 @@ sheet.innerHTML = `
       <p class="hint">captured on the laptop — wrist path + hand shape is what it scores.</p>
       <div class="tw-prev" id="tw-prev"></div>
       <div class="tw-bound" id="tw-bound">
-        <button class="btn-ghost btn-block" id="tw-pick">@ pick what it does</button>
+        <button class="btn btn-ghost btn-block" id="tw-pick">@ pick what it does</button>
         <div class="tw-action" id="tw-action" hidden></div>
       </div>
       <div class="errline" id="tw-bind-err"></div>
       <div class="tw-foot">
-        <button class="btn-ghost" id="tw-bind-back">record more</button>
-        <button class="btn-primary" id="tw-save" disabled>make it live</button>
+        <button class="btn btn-ghost" id="tw-bind-back">record more</button>
+        <button class="btn btn-primary" id="tw-save" disabled>make it live</button>
       </div>
     </section>
 
@@ -80,8 +80,8 @@ sheet.innerHTML = `
         <h2 id="tw-done-t">live</h2>
         <p class="hint" id="tw-done-m"></p>
         <div class="tw-foot">
-          <button class="btn-ghost" id="tw-done-lib">sign library</button>
-          <button class="btn-primary" id="tw-done-live">sign it live</button>
+          <button class="btn btn-ghost" id="tw-done-lib">sign library</button>
+          <button class="btn btn-primary" id="tw-done-live">sign it live</button>
         </div>
       </div>
     </section>
@@ -97,6 +97,9 @@ const nameIn = $('tw-name'), glossPre = $('tw-gloss'), nameErr = $('tw-name-err'
       prevEl = $('tw-prev'), pickBtn = $('tw-pick'), actionEl = $('tw-action'),
       bindErr = $('tw-bind-err'), saveBtn = $('tw-save'),
       doneT = $('tw-done-t'), doneM = $('tw-done-m');
+
+/* the REC chip mirrors the daemon's capture session, nothing else */
+const setTeaching = v => { W.teaching = v; recEl.classList.toggle('on', v); };
 
 const slug = s => s.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32);
 const RESERVED = new Set(['PALM-OPEN', 'NAMASTE']);
@@ -144,7 +147,7 @@ function onResp(j) {
       App.buzz(); renderTakebar();
       if (W.got >= W.need) {
         App.api.post('/teach/end', { name: W.gloss, takes: W.got }).catch(() => {});
-        W.teaching = false;
+        setTeaching(false);
         if (W.mode === 'add') { finishAdd(); return; }
         buildBind(); showStep('bind');
       } else {
@@ -152,6 +155,8 @@ function onResp(j) {
       }
     } else if (t.ok === false) {
       recErr.textContent = 'the daemon dropped that take (too short or no hands) — sign a beat slower.';
+      const slot = takebar.children[W.got];
+      if (slot) { slot.classList.add('miss'); setTimeout(() => slot.classList.remove('miss'), 2000); }
     }
   }
 }
@@ -199,6 +204,7 @@ async function startCapture() {
     const rep = await Pose.replay();
     if (rep) {
       W.engine = rep; W.front = false;
+      stageEl.classList.add('replay');
       recLead.textContent += ' (dev: replayed keypoints)';
       recEl.classList.add('on');
       W.link.start(vid, W.engine, { onFrame, onResp, onStatus });
@@ -232,6 +238,7 @@ function stopCapture() {
   recEl.classList.remove('on');
   if (W.stream) { for (const t of W.stream.getTracks()) t.stop(); W.stream = null; }
   vid.srcObject = null;
+  stageEl.classList.remove('replay');
 }
 
 /* ---------- step 1 · name ---------- */
@@ -263,7 +270,7 @@ nameNext.onclick = async () => {
     return;
   }
   if (!r.ok) { nameErr.textContent = (r.json && r.json.error) || 'teach session refused'; return; }
-  W.teaching = true;
+  setTeaching(true);
   recLead.textContent = 'perform ' + W.gloss + ' — sign once, drop your hands. three takes; each lands as an exemplar on the laptop.';
   recDone.hidden = false; recBack.textContent = 'back';
   renderTakebar();
@@ -284,11 +291,11 @@ function renderTakebar() {
   recDone.textContent = W.got >= NEED ? 'bind it ›' : 'bind anyway (' + W.got + '/' + NEED + ') ›';
 }
 recBack.onclick = async () => {
-  if (W.teaching) { await App.api.post('/teach/end', { name: W.gloss }).catch(() => {}); W.teaching = false; }
+  if (W.teaching) { await App.api.post('/teach/end', { name: W.gloss }).catch(() => {}); setTeaching(false); }
   if (W.mode === 'add') App.back(); else showStep('name');
 };
 recDone.onclick = async () => {
-  if (W.teaching) { await App.api.post('/teach/end', { name: W.gloss, takes: W.got }).catch(() => {}); W.teaching = false; }
+  if (W.teaching) { await App.api.post('/teach/end', { name: W.gloss, takes: W.got }).catch(() => {}); setTeaching(false); }
   if (W.mode === 'add') { finishAdd(); return; }
   buildBind(); showStep('bind');
 };
@@ -330,7 +337,7 @@ $('tw-bind-back').onclick = () => {
   showStep('record');
   if (!W.teaching && W.gloss) {
     App.api.post('/teach/begin', { name: W.gloss, takes: 5, label: W.label })
-      .then(r => { W.teaching = !!(r && r.ok); W.need = 5; })
+      .then(r => { setTeaching(!!(r && r.ok)); W.need = 5; })
       .catch(() => {});
   }
 };
@@ -386,7 +393,7 @@ async function open() {
 }
 async function close() {
   stopCapture();
-  if (W.teaching) { App.api.post('/teach/end', { name: W.gloss }).catch(() => {}); W.teaching = false; }
+  if (W.teaching) { App.api.post('/teach/end', { name: W.gloss }).catch(() => {}); setTeaching(false); }
 }
 
 /* library's "+ take" lands here */
@@ -402,7 +409,7 @@ const Teach = {
       App.nav('signs');
       return;
     }
-    W.teaching = true;
+    setTeaching(true);
     recLead.textContent = 'same sign, one more take — it joins the stored exemplars.';
     recDone.hidden = true; recBack.textContent = 'cancel';
     showStep('record');

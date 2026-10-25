@@ -21,7 +21,7 @@ CUR=$(DISPLAY="$D" wmctrl -d | awk '$2=="*"{print $1}')
 echo "current desktop after sign: $CUR" | tee "$PROOF/switch.txt"
 
 # move the sink window to desktop 2 via a second sign
-teach_bind_fire RR-MOVEWIN "sink to desktop 3" "wmctrl -r realrun-sink -t 2" || {
+teach_bind_fire RR-MOVEWIN "sink to desktop 3" "wmctrl -r $TAG-sink -t 2" || {
     rc=$?; [ "$rc" = 3 ] && verdict PENDING "endpoints not wired"
     verdict FAILED "teach_bind_fire rc=$rc"; }
 sleep 0.6
@@ -34,7 +34,7 @@ shot "$PROOF/after.png"
 diff -u "$PROOF/before.txt" "$PROOF/after.txt" > "$PROOF/diff.txt" || true
 
 # restore desktop 0 + sink on it
-DISPLAY="$D" wmctrl -r realrun-sink -t 0; DISPLAY="$D" wmctrl -s 0; sleep 0.3
+DISPLAY="$D" wmctrl -r $TAG-sink -t 0; DISPLAY="$D" wmctrl -s 0; sleep 0.3
 
 if [ "$CUR" = "1" ] && echo "$WPROP" | grep -q "= 2"; then
     verdict VERIFIED "signs switched desktop (0->1) and moved a window across workspaces (_NET_WM_DESKTOP=2)"

@@ -5,17 +5,19 @@ Chapters (each marked for cut.sh):
   00 scene    everything up, title card on screen
   01 pair     pair.html: type address + real pair code -> composer
   02 type     type in the composer, lands in the real editor sink
-  03 live     LIVE sheet, replayed kp42, palm->listening, sign OPEN-TERM
+  03 attach   a real file lands in ~/wf-uploads; a real photo goes to
+              the laptop clipboard and its path pastes into the sink
+  04 live     LIVE sheet, replayed kp42, palm->listening, sign OPEN-TERM
               -> xfce4-terminal really opens
-  04 teach    teach "take a shot" (z-shape) through the wizard, bind the
+  05 teach    teach "take a shot" (z-shape) through the wizard, bind the
               screenshot tool via the @ picker, sign it -> PNG lands
-  05 context  same sign (NEXT): editor focus -> typed marker, chrome
-              focus -> ctrl+Tab switches tab
-  06 macro    STANDUP sign -> macro opens a terminal and types into it
-  07 media    VOL-UP -> the box has no pactl/amixer -> honest refusal
-              shown on the reading strip
-  08 observe  an untrained squiggle -> rejected, reason on the strip
-  09 bank     library sheet lists every taught sign + its binding
+  06 context  same sign (NEXT): editor focus -> typed marker, chrome
+              focus -> ctrl+Tab switches the visible tab
+  07 macro    STANDUP sign -> macro opens a terminal and types into it
+  08 media    VOL-UP -> the box has no pactl/amixer -> honest refusal in
+              /live/state (shown in the wf-proof window)
+  09 observe  an untrained squiggle -> rejected, reason on the strip
+  10 bank     library sheet lists every taught sign + its binding
 
 Driving is two-layered and honest about it:
   * xdotool moves/clicks/type for everything where laptop focus may move
@@ -24,6 +26,8 @@ Driving is two-layered and honest about it:
     effect is an HTTP call the phone makes — on a real phone the tap
     never moves laptop focus; dispatching via CDP reproduces that. The
     DOM event path is identical: real handlers, real fetch, real POST.
+  * CDP DOM.setFileInputFiles for the attach input — a real file walks
+    the page's real change->stage->send path into a real POST /send-file.
 
 Keypoints arrive via the replay seam (Pose.replay -> 127.0.0.1:8877) —
 the page posts them as real /live/kp; the skeleton overlay draws the
@@ -43,12 +47,25 @@ import urllib.request
 DEMO = "/tmp/demo"
 OUT = os.path.join(DEMO, "out")
 CLIPS = os.path.join(DEMO, "clips")
+ASSETS = os.path.join(DEMO, "assets")
 LOGS = os.path.join(DEMO, "logs")
-WFD = "http://127.0.0.1:8742"
-REPLAY = "http://127.0.0.1:8877"
-CDP = "http://127.0.0.1:9223"
-DISPLAY = ":98"
-KEY = open(os.path.join(DEMO, "home", ".config", "wf", "key")).read().strip()
+DEMOHOME = os.path.join(DEMO, "home")
+UPLOADS = os.path.join(DEMOHOME, "wf-uploads")
+PICTURES = os.path.join(DEMOHOME, "Pictures")
+SINK = os.path.join(OUT, "sink.log")
+
+# scene.sh writes the display + ports it actually claimed — siblings on
+# this box own :97-:111 and the stock CDP port, so nothing is hardcoded.
+_env = {}
+for _l in open(os.path.join(DEMO, "env")):
+    if "=" in _l:
+        _k, _v = _l.strip().split("=", 1)
+        _env[_k] = _v
+WFD = "http://127.0.0.1:" + _env.get("WFD_PORT", "8742")
+REPLAY = "http://127.0.0.1:" + _env.get("REPLAY_PORT", "8877")
+CDP = "http://127.0.0.1:" + _env.get("CDP_PORT", "9224")
+DISPLAY = _env.get("DEMO_DISPLAY", ":116")
+KEY = open(os.path.join(DEMOHOME, ".config", "wf", "key")).read().strip()
 
 os.makedirs(OUT, exist_ok=True)
 MARK = os.path.join(DEMO, "markers.log")
@@ -129,12 +146,20 @@ def wait_state(pred, timeout=12, what="state"):
 
 
 def focus(title):
-    r = xdo("search", "--name", title)
-    wids = [w for w in (r.stdout or "").split() if w.strip()]
-    if not wids:
-        return None
-    xdo("windowactivate", wids[-1])
-    return wids[-1]
+    """Focus a window whose title matches; retry — WMs are async."""
+    t0 = time.time()
+    while time.time() - t0 < 8:
+        r = xdo("search", "--name", title)
+        wids = [w for w in (r.stdout or "").split() if w.strip()]
+        if wids:
+            xdo("windowactivate", wids[-1])
+            return wids[-1]
+        time.sleep(0.4)
+    return None
+
+
+def place(title, x, y, w, h):
+    run("wmctrl", "-r", title, "-e", "0,%d,%d,%d,%d" % (x, y, w, h))
 
 
 def win_exists(title):
@@ -149,6 +174,13 @@ def wait_win(title, timeout=10):
             return True
         time.sleep(0.25)
     return False
+
+
+def sink_text():
+    try:
+        return open(SINK).read()
+    except OSError:
+        return ""
 
 
 # ---------------------------------------------------------------------
@@ -234,8 +266,9 @@ class WS:
 def cdp_connect():
     with urllib.request.urlopen(CDP + "/json", timeout=10) as r:
         targets = json.loads(r.read())
+    host = WFD.split("://", 1)[1]
     page = next(t for t in targets if t.get("type") == "page" and
-                "127.0.0.1:8742" in (t.get("url") or ""))
+                host in (t.get("url") or ""))
     ws = WS(page["webSocketDebuggerUrl"])
     ws.cmd("Runtime.enable")
     return ws
@@ -288,6 +321,18 @@ def type_into(ws, sel, text, delay=45):
     time.sleep(0.2)
 
 
+def set_files(ws, sel, paths):
+    """DOM.setFileInputFiles — a real file walks the page's real
+    change -> stage -> send path. Identical to a phone file picker."""
+    ws.cmd("DOM.enable")
+    doc = ws.cmd("DOM.getDocument", {"depth": 1})
+    nid = ws.cmd("DOM.querySelector",
+                 {"nodeId": doc["root"]["nodeId"], "selector": sel})
+    nid = nid["nodeId"]
+    ws.cmd("DOM.setFileInputFiles", {"nodeId": nid, "files": paths})
+    return nid
+
+
 # ---------------------------------------------------------------------
 # chapters
 # ---------------------------------------------------------------------
@@ -307,7 +352,7 @@ def ch01_pair(ws):
             code = m.group(1)
     assert code, "no pair code in daemon log"
     log("pair code:", code)
-    focus("pair") or focus("127.0.0.1")
+    focus("pair") or focus("wispr")
     time.sleep(0.6)
     type_into(ws, "#addr", "127.0.0.1:8742")
     type_into(ws, "#code", code)
@@ -321,6 +366,7 @@ def ch01_pair(ws):
 
 def ch02_type(ws):
     mark("ch02-type", "type on phone -> lands in editor")
+    assert os.path.exists(SINK), "sink.log missing — sink.py never ran"
     editor = focus("wf-editor")
     assert editor, "editor window"
     text = "hello laptop — typed from the phone"
@@ -331,20 +377,99 @@ def ch02_type(ws):
     click_el(ws, "#go")
     t0 = time.time()
     while time.time() - t0 < 12:
-        try:
-            if text.split("—")[0].strip() in open(os.path.join(
-                    OUT, "sink.log")).read():
-                log("sink got the line")
-                time.sleep(1.5)
-                return
-        except OSError:
-            pass
+        if text.split("—")[0].strip() in sink_text():
+            log("sink got the line")
+            time.sleep(1.5)
+            return
         time.sleep(0.3)
     raise AssertionError("text never landed in sink")
 
 
-def _palm_sign_then(ws, sign_clip, gloss, timeout=14):
-    """Push palm (listen on), then the sign; return last_match."""
+def ch03_attach(ws):
+    """Attach menu -> real file input -> POST /send-file ->
+    ~/wf-uploads/<ts>_notes.txt (visible in wf-proof) + the path pasted
+    into the focused editor. Then a real photo -> /send-image ->
+    clipboard -> its path pastes into the same editor."""
+    mark("ch03-attach", "file lands in wf-uploads; photo -> clipboard+paste")
+    assert focus("wf-editor"), "editor window for paste target"
+    time.sleep(0.6)
+
+    # --- a real file: notes.txt ---------------------------------------
+    click_el(ws, "#plus")
+    wait_js(ws, "!!document.querySelector('.attach-menu')", 8, "attach menu")
+    time.sleep(0.6)
+    # 'any file' -> hidden #fileany input — feed it a real file via CDP
+    found = js(ws, """(() => {
+      const rows=[...document.querySelectorAll('.attach-item')];
+      const b=rows.find(r=>/any file/i.test(r.textContent));
+      if(!b) return null; b.click(); return b.textContent.trim(); })()""")
+    assert found, "no 'any file' item in attach menu"
+    time.sleep(0.5)
+    set_files(ws, "#fileany", [os.path.join(ASSETS, "notes.txt")])
+    wait_js(ws, "!document.getElementById('attach').hidden", 8,
+            "attach chip shown")
+    log("staged:", js(ws, "document.getElementById('aname').textContent"))
+    time.sleep(1.2)
+    before = set(os.listdir(UPLOADS)) if os.path.isdir(UPLOADS) else set()
+    click_el(ws, "#go")
+    t0 = time.time()
+    landed = None
+    while time.time() - t0 < 12:
+        new = (set(os.listdir(UPLOADS)) if os.path.isdir(UPLOADS)
+               else set()) - before
+        if new:
+            landed = sorted(new)[0]
+            break
+        time.sleep(0.4)
+    assert landed, "no file landed in ~/wf-uploads"
+    log("file landed:", landed)
+    wait_js(ws, "document.getElementById('attach').hidden", 8, "chip cleared")
+    t0 = time.time()
+    while time.time() - t0 < 8 and landed.split("_", 1)[-1] not in sink_text():
+        time.sleep(0.3)
+    log("path pasted into editor:", "wf-uploads" in sink_text() or landed in sink_text())
+    time.sleep(1.5)
+
+    # --- a real photo: sunset.png --------------------------------------
+    click_el(ws, "#plus")
+    wait_js(ws, "!!document.querySelector('.attach-menu')", 8, "attach menu 2")
+    time.sleep(0.5)
+    found = js(ws, """(() => {
+      const rows=[...document.querySelectorAll('.attach-item')];
+      const b=rows.find(r=>/photo or video/i.test(r.textContent));
+      if(!b) return null; b.click(); return b.textContent.trim(); })()""")
+    assert found, "no 'photo or video' item in attach menu"
+    time.sleep(0.5)
+    set_files(ws, "#file", [os.path.join(ASSETS, "sunset.png")])
+    wait_js(ws, "!document.getElementById('attach').hidden", 8,
+            "image chip shown")
+    log("staged image:", js(ws, "document.getElementById('aname').textContent"))
+    time.sleep(1.2)
+    s0 = len(sink_text())
+    click_el(ws, "#go")
+    t0 = time.time()
+    ok = False
+    while time.time() - t0 < 12:
+        st = live_state()
+        s, st2 = http("/status")
+        ls = (st2 or {}).get("last_send") or {}
+        if ls.get("kind") == "image" and ls.get("ok"):
+            ok = True
+            break
+        time.sleep(0.4)
+    assert ok, "image send never confirmed by /status last_send"
+    log("image sent — clipboard owns it")
+    t0 = time.time()
+    while time.time() - t0 < 8 and "wf-img" not in sink_text()[s0:]:
+        time.sleep(0.3)
+    log("image path pasted into editor:", "wf-img" in sink_text())
+    time.sleep(1.0)
+
+
+def _palm_sign_then(ws, sign_clip, gloss, timeout=16):
+    """Push palm (listen on), then the sign; return the FRESH match —
+    staleness is guarded by at_ms advancing past the pre-sign row."""
+    prev = (live_state().get("last_match") or {}).get("at_ms") or 0
     push_clip("palm")
     wait_state(lambda j: j.get("listening"), 8, "listening")
     log("listening — signing", gloss)
@@ -353,14 +478,15 @@ def _palm_sign_then(ws, sign_clip, gloss, timeout=14):
     while time.time() - t0 < timeout:
         j = live_state()
         m = j.get("last_match") or {}
-        if m.get("gloss") and not m.get("mode"):
+        if m.get("gloss") and not m.get("mode") and \
+           (m.get("at_ms") or 0) > prev:
             return m
         time.sleep(0.2)
-    raise TimeoutError("no match for " + gloss)
+    raise TimeoutError("no fresh match for " + gloss)
 
 
-def ch03_live(ws):
-    mark("ch03-live", "live sheet + replay + OPEN-TERM fires a terminal")
+def ch04_live(ws):
+    mark("ch04-live", "live sheet + replay + OPEN-TERM fires a terminal")
     click_el(ws, "#tray-live")
     wait_js(ws, "!!document.querySelector('.lv-replay')", 15,
             "replay tag visible")
@@ -369,18 +495,20 @@ def ch03_live(ws):
     log("match:", json.dumps(m)[:200])
     assert m.get("gloss") == "OPEN-TERM" and m.get("accepted"), m
     assert wait_win("wf-fired", 8), "fired terminal never appeared"
-    log("wf-fired window present")
-    with open(os.path.join(OUT, "ch03.txt"), "w") as f:
+    place("wf-fired", 520, 220, 640, 420)   # center-stage, clearly new
+    log("wf-fired window present — placed center")
+    with open(os.path.join(OUT, "ch04.txt"), "w") as f:
         f.write("match: %s\n" % json.dumps(m))
         f.write(run("wmctrl", "-l").stdout)
-    time.sleep(1.5)
+    time.sleep(2.5)
     push_clip("namaste")
     wait_state(lambda j: not j.get("listening"), 8, "stopped")
     log("namaste — stopped")
+    time.sleep(0.8)
 
 
-def ch04_teach(ws):
-    mark("ch04-teach", "teach a sign -> screenshot binding -> fires")
+def ch05_teach(ws):
+    mark("ch05-teach", "teach a sign -> screenshot binding -> fires")
     click_el(ws, "#tray-teach")
     wait_js(ws, "!!document.getElementById('tw-name')", 12, "teach sheet")
     time.sleep(0.8)
@@ -393,28 +521,28 @@ def ch04_teach(ws):
             10, "record step")
     time.sleep(1.5)                       # capture pump + engine up
     for i in (1, 2, 3):
+        prev_got = int((live_state().get("teach") or {}).get("got") or 0)
         push_clip("z-shape-take%d" % i)
         log("take", i, "pushed")
         t0 = time.time()
         while time.time() - t0 < 15:
             j = live_state()
             t = j.get("teach") or {}
-            if int(t.get("got") or 0) >= i:
+            if int(t.get("got") or 0) >= prev_got + 1:
                 log("take %d captured (got=%s)" % (i, t.get("got")))
                 break
             time.sleep(0.25)
         else:
             raise AssertionError("take %d not captured" % i)
-        time.sleep(1.0)                   # hands fully away between takes
-    click_el(ws, "#tw-rec-done")
+        time.sleep(1.2)                   # hands fully away between takes
+    # 3rd take auto-advances to bind (recDone also goes there if clicked)
     wait_js(ws, "!!document.querySelector('.tw-step[data-step=bind].on')",
-            8, "bind step")
+            10, "bind step")
     time.sleep(0.8)
     click_el(ws, "#tw-pick")
     wait_js(ws, "!document.getElementById('sheet-actions').hidden", 8,
             "picker open")
     time.sleep(1.0)
-    # the screenshot row, wherever it sits in the list
     found = js(ws, """(() => {
       const rows = [...document.querySelectorAll('#act-list .act-row')];
       const r = rows.find(r => /screenshot/i.test(r.textContent));
@@ -422,6 +550,8 @@ def ch04_teach(ws):
     log("picker row:", found)
     assert found, "no screenshot row in picker"
     time.sleep(0.6)
+    wait_js(ws, "!document.getElementById('tw-save').disabled", 8,
+            "save enabled")
     click_el(ws, "#tw-save")
     wait_js(ws, "!!document.querySelector('.tw-step[data-step=done].on')",
             8, "done step")
@@ -431,27 +561,29 @@ def ch04_teach(ws):
     wait_js(ws, "!document.getElementById('sheet-live').hidden", 8)
     time.sleep(1.0)
     focus("wf-editor")                    # harmless focus for the shot
-    pics_before = set(os.listdir(os.path.join(DEMO, "home", "Pictures")))
+    pics_before = set(os.listdir(PICTURES))
     m = _palm_sign_then(ws, "z-shape-perform", "TAKE-A-SHOT")
     log("match:", json.dumps(m)[:200])
     assert m.get("gloss") == "TAKE-A-SHOT" and m.get("accepted"), m
     t0 = time.time()
+    shot = None
     while time.time() - t0 < 12:
-        pics = set(os.listdir(os.path.join(DEMO, "home", "Pictures")))
-        new = pics - pics_before
+        new = set(os.listdir(PICTURES)) - pics_before
         if new:
-            log("screenshot landed:", sorted(new))
+            shot = sorted(new)[0]
+            log("screenshot landed:", shot)
             break
         time.sleep(0.4)
-    else:
-        raise AssertionError("no screenshot file landed")
+    assert shot, "no screenshot file landed in ~/Pictures"
     push_clip("namaste")
     time.sleep(1.2)
 
 
-def ch05_context(ws):
-    mark("ch05-context", "same sign, different apps -> different effects")
-    click_el(ws, "#tray-live")
+def ch06_context(ws):
+    mark("ch06-context", "same sign, different apps -> different effects")
+    if win_exists("sheet-live") or True:
+        js(ws, "App && App.nav ? App.nav('live') : "
+               "document.getElementById('tray-live').click()")
     wait_js(ws, "!document.getElementById('sheet-live').hidden", 8)
     # branch 1: editor focused -> type marker
     focus("wf-editor")
@@ -461,14 +593,14 @@ def ch05_context(ws):
     assert m.get("accepted"), m
     t0 = time.time()
     while time.time() - t0 < 10:
-        if "context dispatch" in open(os.path.join(OUT, "sink.log")).read():
+        if "context dispatch" in sink_text():
             log("marker typed into editor")
             break
         time.sleep(0.3)
     else:
         raise AssertionError("context marker never typed")
-    # branch 2: tabs chrome focused -> ctrl+Tab
-    tabs = focus("New Tab") or focus("Tab")
+    # branch 2: chrome tabs focused -> ctrl+Tab flips the visible tab
+    tabs = focus("demo tab")
     if not tabs:
         log("WARN: tabs window not found — context chrome branch skipped")
         return
@@ -476,58 +608,77 @@ def ch05_context(ws):
     title0 = xdo("getactivewindow", "getwindowname").stdout.strip()
     m = _palm_sign_then(ws, "swipe-l-perform", "NEXT")
     log("chrome branch:", json.dumps(m)[:200])
-    time.sleep(1.5)
-    title1 = xdo("getactivewindow", "getwindowname").stdout.strip()
+    t0 = time.time()
+    title1 = title0
+    while time.time() - t0 < 8:
+        time.sleep(0.4)
+        title1 = xdo("getactivewindow", "getwindowname").stdout.strip()
+        if title1 != title0:
+            break
     log("tab title before/after:", title0, "/", title1)
-    with open(os.path.join(OUT, "ch05.txt"), "w") as f:
-        f.write("editor branch: %s\nchrome branch: %s\n"
-                "title %s -> %s\n" % (json.dumps(m)[:0] or "ok",
-                                      json.dumps(m), title0, title1))
+    with open(os.path.join(OUT, "ch06.txt"), "w") as f:
+        f.write("editor branch ok\nchrome branch: %s\n"
+                "title %s -> %s\n" % (json.dumps(m), title0, title1))
     push_clip("namaste")
     time.sleep(1.0)
 
 
-def ch06_macro(ws):
-    mark("ch06-macro", "one sign -> opens terminal + types")
+def ch07_macro(ws):
+    mark("ch07-macro", "one sign -> opens terminal + types")
     focus("wf-editor")
     time.sleep(0.6)
-    before = xdo("search", "--name", "Terminal").stdout.count("\n")
     m = _palm_sign_then(ws, "v-check-perform", "STANDUP")
     log("match:", json.dumps(m)[:200])
     assert m.get("accepted"), m
-    assert wait_win("Terminal", 12) or wait_win("xfce4", 12) or \
-        xdo("search", "--name", "Terminal").stdout.count("\n") > before, \
+    assert wait_win("Terminal", 12) or wait_win("xfce4", 12), \
         "macro terminal never opened"
+    place("Terminal", 980, 240, 700, 400)
     log("macro terminal opened")
-    with open(os.path.join(OUT, "ch06.txt"), "w") as f:
+    with open(os.path.join(OUT, "ch07.txt"), "w") as f:
         f.write(run("wmctrl", "-l").stdout)
-    time.sleep(1.5)
+    time.sleep(2.5)                       # let the typed line land visibly
     push_clip("namaste")
     time.sleep(1.0)
 
 
-def ch07_media(ws):
-    mark("ch07-media", "volume-up sign -> honest refusal (no pactl)")
+def ch08_media(ws):
+    mark("ch08-media", "volume-up sign -> honest refusal (no pactl)")
     focus("wf-editor")
     time.sleep(0.6)
     m = _palm_sign_then(ws, "push-up-perform", "VOL-UP")
     log("match:", json.dumps(m)[:220])
     assert m.get("gloss") == "VOL-UP" and m.get("accepted"), m
-    act = m.get("action") or {}
-    assert act.get("refused"), "expected honest refusal"
-    log("refused:", act.get("refused"))
+    # with the OPS composer active the refused dispatch lands in
+    # last_action (feed + wf-proof window), not last_match.action
+    t0 = time.time()
+    refused = None
+    while time.time() - t0 < 10:
+        la = (live_state().get("last_action") or {})
+        res = la.get("result") or {}
+        if "VOL-UP" in json.dumps(la.get("glosses") or []) and \
+           (la.get("error") or res.get("refused")):
+            refused = la.get("error") or res.get("refused")
+            break
+        time.sleep(0.3)
+    log("refusal:", refused)
+    with open(os.path.join(OUT, "ch08.txt"), "w") as f:
+        f.write("match: %s\nrefusal: %s\n" % (json.dumps(m), refused))
+    assert refused, "expected honest refusal for VOL-UP (no pactl/amixer)"
     time.sleep(2.0)
     push_clip("namaste")
     time.sleep(0.8)
 
 
-def ch08_observe(ws):
-    mark("ch08-observe", "untrained sign -> rejected, reason shown")
+def ch09_observe(ws):
+    mark("ch09-observe", "untrained sign -> rejected, reason shown")
+    prev = (live_state().get("last_match") or {}).get("at_ms") or 0
     push_clip("palm")
     wait_state(lambda j: j.get("listening"), 8, "listening")
     push_clip("unknown")
     m = wait_state(lambda j: (j.get("last_match") or {}).get("accepted")
-                   is False and (j.get("last_match") or {}).get("reason")
+                   is False and
+                   ((j.get("last_match") or {}).get("at_ms") or 0) > prev and
+                   (j.get("last_match") or {}).get("reason")
                    not in (None, ""), 12, "rejection")
     log("reject row:", json.dumps(m.get("last_match"))[:220])
     time.sleep(2.5)
@@ -535,17 +686,15 @@ def ch08_observe(ws):
     time.sleep(0.8)
 
 
-def ch09_bank(ws):
-    mark("ch09-bank", "library view lists signs + bindings")
+def ch10_bank(ws):
+    mark("ch10-bank", "library view lists signs + bindings")
     click_el(ws, "#tray-signs")
     wait_js(ws, "!document.getElementById('sheet-signs').hidden", 8)
     time.sleep(1.2)
-    n = js(ws, "document.querySelectorAll('#lib-list .lib-row,"
-               " #lib-list .lib-card, #lib-list section > div').length")
     txt = js(ws, "(document.getElementById('lib-list')||{}).textContent||''")
-    log("library rows:", n, "—", (txt or "")[:160].replace("\n", " "))
+    log("library rows —", (txt or "")[:160].replace("\n", " "))
     s, j = http("/bank")
-    with open(os.path.join(OUT, "ch09-bank.json"), "w") as f:
+    with open(os.path.join(OUT, "ch10-bank.json"), "w") as f:
         json.dump(j, f, indent=1)
     time.sleep(2.5)
     click_el(ws, "#lib-x")
@@ -557,9 +706,9 @@ def main():
     open(MARK, "w").close()
     ws = cdp_connect()
     log("cdp connected")
-    chapters = [ch00_scene, ch01_pair, ch02_type, ch03_live, ch04_teach,
-                ch05_context, ch06_macro, ch07_media, ch08_observe,
-                ch09_bank]
+    chapters = [ch00_scene, ch01_pair, ch02_type, ch03_attach, ch04_live,
+                ch05_teach, ch06_context, ch07_macro, ch08_media,
+                ch09_observe, ch10_bank]
     results = {}
     for ch in chapters:
         try:

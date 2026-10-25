@@ -24,6 +24,7 @@ CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chro
 # stray chromes/stubs from a killed earlier run keep polling and racing us
 pkill -f "user-data-dir=/tmp/wf-chrome-teach" 2>/dev/null
 pkill -f "stub_wfd.py --port $PORT" 2>/dev/null
+rm -rf /tmp/wf-chrome-teach /tmp/wf-chrome-teach-old /tmp/wf-chrome-teach-load
 sleep 0.2
 
 python3 tests/stub_wfd.py --port "$PORT" >/tmp/wf-stub.log 2>&1 &
@@ -39,8 +40,13 @@ done
 curl -sf "http://127.0.0.1:$PORT/health" >/dev/null || { echo "stub never came up"; cat /tmp/wf-stub.log; exit 1; }
 
 echo "== selftest: teach a fake sign end-to-end =="
+# fresh profile every run — a reused dir can restore the previous
+# session's /selftest tab and race the stub with a second run.
+rm -rf /tmp/wf-chrome-teach
 timeout 120 "$CHROME_BIN" --headless=new --disable-gpu --no-sandbox \
-  --user-data-dir=/tmp/wf-chrome-teach --enable-logging=stderr --v=0 \
+  --user-data-dir=/tmp/wf-chrome-teach --no-first-run \
+  --disable-session-crashed-bubble --hide-crash-restore-bubble \
+  --enable-logging=stderr --v=0 \
   "http://127.0.0.1:$PORT/selftest" >/tmp/wf-chrome.log 2>&1 &
 CPID=$!
 
@@ -77,28 +83,47 @@ i=0; while [ $i -lt 60 ]; do
   curl -sf "http://127.0.0.1:$((PORT + 1))/health" >/dev/null 2>&1 && break
   i=$((i+1)); sleep 0.1
 done
-timeout 45 "$CHROME_BIN" --headless=new --disable-gpu --no-sandbox \
-  --user-data-dir=/tmp/wf-chrome-teach-old --virtual-time-budget=12000 \
-  --dump-dom "http://127.0.0.1:$((PORT + 1))/index.html?k=teach-stub-key#/signs" \
-  >/tmp/wf-dom-old.html 2>/dev/null
-if grep -q "older wrap" /tmp/wf-dom-old.html; then
-  echo "  older-daemon banner shown (honest 404 path)"
-else
-  echo "FAIL: /bank 404 did not surface the 'older wrap' banner"; exit 1
-fi
-if grep -q 'id="lib-banner" hidden' /tmp/wf-dom-old.html; then
-  echo "FAIL: banner still hidden on old daemon"; exit 1
-fi
+OLDRESULT="$RESULT.old"; rm -f "$OLDRESULT"
+timeout 90 "$CHROME_BIN" --headless=new --disable-gpu --no-sandbox \
+  --user-data-dir=/tmp/wf-chrome-teach-old --no-first-run \
+  --enable-logging=stderr --v=0 \
+  "http://127.0.0.1:$((PORT + 1))/oldtest" >/tmp/wf-chrome-old.log 2>&1 &
+CPID=$!
+i=0; while [ $i -lt 450 ]; do [ -f "$OLDRESULT" ] && break; i=$((i+1)); sleep 0.1; done
+kill "$CPID" 2>/dev/null; CPID=""
+[ -f "$OLDRESULT" ] || { echo "FAIL: no old-daemon result posted"; \
+  cat /tmp/wf-stub-old.log; exit 1; }
+python3 - "$OLDRESULT" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[1]))
+for s in r.get("steps", []):
+    print("  ·", s)
+if r.get("errs"):
+    print("  console errors:", *r["errs"], sep="\n    ")
+sys.exit(0 if r.get("pass") else 1)
+PY
+[ $? -eq 0 ] || { echo "== old stub log =="; cat /tmp/wf-stub-old.log; exit 1; }
+echo "  older-daemon degraded states verified"
 
 echo "== clean-load check =="
-timeout 45 "$CHROME_BIN" --headless=new --disable-gpu --no-sandbox \
-  --user-data-dir=/tmp/wf-chrome-teach-load --virtual-time-budget=10000 \
-  --dump-dom "http://127.0.0.1:$PORT/index.html?k=teach-stub-key" \
-  >/tmp/wf-dom-load.html 2>/dev/null
-grep -q 'id="box"' /tmp/wf-dom-load.html || { echo "FAIL: composer textarea missing"; exit 1; }
-grep -q 'id="tw-name"' /tmp/wf-dom-load.html || { echo "FAIL: teach sheet not mounted"; exit 1; }
-grep -q 'id="lv-cam"' /tmp/wf-dom-load.html || { echo "FAIL: live sheet not mounted"; exit 1; }
-grep -q 'teach a sign' /tmp/wf-dom-load.html || { echo "FAIL: teach CTA missing"; exit 1; }
-grep -q 'id="lib-list"' /tmp/wf-dom-load.html || { echo "FAIL: signs sheet not mounted"; exit 1; }
+LOADRESULT="$RESULT.load"; rm -f "$LOADRESULT"
+timeout 60 "$CHROME_BIN" --headless=new --disable-gpu --no-sandbox \
+  --user-data-dir=/tmp/wf-chrome-teach-load --no-first-run \
+  --enable-logging=stderr --v=0 \
+  "http://127.0.0.1:$PORT/loadtest" >/tmp/wf-chrome-load.log 2>&1 &
+CPID=$!
+i=0; while [ $i -lt 300 ]; do [ -f "$LOADRESULT" ] && break; i=$((i+1)); sleep 0.1; done
+kill "$CPID" 2>/dev/null; CPID=""
+[ -f "$LOADRESULT" ] || { echo "FAIL: no load result posted"; exit 1; }
+python3 - "$LOADRESULT" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[1]))
+for s in r.get("steps", []):
+    print("  ·", s)
+if r.get("errs"):
+    print("  console errors:", *r["errs"], sep="\n    ")
+sys.exit(0 if r.get("pass") else 1)
+PY
+[ $? -eq 0 ] || exit 1
 
-echo "ALL GREEN — teach page: selftest + old-daemon banner + clean load"
+echo "ALL GREEN — merged shell: teach flow + old-daemon degrade + clean load"

@@ -18,8 +18,38 @@ ROOT="$(cd "$HERE/../.." && pwd)"
 # shellcheck disable=SC1090
 . "$HERE/lib.sh"
 
-D="${REALRUN_DISPLAY:-:97}"
-PORT="${REALRUN_PORT:-8874}"
+# Private display: the spec wants :97, but a sibling agent's stack may
+# already live there (their windows on a server WE started). A display
+# that answers xdpyinfo is FOREIGN-CONTAMINATED — never reuse it; the
+# gate's focus/window proofs need an empty, owned display.
+if [ -n "${REALRUN_DISPLAY:-}" ]; then
+    D="$REALRUN_DISPLAY"
+else
+    D=""
+    # our own previous stack's display is the one safe reuse — teardown()
+    # below kills its server, then we re-take the same number cleanly
+    _OLD_D=$( [ -f "$REALRUN_ENV" ] && grep '^D=' "$REALRUN_ENV" | cut -d= -f2 || true )
+    if [ -n "$_OLD_D" ] && DISPLAY="$_OLD_D" xdpyinfo >/dev/null 2>&1; then
+        D="$_OLD_D"
+    else
+        for cand in 97 98 99 100 101 102 103 104 105; do
+            [ -e "/tmp/.X${cand}-lock" ] && continue
+            DISPLAY=":$cand" xdpyinfo >/dev/null 2>&1 && continue
+            D=":$cand"; break
+        done
+        [ -n "$D" ] || die "no free display in :97-:105"
+    fi
+fi
+# Private port: first free in 8874..8884 (keeps the spec's 8874 when free).
+if [ -n "${REALRUN_PORT:-}" ]; then
+    PORT="$REALRUN_PORT"
+else
+    PORT=""
+    for cand in 8874 8875 8876 8877 8878 8879 8880 8881 8882 8883 8884; do
+        ss -tln 2>/dev/null | grep -q ":$cand " || { PORT="$cand"; break; }
+    done
+    [ -n "$PORT" ] || die "no free port in 8874-8884"
+fi
 WFHOME="$REALRUN_STATE/home"
 BINDIR="$REALRUN_STATE/bin"
 STATE="$REALRUN_STATE"
@@ -33,20 +63,25 @@ teardown() {
     log "tearing down"
     for pidf in "$STATE"/pids.*; do
         [ -f "$pidf" ] || continue
-        kill "$(cat "$pidf" 2>/dev/null)" 2>/dev/null
+        _pid=$(cat "$pidf" 2>/dev/null)
+        # 'external' marks a server/WM we found running — never kill those
+        [ "$_pid" = "external" ] && { rm -f "$pidf"; continue; }
+        [ -n "$_pid" ] && kill "$_pid" 2>/dev/null
         rm -f "$pidf"
     done
-    # anything still holding the display: only OUR tagged children die
-    pkill -f "realrun-sink" 2>/dev/null
-    pkill -f "xfce4-terminal --title realrun" 2>/dev/null
-    [ "${1:-}" = "x" ] && kill "$(cat "$STATE/pids.xvfb" 2>/dev/null)" 2>/dev/null
+    # close only windows on OUR display (sibling agents use the same
+    # window names on their own displays — pkill -f would murder theirs)
+    for wid in $(DISPLAY="$D" xdotool search --name "^$(basename "$_RR_ROOT" | tr -cd 'a-zA-Z0-9-')-" 2>/dev/null; \
+                 DISPLAY="$D" xdotool search --class SinkEdit 2>/dev/null); do
+        DISPLAY="$D" wmctrl -ic "$wid" 2>/dev/null
+    done
     rm -f "$STATE/env"
 }
 teardown
 [ "${1:-}" = "--teardown" ] && { log "down"; exit 0; }
 
 # ---------- required tools ----------------------------------------------
-for t in python3 curl Xvfb xdotool wmctrl xprop xwininfo xclip ffmpeg setsid; do
+for t in python3 curl Xvfb xdpyinfo xdotool wmctrl xprop xwininfo xclip ffmpeg setsid ss; do
     req "$t"
 done
 WM=""
@@ -76,18 +111,30 @@ DISPLAY="$D" xdpyinfo -ext XTEST 2>/dev/null | grep -q XTEST \
     || die "XTEST missing on $D — input injection impossible"
 
 # ---------- window manager ----------------------------------------------
-if ! DISPLAY="$D" xprop -root _NET_SUPPORTING_WM_CHECK >/dev/null 2>&1; then
-    log "starting WM: $WM"
-    DISPLAY="$D" setsid "$WM" --compositor=off >/dev/null 2>&1 || \
-        DISPLAY="$D" setsid "$WM" >/dev/null 2>&1 &
+# Verify, don't trust: the check can pass transiently (a sibling agent's
+# WM probing the same display) — wait, re-probe, then take over if the
+# display is still unmanaged. EWMH focus/desktop proofs REQUIRE a WM.
+wm_present() { DISPLAY="$D" xprop -root _NET_SUPPORTING_WM_CHECK 2>/dev/null \
+    | grep -q "window id"; }
+start_wm() {   # spawn detached; never foreground-block on the WM
+    DISPLAY="$D" setsid "$WM" --compositor=off </dev/null >/dev/null 2>&1 &
     echo $! > "$STATE/pids.wm"
-    for _ in $(seq 1 50); do
-        DISPLAY="$D" xprop -root _NET_SUPPORTING_WM_CHECK 2>/dev/null | grep -q "window id" && break
-        sleep 0.2
-    done
+    for _ in $(seq 1 50); do wm_present && break; sleep 0.2; done
+}
+if ! wm_present; then
+    log "starting WM: $WM"
+    start_wm
 else
-    echo "external" > "$STATE/pids.wm"
+    # found a WM already managing the display — treat as external, but
+    # prove it's stable (two probes a second apart) else take over anyway
+    sleep 1
+    if wm_present; then
+        echo "external" > "$STATE/pids.wm"
+    else
+        start_wm
+    fi
 fi
+wm_present || die "no window manager on $D — focus/desktop proofs impossible"
 log "wm ready: $(DISPLAY="$D" wmctrl -m 2>/dev/null | head -1)"
 
 # ---------- real apps ----------------------------------------------------
@@ -96,20 +143,25 @@ TERMSINK="$STATE/term-sink.txt"
 MARKERS="$STATE/markers"; mkdir -p "$MARKERS"
 : > "$SINK"; : > "$TERMSINK"
 
-DISPLAY="$D" setsid wish "$HERE/sink.tcl" "$SINK" "realrun-sink" </dev/null >/dev/null 2>&1 &
+# Window names are namespaced by worktree ($TAG): sibling agents run the
+# same gate and their teardown does `pkill -f "realrun-sink"` — a shared
+# name gets murdered. Ours must not match their pattern (and theirs is
+# why the sink died mid-run once already).
+TAG="$(basename "$ROOT" | tr -cd 'a-zA-Z0-9-')"
+DISPLAY="$D" setsid wish "$HERE/sink.tcl" "$SINK" "$TAG-sink" </dev/null >/dev/null 2>&1 &
 echo $! > "$STATE/pids.sink"
-DISPLAY="$D" setsid xfce4-terminal --title realrun-term \
+DISPLAY="$D" setsid xfce4-terminal --title "$TAG-term" \
     -x bash -c "cat > '$TERMSINK'" </dev/null >/dev/null 2>&1 &
 echo $! > "$STATE/pids.term"
 TERM_WID=""; TERM2_WID=""
 for _ in $(seq 1 60); do
     [ -z "$TERM_WID" ] && TERM_WID=$(DISPLAY="$D" xdotool search --class SinkEdit 2>/dev/null | tail -1)
-    [ -z "$TERM2_WID" ] && TERM2_WID=$(DISPLAY="$D" xdotool search --name "^realrun-term$" 2>/dev/null | tail -1)
+    [ -z "$TERM2_WID" ] && TERM2_WID=$(DISPLAY="$D" xdotool search --name "^$TAG-term$" 2>/dev/null | tail -1)
     [ -n "$TERM_WID" ] && [ -n "$TERM2_WID" ] && break
     sleep 0.25
 done
 [ -n "$TERM_WID" ] || die "SinkEdit editor window never appeared"
-[ -n "$TERM2_WID" ] || die "realrun-term window never appeared"
+[ -n "$TERM2_WID" ] || die "$TAG-term window never appeared"
 
 # ---------- daemon -------------------------------------------------------
 env -i HOME="$WFHOME" DISPLAY="$D" PATH="$BINDIR:$PATH" \
@@ -138,8 +190,7 @@ TERMSINK=$TERMSINK
 MARKERS=$MARKERS
 TERM_WID=$TERM_WID
 TERM2_WID=$TERM2_WID
-ROOT=$ROOT
-HERE=$HERE
+TAG=$TAG
 STATE=$STATE
 EOF
 chmod 600 "$STATE/env"

@@ -24,7 +24,7 @@ call GET /live/state > /dev/null
 call_body | python3 -c 'import json,sys; s=json.load(sys.stdin); print(json.dumps({"listening":s.get("listening"),"last_match":s.get("last_match"),"pending":s.get("pending")},indent=1))' | tee "$PROOF/state-parked.json"
 [ -f "$M1" ] && verdict FAILED "tier-2 action fired WITHOUT confirm — gate broken"
 
-CID=$(python3 -c "import json; s=json.load(open('$PROOF/state-parked.json')); p=s.get('pending') or []; print(p[0]['id'] if p else '')")
+CID=$(python3 -c "import json; s=json.load(open('$PROOF/state-parked.json')); p=[r for r in (s.get('pending') or []) if r.get('gloss')=='RR-PARK']; print(p[0]['id'] if p else '')")
 [ -n "$CID" ] || { call GET /act > /dev/null; call_body | tee "$PROOF/act-pending.json"; CID=$(python3 -c "import json; p=json.load(open('$PROOF/act-pending.json')).get('pending') or []; print(p[0]['id'] if p else '')"); }
 [ -n "$CID" ] || verdict FAILED "no pending confirm surfaced on /live/state or /act"
 echo "pending confirm id: $CID" | tee -a "$PROOF/RESULT.detail"
@@ -40,7 +40,7 @@ teach_bind_fire RR-PARK2 "cancelled action" "/usr/bin/touch $M2" 2 || {
     verdict FAILED "teach_bind_fire rc=$rc"; }
 sleep 0.8
 call GET /live/state > /dev/null
-CID2=$(call_body | python3 -c 'import json,sys; p=json.load(sys.stdin).get("pending") or []; print(p[-1]["id"] if p else "")')
+CID2=$(call_body | python3 -c 'import json,sys; p=[r for r in (json.load(sys.stdin).get("pending") or []) if r.get("gloss")=="RR-PARK2"]; print(p[-1]["id"] if p else "")')
 echo "second pending id: $CID2"
 call POST /act/confirm "{\"id\":\"$CID2\",\"cancel\":true}" >/dev/null
 code=$CALL_CODE

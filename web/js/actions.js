@@ -31,14 +31,16 @@ const sheet = App.el.sheetActions;
 if (!sheet) throw new Error('actions: #sheet-actions missing');
 
 sheet.innerHTML = `
-  <div class="sheet-head">
-    <h1 id="act-title">bind an action</h1>
-    <button class="sheet-x" id="act-x" aria-label="Cancel">×</button>
-  </div>
-  <div class="act-search"><input class="input" id="act-q" type="search"
-    placeholder="@ search actions — app, volume, screenshot, command…" autocomplete="off"></div>
-  <div class="sheet-body" id="act-list"></div>
-  <div class="act-note" id="act-note"></div>`;
+  <div class="sheet-card">
+    <div class="sheet-head">
+      <h1 id="act-title">bind an action</h1>
+      <button class="sheet-x" id="act-x" aria-label="Cancel">×</button>
+    </div>
+    <div class="act-search"><input class="input" id="act-q" type="search"
+      placeholder="@ search actions — app, volume, screenshot, command…" autocomplete="off"></div>
+    <div class="sheet-body" id="act-list"></div>
+    <div class="act-note" id="act-note"></div>
+  </div>`;
 const $ = id => sheet.querySelector('#' + id);
 const q = $('act-q'), listEl = $('act-list'), titleEl = $('act-title'), noteEl = $('act-note');
 
@@ -216,8 +218,10 @@ async function build() {
       row.className = 'act-row';
       const tier = t.tier == null ? 1 : t.tier;
       row.innerHTML =
-        `<div class="act-row-top"><span class="act-name">${esc(t.label || t.id)}</span>` +
-        `<span class="chip ${tier >= 2 ? 'warn' : ''}">${tier >= 2 ? 'laptop confirm' : 'instant'}</span></div>` +
+        `<div class="act-row-top"><span class="act-dot${tier >= 2 ? ' warn' : ''}"></span>` +
+        `<span class="act-name">${esc(t.label || t.id)}</span>` +
+        `<span class="chip ${tier >= 2 ? 'warn' : 'accent'}">${tier >= 2 ? 'laptop confirm' : 'instant'}</span>` +
+        (t.arg ? '' : '<span class="act-chev" aria-hidden="true">›</span>') + `</div>` +
         (t.desc ? `<div class="act-desc">${esc(t.desc)}</div>` : '');
       const argWrap = document.createElement('div'); argWrap.className = 'act-arg';
       let inp = null, use = null;
@@ -292,8 +296,10 @@ async function build() {
       const row = document.createElement('div');
       row.className = 'act-row';
       row.innerHTML =
-        `<div class="act-row-top"><span class="act-name">${esc(x.label)}</span>` +
-        `<span class="chip ${x.tier >= 2 ? 'warn' : ''}">${x.tier >= 2 ? 'laptop confirm' : 'instant'}</span></div>` +
+        `<div class="act-row-top"><span class="act-dot${x.tier >= 2 ? ' warn' : ''}"></span>` +
+        `<span class="act-name">${esc(x.label)}</span>` +
+        `<span class="chip ${x.tier >= 2 ? 'warn' : 'accent'}">${x.tier >= 2 ? 'laptop confirm' : 'instant'}</span>` +
+        (x.id === '_argv' ? '' : '<span class="act-chev" aria-hidden="true">›</span>') + `</div>` +
         `<div class="act-desc">${esc(x.desc)}</div>`;
       if (x.id === '_argv') {
         const argWrap = document.createElement('div'); argWrap.className = 'act-arg';
@@ -328,7 +334,7 @@ async function build() {
     listEl.appendChild(h);
     const wrap = document.createElement('div'); wrap.className = 'act-bound';
     for (const b of bound.slice(0, 12)) {
-      const chip = document.createElement('span'); chip.className = 'chip';
+      const chip = document.createElement('span'); chip.className = 'chip accent';
       chip.textContent = (b.gloss || '') + ' → ' + (b.label || b.argv || '');
       wrap.appendChild(chip);
     }
@@ -343,6 +349,10 @@ async function build() {
 }
 q.addEventListener('input', build);
 $('act-x').onclick = () => close(null);
+// clicking the dimmed scrim (desktop modal) or hitting Esc cancels —
+// same cancel path as the ×
+sheet.addEventListener('click', e => { if (e.target === sheet) close(null); });
+sheet.addEventListener('keydown', e => { if (e.key === 'Escape') close(null); });
 
 export const Actions = { pick, catalog, describe,
                          _cat: () => CAT };      // selftest debug seam

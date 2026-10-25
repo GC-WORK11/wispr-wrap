@@ -141,6 +141,7 @@ class Endpointer:
         self._seg = []
         self._seg_t0 = 0.0
         self._quiet = None
+        self._absent = 0              # consecutive no-hand frames
         self._pre.clear()
         self._prev = [None, None]     # last _Hand per slot
         self._t = None                # last frame time (s)
@@ -194,6 +195,16 @@ class Endpointer:
         events.extend(self._mode_events(hands, t))
 
         self._pre.append(frame)
+        # a hand gone from view IS the end of the sign — no EMA decay to
+        # wait out.  One absent frame can be an occlusion flicker, two in
+        # a row cannot be mid-sign: force-close.  (Real streams and the
+        # e2e clips both end signs by dropping the hand — without this a
+        # held-open segment blends into the NEXT sign's lead-in and the
+        # match sees a glued double-length arc.)
+        if any(h.present for h in hands):
+            self._absent = 0
+        else:
+            self._absent += 1
         if self._state == "idle":
             if self._ema >= self.enter_v:
                 self._state = "active"
@@ -204,6 +215,9 @@ class Endpointer:
             self._seg.append(frame)
             if t - self._seg_t0 >= self.max_seg_s:
                 events.append(self._close(t, "maxlen"))
+            elif self._absent >= 2:
+                events.append(self._close(t, "absent"))
+                self._absent = 0
             elif self._ema < self.exit_v:
                 if self._quiet is None:
                     self._quiet = t

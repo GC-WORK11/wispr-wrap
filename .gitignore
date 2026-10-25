@@ -27,3 +27,5 @@ nohup.out
 # local e2e evidence — never committed (may contain screenshots of the desktop)
 proofs/
 tools/replay/out/
+# recorded demo output — videos stay local (DEMO.md documents repro)
+demo/

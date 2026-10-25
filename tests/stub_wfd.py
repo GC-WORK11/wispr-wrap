@@ -21,7 +21,7 @@ kp42 frame format matches /live/kp: {t_ms, points:[{x,y,score}×42]}.
 Usage: python3 tests/stub_wfd.py [--port 8743] [--old]  (--old = pretend
 the daemon predates sign control: all /bank,/teach,/act routes 404.)
 """
-import json, os, sys, time
+import json, os, re, sys, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -123,6 +123,12 @@ class H(BaseHTTPRequestHandler):
         if p == "/selftest":
             with open(os.path.join(HERE, "selftest.html"), "rb") as f:
                 return self._reply(200, f.read(), "text/html; charset=utf-8")
+        if p == "/oldtest":
+            with open(os.path.join(HERE, "oldtest.html"), "rb") as f:
+                return self._reply(200, f.read(), "text/html; charset=utf-8")
+        if p == "/loadtest":
+            with open(os.path.join(HERE, "loadtest.html"), "rb") as f:
+                return self._reply(200, f.read(), "text/html; charset=utf-8")
         if p == "/bank":
             if self.OLD:
                 return self._reply(404, b"nope")
@@ -180,7 +186,14 @@ class H(BaseHTTPRequestHandler):
         p = self.path.split("?")[0]
         raw = self._body()
         if p == "/_result":
-            with open(RESULT_FILE, "wb") as f:
+            # ?f=<name> lets a second probe page use its own result file
+            suffix = ""
+            if "?" in self.path:
+                from urllib.parse import parse_qs
+                f_q = parse_qs(self.path.split("?", 1)[1]).get("f", [""])[0]
+                if re.fullmatch(r"[a-z0-9-]{1,24}", f_q):
+                    suffix = "." + f_q
+            with open(RESULT_FILE + suffix, "wb") as f:
                 f.write(raw)
             print("[stub] result:", raw[:400].decode("utf-8", "replace"), flush=True)
             return self._json(200, {"ok": True})
@@ -188,6 +201,17 @@ class H(BaseHTTPRequestHandler):
             return self._reply(404, b"nope")
         if not self._authed():
             return self._json(403, {"ok": False, "error": "unpaired"})
+        # the composer lane predates sign control — /send exists on old
+        # daemons too, so it is NOT gated by --old.
+        if p == "/send":
+            try:
+                data = json.loads(raw) if raw else {}
+            except Exception:
+                data = {}
+            text = str(data.get("text", ""))
+            print(f"[stub] send text={text!r}", flush=True)
+            return self._json(200, {"ok": True, "into": "stub window",
+                                    "chars": len(text)})
         try:
             data = json.loads(raw) if raw else {}
         except Exception:

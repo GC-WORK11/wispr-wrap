@@ -86,8 +86,16 @@ def jscan(obj, keys):
 
 def extract_decision(state):
     """Pull (gloss, accepted, raw_dict) out of a /live/state-shaped blob.
-    Duck-typed: any dict holding a gloss-ish key plus a verdict-ish key
-    counts; freshest one wins (highest ts/seq field, else last)."""
+
+    Duck-typed but ranked: a decision row carries a name-ish key AND a
+    verdict-ish key (accepted/ok/fired).  The daemon's state also carries
+    a feedback ring + action receipts whose events hold a gloss/label but
+    no verdict — they must never shadow last_match.  Rank by
+    (has-verdict, freshest-ts, gloss-named): the freshest verdict-bearing
+    gloss wins; event echoes and label-only receipts fall behind.  The
+    wfd last_match uses "at_ms" — it is in the ts key list (a missing key
+    made every decision sort as ts=0 before).
+    """
     if not isinstance(state, (dict, list)):
         return None
     cands = []
@@ -95,14 +103,18 @@ def extract_decision(state):
         name = d.get("gloss") or d.get("name") or d.get("label")
         if not isinstance(name, str) or not name:
             continue
-        acc = d.get("accepted", d.get("ok", d.get("committed", d.get("fired"))))
-        ts = max((d.get(k) for k in ("t_ms", "ts", "at", "seq", "ms")
+        acc = d.get("accepted",
+                    d.get("ok", d.get("committed", d.get("fired"))))
+        ts = max((d.get(k) for k in
+                  ("t_ms", "ts", "at", "at_ms", "seq", "ms")
                   if isinstance(d.get(k), (int, float))), default=0)
-        cands.append((ts, name, acc, d))
+        rank = (1 if acc is not None else 0, ts,
+                1 if isinstance(d.get("gloss"), str) and d["gloss"] else 0)
+        cands.append((rank, name, acc, d))
     if not cands:
         return None
     cands.sort(key=lambda c: c[0])
-    ts, name, acc, raw = cands[-1]
+    _rank, name, acc, raw = cands[-1]
     return name, acc, raw
 
 

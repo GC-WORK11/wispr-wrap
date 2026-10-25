@@ -477,10 +477,31 @@ def normalize(events, keymap, *, wait_min_ms=WAIT_MIN_MS, max_ms=MAX_MS,
         for ev in events:
             if ev is None:
                 continue
-            et = ev.get("evtype")
-            if et not in EV:
-                continue                      # raw/motion/etc — not actions
-            detail = ev.get("detail")
+            # Accept BOTH event shapes:
+            #  parser shape  (evtype/detail/flags/root) — transcripts fed
+            #                straight to normalize();
+            #  audit shape   (kind/down/code/pos/repeat) — _norm_event
+            #                output, what live captures actually store.
+            # Feeding audit dicts through the evtype branch used to drop
+            # every event -> recordings always produced empty steps.
+            if "evtype" in ev:
+                et = ev.get("evtype")
+                if et not in EV:
+                    continue                  # raw/motion/etc — not actions
+                kind, down = EV[et], EV_DOWN[et]
+                detail = ev.get("detail")
+                repeat_flag = "repeat" in (ev.get("flags") or "")
+                root = ev.get("root")
+            else:
+                kind, down = ev.get("kind"), bool(ev.get("down"))
+                if kind not in ("key", "button"):
+                    continue
+                detail = ev.get("code")
+                repeat_flag = bool(ev.get("repeat"))
+                pos = ev.get("pos")
+                root = (float(pos[0]), float(pos[1])) \
+                    if isinstance(pos, (list, tuple)) and len(pos) == 2 \
+                    else None
             if detail is None:
                 continue
             t = ev.get("t_ms", 0)
@@ -490,13 +511,12 @@ def normalize(events, keymap, *, wait_min_ms=WAIT_MIN_MS, max_ms=MAX_MS,
                 truncated = True
                 break
             n_in += 1
-            kind, down = EV[et], EV_DOWN[et]
             if kind == "key":
                 syms = keymap.get(detail)
                 base = syms[0] if syms else None
                 canon = MODIFIERS.get(base)
                 if down:
-                    repeat = "repeat" in (ev.get("flags") or "")
+                    repeat = repeat_flag
                     if canon:
                         if not repeat:
                             mods.add(canon)
@@ -544,7 +564,7 @@ def normalize(events, keymap, *, wait_min_ms=WAIT_MIN_MS, max_ms=MAX_MS,
                         continue
                     prev_t = t
             else:  # button
-                root = ev.get("root") or (0.0, 0.0)
+                root = root or (0.0, 0.0)
                 if down:
                     btn[detail] = (t, root[0], root[1])
                     prev_t = t

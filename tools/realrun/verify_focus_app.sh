@@ -16,13 +16,13 @@ sleep 0.3
     DISPLAY="$D" xprop -id "$(DISPLAY="$D" xdotool getactivewindow)" WM_NAME WM_CLASS
 } > "$PROOF/before.txt" 2>&1
 
-teach_bind_fire RR-FOCUS "focus terminal" "wmctrl -a realrun-term" || {
+teach_bind_fire RR-FOCUS "focus terminal" "wmctrl -a $TAG-term" || {
     rc=$?; [ "$rc" = 3 ] && verdict PENDING "endpoints not wired"
     verdict FAILED "teach_bind_fire rc=$rc"; }
 
 for i in $(seq 1 40); do
     NAME=$(DISPLAY="$D" xprop -id "$(DISPLAY="$D" xdotool getactivewindow 2>/dev/null)" WM_NAME 2>/dev/null)
-    echo "$NAME" | grep -q realrun-term && break; sleep 0.2
+    echo "$NAME" | grep -q $TAG-term && break; sleep 0.2
 done
 {
     echo "active window after RR-FOCUS sign:"
@@ -32,8 +32,8 @@ done
 shot "$PROOF/after.png"
 diff -u "$PROOF/before.txt" "$PROOF/after.txt" > "$PROOF/diff.txt" || true
 
-if grep -q realrun-term "$PROOF/after.txt"; then
-    verdict VERIFIED "sign moved focus to realrun-term (active window + WM_NAME diff)"
+if grep -q $TAG-term "$PROOF/after.txt"; then
+    verdict VERIFIED "sign moved focus to $TAG-term (active window + WM_NAME diff)"
 else
     verdict FAILED "focus did not move (after: $(cat "$PROOF/after.txt" | tr '\n' ' '))"
 fi

@@ -1,46 +1,93 @@
-/* compose.css — the composer pill: reviewable input, attach chip, sends.
-   Register: light surface, hairlines, one accent — shares tokens from app.css. */
+/* compose.css — the composer card: reviewable input, attach chip, sends.
+   Register: light surface, hairlines, one accent — shares tokens from app.css.
+   The card shell (.pill, .row, .go, .iconbtn) lives in app.css; this file
+   carries the composer-specific dressing: card radius/focus lift, the
+   attach strip, the + menu, pending-confirm holds, and the toast anchor. */
+
+/* ---------- the card ---------- */
+.pill {
+  position: relative;
+  border-radius: 26px;
+  border: 1px solid var(--hairline);
+  transition: box-shadow .22s var(--ease-out), border-color .2s,
+              transform .2s var(--ease-out);
+}
+/* subtle focus lift — deeper shadow + a whisper of accent ring */
+.pill:focus-within {
+  border-color: rgba(74, 125, 255, .38);
+  box-shadow: 0 0 0 3px rgba(74, 125, 255, .12), var(--sh-2),
+              0 18px 46px rgba(35, 45, 80, .13);
+}
 
 #box {
   flex: 1; min-width: 0; min-height: 40px; max-height: 132px;
   background: transparent; border: none; outline: none; resize: none;
   font: inherit; font-size: 16px; line-height: 1.42; color: var(--ink);
   caret-color: var(--accent); letter-spacing: .01em;
-  padding: 9px 2px; overflow-y: hidden;
+  padding: 9px 4px 9px 2px; overflow-y: hidden;
 }
 #box::placeholder { color: var(--muted); }
+#box::-webkit-scrollbar { width: 6px; }
+#box::-webkit-scrollbar-thumb { background: var(--hairline); border-radius: 3px; }
 
-/* attach chip above the row */
-.attach { display: flex; align-items: center; gap: 12px; width: 100%; padding: 4px 6px 10px 4px; }
+/* plus button — quiet until asked */
+#plus:hover { border-color: var(--muted); color: var(--ink); }
+
+/* send — accent circle (base .go lives in app.css): hover deepens, disabled goes soft */
+.go:hover:not(:disabled) {
+  background: #3d6ee8;
+  box-shadow: 0 6px 18px rgba(74, 125, 255, .42);
+}
+.go:disabled { opacity: .4; box-shadow: none; cursor: default; }
+
+/* ---------- attach chip — staged file strip above the row ---------- */
+.attach {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  margin-bottom: 10px; padding: 6px 8px 6px 6px;
+  background: var(--bg); border: 1px solid var(--hairline);
+  border-radius: 14px;
+}
 .attach[hidden] { display: none; }
 .attach img, .attach video {
-  width: 56px; height: 56px; border-radius: 14px; object-fit: cover;
-  border: 1px solid var(--hairline); background: var(--hairline-2);
+  flex: none; width: 28px; height: 28px; border-radius: 8px; object-fit: cover;
+  border: 1px solid var(--hairline); background: var(--surface);
 }
 .attach .aname {
   flex: 1; min-width: 0; color: var(--muted-2); font-size: 12.5px; letter-spacing: .02em;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .attach .x {
-  flex: none; width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
-  background: transparent; border: 1px solid var(--hairline); color: var(--ink-2);
+  flex: none; width: 24px; height: 24px; border-radius: 50%; cursor: pointer;
+  background: transparent; border: none; color: var(--muted);
   font-size: 15px; line-height: 1; font-family: inherit;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s, color .15s, transform .12s;
 }
+.attach .x:hover { background: var(--hairline-2); color: var(--ink-2); }
+.attach .x:active { transform: scale(.88); }
 
-/* + attach menu */
+/* ---------- + attach menu — floating card above the plus ---------- */
 .attach-menu {
-  position: absolute; left: 10px; bottom: calc(100% + 6px); z-index: 12;
-  background: var(--surface); border-radius: 14px; box-shadow: var(--sh-2);
-  padding: 6px; display: flex; flex-direction: column; min-width: 168px;
+  position: absolute; left: 10px; bottom: calc(100% + 8px); z-index: 12;
+  background: var(--surface); border: 1px solid var(--hairline);
+  border-radius: 16px; box-shadow: var(--sh-2);
+  padding: 5px; display: flex; flex-direction: column; min-width: 176px;
+  transform-origin: bottom left;
+  animation: attach-menu-in .18s var(--ease-out);
+}
+@keyframes attach-menu-in {
+  from { opacity: 0; transform: translateY(5px) scale(.98); }
 }
 .attach-item {
   appearance: none; border: none; background: transparent; cursor: pointer;
   font-family: inherit; font-size: 14px; font-weight: 550; color: var(--ink);
-  text-align: left; padding: 11px 12px; border-radius: 9px;
+  text-align: left; padding: 10px 12px; border-radius: 10px;
+  transition: background .14s;
 }
-.attach-item:active { background: var(--hairline-2); }
+.attach-item:hover { background: var(--hairline-2); }
+.attach-item:active { background: var(--hairline); }
 
-/* pending-confirm strip — tier>=2 actions held laptop-side, releasable here */
+/* ---------- pending-confirm strip — tier>=2 holds, visible not alarming ---------- */
 #confirms {
   position: absolute; left: 0; right: 0; bottom: calc(100% + 10px); z-index: 11;
   display: flex; flex-direction: column; gap: 8px;
@@ -48,22 +95,53 @@
 #confirms[hidden] { display: none; }
 .confirm-row {
   display: flex; align-items: center; gap: 8px;
-  background: var(--surface); border-radius: 16px; box-shadow: var(--sh-2);
-  border: 1px solid var(--warn-soft);
+  background: var(--warn-soft);
+  border: 1px solid rgba(146, 96, 0, .16);
+  border-radius: 16px; box-shadow: var(--sh-1);
   padding: 10px 12px;
+  animation: confirm-in .22s var(--ease-out);
+}
+@keyframes confirm-in {
+  from { opacity: 0; transform: translateY(6px); }
 }
 .confirm-txt {
   flex: 1; min-width: 0; font-size: 12.5px; color: var(--ink-2); font-weight: 550;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.confirm-yes, .confirm-no {
-  flex: none; appearance: none; border: none; cursor: pointer;
-  font-family: inherit; font-size: 12px; font-weight: 650;
-  padding: 7px 12px; border-radius: 999px;
+/* a small amber pip — "this one is held", readable at a glance */
+.confirm-txt::before {
+  content: ""; display: inline-block;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--warn); opacity: .75;
+  margin: 0 8px 1px 0;
 }
-.confirm-yes { background: var(--accent); color: #fff; }
-.confirm-no { background: var(--hairline-2); color: var(--muted-2); }
-.confirm-yes:active, .confirm-no:active { transform: scale(.94); }
+.confirm-yes, .confirm-no {
+  flex: none; appearance: none; cursor: pointer;
+  font-family: inherit; font-size: 12px; font-weight: 650;
+  padding: 7px 13px; border-radius: 999px;
+  transition: background .15s, color .15s, opacity .15s, transform .12s;
+}
+.confirm-yes { border: none; background: var(--accent); color: #fff; }
+.confirm-yes:hover:not(:disabled) { background: #3d6ee8; }
+.confirm-no {
+  background: rgba(255, 255, 255, .72); color: var(--muted-2);
+  border: 1px solid rgba(146, 96, 0, .14);
+}
+.confirm-no:hover:not(:disabled) { color: var(--ink-2); background: #fff; }
+.confirm-yes:active:not(:disabled), .confirm-no:active:not(:disabled) { transform: scale(.94); }
+.confirm-yes:disabled, .confirm-no:disabled { opacity: .55; cursor: default; }
 
-/* offline/unpaired dimming — the pill stays usable-looking but honest */
-.pill { position: relative; }
+/* ---------- toast — rides just above the card ---------- */
+/* app.css positions .toast absolute against .stage (bottom:100%+8px — i.e.
+   above the stage, off-screen). Re-anchor it in the flex flow instead: a
+   zero-height item ordered between hint and card, painted nudged upward —
+   it tracks the card top at any height (grown textarea, attach strip). */
+.stage .toast {
+  position: relative; left: auto; right: auto; bottom: 26px;
+  order: 2; align-self: center;
+  width: 100%; max-width: 600px; height: 0; overflow: visible;
+}
+/* a held confirm covers the toast's usual seat — hop above one row */
+.stage:has(.pill > #confirms:not([hidden])) .toast { bottom: 86px; }
+.stage .stage-hint { order: 1; }
+.stage .pill { order: 3; }
