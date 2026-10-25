@@ -12,11 +12,13 @@
  *   API/auth  network-only, never cached (keypoint/bank data must not persist)
  *   everything else same-origin: stale-while-revalidate
  */
-const VERSION = "wf-shell-v2";
+const VERSION = "wf-shell-v3";
 const CACHE = `wispr-wrap-${VERSION}`;
 
 const SHELL = [
   "/", "/index.html", "/pair.html", "/manifest.webmanifest", "/icon.svg",
+  "/icon-192.png", "/icon-512.png", "/icon-maskable-512.png",
+  "/apple-touch-icon.png",
   // merged module app — every lane lives under js/ + css/
   "/css/app.css", "/css/compose.css", "/css/live.css", "/css/teach.css",
   "/css/actions.css", "/css/macro.css", "/css/library.css",

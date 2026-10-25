@@ -18,8 +18,9 @@ Nothing is fetched from the internet at runtime, ever.
 ## What the service worker does (`web/sw.js`)
 
 - **install:** precaches the shell (`/`, `index.html`, `pair.html`,
-  `manifest.webmanifest`, `icon.svg`, `teach.html`, `live.js`, `live.css` —
-  tolerant of not-yet-landed files) plus all of `vendor/mediapipe/`.
+  `manifest.webmanifest`, `icon.svg`, app icons, and every `js/*.js` +
+  `css/*.css` module — tolerant of not-yet-landed files) plus all of
+  `vendor/mediapipe/`.
 - **`vendor/**` + shell: cache-first**, refreshed in the background
   (stale-while-revalidate) — warm loads are near-instant.
 - **`/health`: network-first, never stored.** A cached `ok` would claim the
