@@ -1,9 +1,50 @@
-/* macro.css — macro builder + context rules sheet. Shares tokens. */
+/* macro.css — macro builder + context rules sheet. Shares tokens.
+   Same scrim + centered-card treatment as the @ picker on wide
+   screens; full-bleed sheet under 720px. */
 
-.mc-step, .mc-rule {
-  display: flex; align-items: center; gap: 8px;
+#sheet-macro { position: fixed; }
+#sheet-macro .sheet-body { position: relative; }
+#sheet-macro .sheet-card {
+  flex: 1; width: 100%; min-height: 0;
+  display: flex; flex-direction: column;
+}
+
+@media (min-width: 721px) {
+  #sheet-macro.sheet {
+    background: rgba(15, 23, 42, .28);
+    justify-content: center;
+    align-items: center;
+    padding: 28px;
+    animation-name: mc-dim;
+  }
+  #sheet-macro .sheet-card {
+    flex: none;
+    max-width: 560px; max-height: 80vh;
+    background: var(--surface);
+    border-radius: var(--r-card);
+    box-shadow: var(--sh-2);
+    overflow: hidden;
+    animation: mc-pop .26s var(--ease-spring);
+  }
+}
+@keyframes mc-dim { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mc-pop {
+  from { opacity: 0; transform: scale(.95) translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+#sheet-macro .sheet-body::-webkit-scrollbar { width: 10px; }
+#sheet-macro .sheet-body::-webkit-scrollbar-thumb {
+  background: #cfd7e4; border: 3px solid transparent;
+  border-radius: 8px; background-clip: padding-box;
+}
+#sheet-macro .sheet-body { scrollbar-width: thin; scrollbar-color: #cfd7e4 transparent; }
+
+/* ---------- step rows: clean cards — index, type chip, value ---------- */
+.mc-step {
+  display: flex; align-items: center; gap: 9px;
   background: var(--surface); border: 1px solid var(--hairline);
-  border-radius: 14px; padding: 10px 12px; margin-bottom: 8px;
+  border-radius: 16px; padding: 10px 12px; margin-bottom: 8px;
 }
 .mc-n {
   flex: none; width: 22px; height: 22px; border-radius: 50%;
@@ -11,17 +52,38 @@
   font-size: 11px; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
 }
-.mc-k { flex: none; font-size: 12px; font-weight: 650; color: var(--ink-2); min-width: 64px; }
-.mc-t { flex: none; font-size: 11px; color: var(--muted); font-family: var(--mono); }
-.mc-in { flex: 1; min-width: 0; padding: 8px 10px; font-size: 13.5px; border-radius: 10px; }
+/* step-type chip */
+.mc-k {
+  flex: none; font-size: 11px; font-weight: 700; letter-spacing: .02em;
+  color: var(--accent); background: var(--accent-soft);
+  border-radius: 999px; padding: 4px 10px;
+  white-space: nowrap;
+}
+.mc-t {
+  flex: none; max-width: 34%; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+  font-size: 11px; color: var(--muted); font-family: var(--mono);
+}
+.mc-in {
+  flex: 1; min-width: 0; padding: 8px 10px; font-size: 13.5px;
+  border-radius: 10px; background: var(--bg); border-color: transparent;
+}
+.mc-in:focus { background: var(--surface); }
 .mc-del {
   flex: none; width: 28px; height: 28px; border-radius: 50%;
-  border: 1px solid var(--hairline); background: transparent;
-  color: var(--muted-2); font-size: 15px; cursor: pointer;
+  border: 1px solid transparent; background: transparent;
+  color: var(--muted); font-size: 15px; cursor: pointer;
+  transition: color .15s, background .15s;
 }
+.mc-del:hover { color: var(--danger); background: var(--danger-soft); }
 .mc-del:active { border-color: var(--danger); color: var(--danger); }
 
-.mc-add { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 4px; }
+/* '+ add step' — ghost dashed row of quiet chips */
+.mc-add {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  margin-top: 10px; padding: 6px 8px;
+  border: 1.5px dashed #d9e1ee; border-radius: 14px;
+}
 .mc-chip {
   appearance: none; cursor: pointer; font-family: inherit;
   font-size: 12.5px; font-weight: 600; color: var(--accent);
@@ -29,13 +91,44 @@
   padding: 8px 13px;
 }
 .mc-chip:active { transform: scale(.95); }
-.mc-act { max-width: 46%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-add .mc-chip {
+  background: transparent; color: var(--muted-2); padding: 7px 10px;
+}
+.mc-add .mc-chip:hover { color: var(--accent); background: var(--accent-soft); }
 
+/* full-width dashed ghost row (context '+ rule') */
+.mc-addone {
+  appearance: none; display: block; width: 100%;
+  margin-top: 2px; padding: 11px; cursor: pointer;
+  border: 1.5px dashed #d9e1ee; border-radius: 14px;
+  background: transparent; color: var(--muted-2);
+  font-family: inherit; font-size: 12.5px; font-weight: 600;
+  transition: color .15s, border-color .15s;
+}
+.mc-addone:hover { color: var(--accent); border-color: var(--accent); }
+
+/* ---------- context rules: when [app] → [action] ---------- */
+.mc-rule {
+  background: var(--surface); border: 1px solid var(--hairline);
+  border-radius: 16px; padding: 11px 12px; margin-bottom: 8px;
+}
+.mc-rule-top { display: flex; align-items: center; gap: 8px; }
+.mc-rt {
+  flex: none; font-size: 10.5px; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+}
+.mc-rule-act { display: flex; align-items: center; gap: 9px; margin-top: 9px; }
+.mc-arrow { flex: none; color: var(--muted); font-size: 13px; }
+.mc-act { max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 'default' — the else row; dashed, lighter than a matched rule */
 .mc-def {
-  display: flex; align-items: center; gap: 8px;
-  border-top: 1px solid var(--hairline-2); padding-top: 12px; margin-top: 6px;
+  display: flex; align-items: center; gap: 9px;
+  background: var(--surface); border: 1.5px dashed #d9e1ee;
+  border-radius: 16px; padding: 10px 12px; margin-top: 10px;
 }
 
+/* tiny inline tool picker (covers the body while open) */
 .mc-toolpick {
   position: absolute; inset: 0; z-index: 3; overflow-y: auto;
   background: var(--bg); padding: 16px;
@@ -47,5 +140,4 @@
   background: var(--surface); border: 1px solid var(--hairline);
   border-radius: 999px; padding: 9px 13px;
 }
-#sheet-macro { position: fixed; }
-#sheet-macro .sheet-body { position: relative; }
+.mc-tool:hover { border-color: #d8e0ee; box-shadow: var(--sh-1); }

@@ -20,14 +20,16 @@ const sheet = App.el.sheetMacro;
 if (!sheet) throw new Error('macro: #sheet-macro missing');
 
 sheet.innerHTML = `
-  <div class="sheet-head">
-    <h1 id="mc-title">macro</h1>
-    <button class="sheet-x" id="mc-x" aria-label="Cancel">×</button>
-  </div>
-  <div class="sheet-body" id="mc-body"></div>
-  <div class="sheet-foot">
-    <button class="btn-ghost btn-block" id="mc-cancel">cancel</button>
-    <button class="btn-primary btn-block" id="mc-done" disabled>bind macro</button>
+  <div class="sheet-card">
+    <div class="sheet-head">
+      <h1 id="mc-title">macro</h1>
+      <button class="sheet-x" id="mc-x" aria-label="Cancel">×</button>
+    </div>
+    <div class="sheet-body" id="mc-body"></div>
+    <div class="sheet-foot">
+      <button class="btn-ghost btn-block" id="mc-cancel">cancel</button>
+      <button class="btn-primary btn-block" id="mc-done" disabled>bind macro</button>
+    </div>
   </div>`;
 const $ = id => sheet.querySelector('#' + id);
 const body = $('mc-body'), titleEl = $('mc-title'), done = $('mc-done');
@@ -41,6 +43,9 @@ function finish(a) {
 }
 $('mc-x').onclick = () => finish(null);
 $('mc-cancel').onclick = () => finish(null);
+// scrim click (desktop modal) / Esc — same cancel path as × and cancel
+sheet.addEventListener('click', e => { if (e.target === sheet) finish(null); });
+sheet.addEventListener('keydown', e => { if (e.key === 'Escape') finish(null); });
 
 /* ---------- step kinds (macro.py normalize_step wire shapes) ---------- */
 const STEP_KINDS = [
@@ -136,7 +141,7 @@ function render() {
     body.appendChild(lead);
     rules.forEach((r, i) => body.appendChild(ruleRow(r, i)));
     const add = document.createElement('button');
-    add.className = 'mc-chip'; add.textContent = '+ rule';
+    add.className = 'mc-addone'; add.textContent = '+ rule';
     add.onclick = async () => {
       const cat = await Actions.catalog();
       const rr = { app: '', action: null };
@@ -146,14 +151,16 @@ function render() {
     const drow = document.createElement('div');
     drow.className = 'mc-def';
     const dl = document.createElement('span');
-    dl.className = 'mc-k'; dl.textContent = 'default';
+    dl.className = 'mc-rt'; dl.textContent = 'default';
+    const arw = document.createElement('span');
+    arw.className = 'mc-arrow'; arw.setAttribute('aria-hidden', 'true'); arw.textContent = '→';
     const db = document.createElement('button');
-    db.className = 'mc-chip'; db.textContent = defAction ? Actions.describe(defAction) : 'pick action…';
+    db.className = 'mc-chip mc-act'; db.textContent = defAction ? Actions.describe(defAction) : 'pick action…';
     db.onclick = async () => {
       const a = await Actions.pick({ title: 'default action (no rule matched)' });
       if (a) { defAction = a; render(); }
     };
-    drow.append(dl, db);
+    drow.append(dl, arw, db);
     body.appendChild(drow);
     done.textContent = 'bind context rule';
     done.disabled = !rules.length || rules.some(r => !r.app || !r.action);
@@ -164,6 +171,9 @@ function render() {
 function ruleRow(r, i) {
   const row = document.createElement('div');
   row.className = 'mc-rule';
+  row.innerHTML =
+    '<div class="mc-rule-top"><span class="mc-rt">when</span></div>' +
+    '<div class="mc-rule-act"><span class="mc-arrow" aria-hidden="true">→</span></div>';
   const sel = document.createElement('input');
   sel.className = 'input mc-in'; sel.placeholder = 'focused app — wm_class e.g. firefox';
   sel.value = r.app;
@@ -190,8 +200,10 @@ function ruleRow(r, i) {
   };
   const del = document.createElement('button');
   del.className = 'mc-del'; del.textContent = '×';
+  del.title = 'remove rule';
   del.onclick = () => { rules.splice(i, 1); render(); };
-  row.append(sel, act, del);
+  row.querySelector('.mc-rule-top').append(sel, del);
+  row.querySelector('.mc-rule-act').append(act);
   return row;
 }
 
