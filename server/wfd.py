@@ -16,6 +16,10 @@ try:
 except ImportError:
     signbank = None
 try:
+    import signbank2             # v2: calibrated open-set bank (needs numpy) — optional
+except ImportError:
+    signbank2 = None
+try:
     import act_iface             # the ActionProvider contract + gate
     import act_linux             # the Linux/X11 provider
 except ImportError:
@@ -305,8 +309,35 @@ def now_ms():
     return int(time.time() * 1000)
 
 
+def _bank_format(path):
+    """'wf-signbank/2' | 'wf-signbank/1' | None (no file / unreadable)."""
+    try:
+        with open(path) as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        return None
+    return str(d.get("format") or "wf-signbank/1") if isinstance(d, dict) else "wf-signbank/1"
+
+
 def load_bank():
+    """Pick the sign engine. WF_BANK_ENGINE=auto|v1|v2 (default auto): v2 (signbank2, calibrated open-set bank,
+    needs numpy) for a new or v2 bank; a bank file already in the v1 format keeps serving with v1 so nothing the
+    user taught is lost. WF_BANK_ENGINE=v2 on a v1 file moves it aside to signbank.v1.json and starts empty."""
+    global BANK_ENGINE
+    want = os.environ.get("WF_BANK_ENGINE", "auto").strip().lower()
+    fmt = _bank_format(BANK_FILE)
+    use_v2 = signbank2 is not None and want != "v1" and (fmt != "wf-signbank/1" or want == "v2")
+    if use_v2:
+        try:
+            if fmt == "wf-signbank/1":
+                os.replace(BANK_FILE, os.path.join(os.path.dirname(BANK_FILE), "signbank.v1.json"))
+            BANK_ENGINE = "python-dtw2"
+            return signbank2.SignBank.load(BANK_FILE)
+        except Exception as e:
+            print(f"[wfd] signbank2 load failed ({e!r}); falling back to v1", flush=True)
+    BANK_ENGINE = "python-dtw"
     if signbank is None:
+        BANK_ENGINE = "none"
         return None
     try:
         return signbank.SignBank.load(BANK_FILE)
@@ -329,6 +360,7 @@ def save_bank():
         print(f"[wfd] signbank save failed: {e!r}", flush=True)
 
 
+BANK_ENGINE = "none"
 BANK = load_bank()
 
 # Laptop-webcam power path (laptop_engine.py): one camera feeds the
@@ -807,10 +839,20 @@ def _on_segment(frames, t_ms):
             TEACH["got"] += 1
         out = {"teach": {"name": TEACH["name"], "got": TEACH["got"],
                          "takes": TEACH["takes"], "ok": ok}}
+        if not ok and getattr(BANK, "last_issue", None):
+            out["teach"]["issue"] = BANK.last_issue     # "too short - sign a little slower", ...
         if TEACH["got"] >= TEACH["takes"]:
             save_bank()
             TEACH["active"] = False
             out["teach"]["done"] = True
+            chk = getattr(BANK, "check", None)
+            if chk is not None:
+                try:
+                    c = chk(TEACH["name"])
+                    if c and c.get("level") != "ok":      # "GOVINDA looks like NAMASTE - re-record"
+                        out["teach"]["conflict"] = {k: c[k] for k in ("other", "separation", "level", "none")}
+                except Exception as e:
+                    print(f"[wfd] check: {e!r}", flush=True)
         return out
     if not LIVE["listening"]:
         return {"seg": "idle"}            # signed while not listening
@@ -884,6 +926,22 @@ def _norm_points(pts):
     return out
 
 
+def _norm_body(b):
+    """-> [[x,y,score] x11] or None. Anything else is dropped, never trusted."""
+    if not isinstance(b, list) or len(b) < 11:
+        return None
+    out = []
+    try:
+        for q in b[:11]:
+            if isinstance(q, dict):
+                out.append([float(q.get("x", 0.0)), float(q.get("y", 0.0)), float(q.get("score", 1.0))])
+            else:
+                out.append([float(q[0]), float(q[1]), float(q[2]) if len(q) > 2 else 1.0])
+    except (TypeError, ValueError, IndexError):
+        return None
+    return out
+
+
 def live_kp(data):
     """POST /live/kp: append one keypoint frame to the session buffer."""
     if not isinstance(data, dict):
@@ -924,6 +982,16 @@ def live_kp(data):
         frame = {"t_ms": t_ms, "points": pts}
         if "hand" in data:
             frame["hand"] = str(data["hand"])
+        body = _norm_body(data.get("body"))
+        if body is not None:           # laptop camera: 11 upper-body joints for shoulder-relative features (v2)
+            frame["body"] = body
+        for k in ("aspect", "w", "h"):  # camera geometry makes x and y isotropic
+            try:
+                v = float(data.get(k) or 0)
+            except (TypeError, ValueError):
+                v = 0.0
+            if v > 0:
+                frame[k] = v
         lf = {"t_ms": t_ms, "points": pts, "at": now,
               "source": "laptop" if data.get("source") == "laptop" else "phone"}
         for k in ("w", "h", "hands"):
@@ -1356,8 +1424,8 @@ def detect_engine():
         pass
     # (a binary named alive/sign-flow on PATH does not serve THIS bank —
     # the laptop camera path is reported separately, see laptop_report())
-    if signbank is not None:
-        return "python-dtw"
+    if BANK is not None:
+        return BANK_ENGINE
     return "none"
 
 
