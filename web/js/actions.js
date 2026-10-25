@@ -141,6 +141,7 @@ function pick(opts) {
   titleEl.textContent = opts.title ||
     (opts.forGloss ? 'what should ' + opts.forGloss + ' do?' : 'bind an action');
   sheet.hidden = false;
+  App.raise(sheet);
   build();
   catalog().then(() => build());
   probeIcons().then(() => build());

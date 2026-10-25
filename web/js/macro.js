@@ -248,6 +248,7 @@ export const Macro = {
     if (!steps.length) steps = [{ _k: 'open_app', _v: '' }];
     titleEl.textContent = 'macro — chain steps';
     sheet.hidden = false;
+    App.raise(sheet);
     render();
     return new Promise(res => { resolver = res; });
   },
@@ -259,6 +260,7 @@ export const Macro = {
     defAction = (action && action.default) || null;
     titleEl.textContent = 'context — per-app rules';
     sheet.hidden = false;
+    App.raise(sheet);
     render();
     return new Promise(res => { resolver = res; });
   },
