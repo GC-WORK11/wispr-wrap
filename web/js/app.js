@@ -6,11 +6,7 @@
 // arrives once in the URL (?k=), then lives in localStorage
 const store = (() => { try { return localStorage; } catch (e) { return sessionStorage; } })();
 const K = new URLSearchParams(location.search).get('k') || store.getItem('wfk') || '';
-if (K) {
-  store.setItem('wfk', K);
-  if (location.search)                       // keep #/route on deep links
-    history.replaceState(null, '', location.pathname + location.hash);
-}
+if (K) { store.setItem('wfk', K); if (location.search) history.replaceState(null, '', location.pathname + location.hash); }
 
 // ---------- transport ----------
 // All daemon endpoints share X-WF-Key auth (hmac-compared laptop-side).
@@ -143,17 +139,22 @@ setInterval(pollEngine, 15000);
 // A sheet module registers {el, open(), close()}; the router hides others.
 const routes = {};
 let current = '';
-function route(name, mod) { routes[name] = mod; }
+function route(name, mod) {
+  routes[name] = mod;
+  // deep-link race: applyRoute() already ran (empty registry) before this
+  // module loaded — if the hash wants THIS route, open it now.
+  if (name === parseHash() && mod.el) {
+    mod.el.hidden = false;
+    if (mod.open) Promise.resolve(mod.open()).catch(e => console.error('[route]', name, e));
+  }
+}
 function parseHash() {
   const h = location.hash.replace(/^#\/?/, '');
   return h === 'live' || h === 'teach' || h === 'signs' ? h : '';
 }
 async function applyRoute() {
   const name = parseHash();
-  /* a route() can register after `current` was already set (module-eval
-     ordering) — only skip when the target sheet is really shown. */
-  const tgt = routes[name];
-  if (name === current && (!tgt || !tgt.el || !tgt.el.hidden)) return;
+  if (name === current) return;
   const prev = routes[current];
   if (prev && prev.close) await prev.close();
   current = name;
@@ -299,10 +300,4 @@ if ('serviceWorker' in navigator) {
   addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
 
-/* applyRoute at EOF would run before the sibling module scripts register
-   their routes — DOMContentLoaded fires after every deferred module has
-   evaluated, so deep links (#/signs etc.) open the real sheet. */
-if (document.readyState !== 'complete')
-  addEventListener('DOMContentLoaded', applyRoute, { once: true });
-else
-  applyRoute();
+applyRoute();
