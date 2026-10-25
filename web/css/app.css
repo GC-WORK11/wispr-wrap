@@ -31,6 +31,7 @@
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; }
 html, body { height: 100%; }
 body {
   font-family: var(--sans);
@@ -140,6 +141,21 @@ button { font-family: inherit; }
   align-items: center; justify-content: flex-end;
   padding: 12px 14px calc(env(safe-area-inset-bottom) + 18px);
 }
+/* empty-state hint floats above the composer */
+.stage-hint {
+  margin: auto auto 40px;
+  max-width: 400px; text-align: center;
+  padding: 0 24px;
+}
+.sh-title {
+  font-size: 15px; font-weight: 600; color: var(--ink-2);
+  letter-spacing: .002em; margin-bottom: 8px;
+}
+.sh-sub {
+  font-size: 13px; color: var(--muted); line-height: 1.65;
+}
+.sh-sub b { color: var(--ink-2); font-weight: 600; }
+
 /* view-mounted sheets (live/teach/signs) cover the stage */
 .view > .sheet {
   position: absolute; inset: 0; z-index: 10;
