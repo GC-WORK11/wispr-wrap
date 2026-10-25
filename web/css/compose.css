@@ -34,6 +34,7 @@
 #plus:hover { border-color: var(--muted); color: var(--ink); }
 
 /* send — accent circle (base .go lives in app.css): hover deepens, disabled goes soft */
+.go { transition: transform .12s, box-shadow .2s, opacity .2s, background .2s; }
 .go:hover:not(:disabled) {
   background: #3d6ee8;
   box-shadow: 0 6px 18px rgba(74, 125, 255, .42);
