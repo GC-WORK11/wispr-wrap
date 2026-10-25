@@ -150,7 +150,10 @@ function parseHash() {
 }
 async function applyRoute() {
   const name = parseHash();
-  if (name === current) return;
+  /* a route() can register after `current` was already set (module-eval
+     ordering) — only skip when the target sheet is really shown. */
+  const tgt = routes[name];
+  if (name === current && (!tgt || !tgt.el || !tgt.el.hidden)) return;
   const prev = routes[current];
   if (prev && prev.close) await prev.close();
   current = name;
@@ -296,4 +299,10 @@ if ('serviceWorker' in navigator) {
   addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
 
-applyRoute();
+/* applyRoute at EOF would run before the sibling module scripts register
+   their routes — DOMContentLoaded fires after every deferred module has
+   evaluated, so deep links (#/signs etc.) open the real sheet. */
+if (document.readyState !== 'complete')
+  addEventListener('DOMContentLoaded', applyRoute, { once: true });
+else
+  applyRoute();

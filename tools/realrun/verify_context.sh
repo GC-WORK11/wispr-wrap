@@ -58,7 +58,7 @@ ls "$MARKERS"/ctx-* > "$PROOF/focus2.txt" 2>/dev/null || echo "no marker yet" > 
 # engine-level probe: context_dispatch action routing via teach-carried
 # action dict (stored opaquely) — the honest "is the provider wired" test
 rm -f "$MARKERS/ctx-engine"
-code=$(call POST /teach/begin '{"name":"RR-CTX2","takes":1,"label":"ctx engine","action":{"kind":"context","by_wm_class":{"sinkedit":{"argv":["/usr/bin/touch","'$MARKERS'/ctx-engine"]},"default":{"argv":["/usr/bin/true"]}},"tier":0}')
+code=$(call POST /teach/begin '{"name":"RR-CTX2","takes":1,"label":"ctx engine","action":{"kind":"context","by_wm_class":{"sinkedit":{"argv":["/usr/bin/touch","'$MARKERS'/ctx-engine"]},"default":{"argv":["/usr/bin/true"]},"tier":0}}')
 echo "teach/begin kind:context -> $code" | tee "$PROOF/probe.txt"
 python3 "$HERE/kpstream.py" --base "$BASE" --key "$KEY" --fps 40 teach:RR-CTX2 >/dev/null 2>&1
 sleep 0.3; call POST /teach/end '{}' >/dev/null

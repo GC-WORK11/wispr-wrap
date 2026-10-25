@@ -26,12 +26,19 @@ if [ -n "${REALRUN_DISPLAY:-}" ]; then
     D="$REALRUN_DISPLAY"
 else
     D=""
-    for cand in 97 98 99 100 101 102 103 104 105; do
-        [ -e "/tmp/.X${cand}-lock" ] && continue
-        DISPLAY=":$cand" xdpyinfo >/dev/null 2>&1 && continue
-        D=":$cand"; break
-    done
-    [ -n "$D" ] || die "no free display in :97-:105"
+    # our own previous stack's display is the one safe reuse — teardown()
+    # below kills its server, then we re-take the same number cleanly
+    _OLD_D=$( [ -f "$REALRUN_ENV" ] && grep '^D=' "$REALRUN_ENV" | cut -d= -f2 || true )
+    if [ -n "$_OLD_D" ] && DISPLAY="$_OLD_D" xdpyinfo >/dev/null 2>&1; then
+        D="$_OLD_D"
+    else
+        for cand in 97 98 99 100 101 102 103 104 105; do
+            [ -e "/tmp/.X${cand}-lock" ] && continue
+            DISPLAY=":$cand" xdpyinfo >/dev/null 2>&1 && continue
+            D=":$cand"; break
+        done
+        [ -n "$D" ] || die "no free display in :97-:105"
+    fi
 fi
 # Private port: first free in 8874..8884 (keeps the spec's 8874 when free).
 if [ -n "${REALRUN_PORT:-}" ]; then
@@ -64,7 +71,7 @@ teardown() {
     done
     # close only windows on OUR display (sibling agents use the same
     # window names on their own displays — pkill -f would murder theirs)
-    for wid in $(DISPLAY="$D" xdotool search --name "^realrun" 2>/dev/null; \
+    for wid in $(DISPLAY="$D" xdotool search --name "^$(basename "$_RR_ROOT" | tr -cd 'a-zA-Z0-9-')-" 2>/dev/null; \
                  DISPLAY="$D" xdotool search --class SinkEdit 2>/dev/null); do
         DISPLAY="$D" wmctrl -ic "$wid" 2>/dev/null
     done
@@ -136,20 +143,25 @@ TERMSINK="$STATE/term-sink.txt"
 MARKERS="$STATE/markers"; mkdir -p "$MARKERS"
 : > "$SINK"; : > "$TERMSINK"
 
-DISPLAY="$D" setsid wish "$HERE/sink.tcl" "$SINK" "realrun-sink" </dev/null >/dev/null 2>&1 &
+# Window names are namespaced by worktree ($TAG): sibling agents run the
+# same gate and their teardown does `pkill -f "realrun-sink"` — a shared
+# name gets murdered. Ours must not match their pattern (and theirs is
+# why the sink died mid-run once already).
+TAG="$(basename "$ROOT" | tr -cd 'a-zA-Z0-9-')"
+DISPLAY="$D" setsid wish "$HERE/sink.tcl" "$SINK" "$TAG-sink" </dev/null >/dev/null 2>&1 &
 echo $! > "$STATE/pids.sink"
-DISPLAY="$D" setsid xfce4-terminal --title realrun-term \
+DISPLAY="$D" setsid xfce4-terminal --title "$TAG-term" \
     -x bash -c "cat > '$TERMSINK'" </dev/null >/dev/null 2>&1 &
 echo $! > "$STATE/pids.term"
 TERM_WID=""; TERM2_WID=""
 for _ in $(seq 1 60); do
     [ -z "$TERM_WID" ] && TERM_WID=$(DISPLAY="$D" xdotool search --class SinkEdit 2>/dev/null | tail -1)
-    [ -z "$TERM2_WID" ] && TERM2_WID=$(DISPLAY="$D" xdotool search --name "^realrun-term$" 2>/dev/null | tail -1)
+    [ -z "$TERM2_WID" ] && TERM2_WID=$(DISPLAY="$D" xdotool search --name "^$TAG-term$" 2>/dev/null | tail -1)
     [ -n "$TERM_WID" ] && [ -n "$TERM2_WID" ] && break
     sleep 0.25
 done
 [ -n "$TERM_WID" ] || die "SinkEdit editor window never appeared"
-[ -n "$TERM2_WID" ] || die "realrun-term window never appeared"
+[ -n "$TERM2_WID" ] || die "$TAG-term window never appeared"
 
 # ---------- daemon -------------------------------------------------------
 env -i HOME="$WFHOME" DISPLAY="$D" PATH="$BINDIR:$PATH" \
@@ -178,6 +190,7 @@ TERMSINK=$TERMSINK
 MARKERS=$MARKERS
 TERM_WID=$TERM_WID
 TERM2_WID=$TERM2_WID
+TAG=$TAG
 STATE=$STATE
 EOF
 chmod 600 "$STATE/env"

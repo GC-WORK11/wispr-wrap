@@ -30,17 +30,17 @@ def mark(s): open(STEPS, "a").write(s + "\\n")
 def sh(*a): return subprocess.run([*a], env={"DISPLAY": D, "PATH": "/usr/bin:/bin"},
                                   capture_output=True, timeout=10)
 mark("step1-open-window")
-subprocess.Popen(["setsid", "xmessage", "-center", "realrun-macro-win"],
+subprocess.Popen(["setsid", "xmessage", "-center", "$TAG-macro-win"],
                  env={"DISPLAY": D, "PATH": "/usr/bin:/bin"})
 time.sleep(1.2)
 mark("step2-type-into-editor")
-wids = sh("xdotool", "search", "--name", "realrun-sink").stdout.split()
+wids = sh("xdotool", "search", "--name", "$TAG-sink").stdout.split()
 if wids:
     sh("xdotool", "windowactivate", "--sync", wids[-1])
     time.sleep(0.3)
     sh("xdotool", "type", "--delay", "12", "MACRO-STEP-OK ")
 mark("step3-close-window")
-sh("wmctrl", "-c", "realrun-macro-win")
+sh("wmctrl", "-c", "$TAG-macro-win")
 time.sleep(0.5)
 mark("done")
 PY
