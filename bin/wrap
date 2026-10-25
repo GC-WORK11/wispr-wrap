@@ -112,7 +112,7 @@ open)
     ;;
 doctor|check)
     python3 - <<'PY'
-import shutil, subprocess, sys
+import os, shutil, subprocess, sys
 def have(c): return shutil.which(c) is not None
 def pyxlib():
     try:
@@ -128,7 +128,8 @@ req = [("python3", have("python3"), "the daemon itself"),
        ("python3-xlib", pyxlib(),   "multi-target clipboard (apt: python3-xlib)")]
 opt = [("adb",         have("adb"),        "usb bridge + app install"),
        ("cloudflared", have("cloudflared"), "wrap tunnel — anywhere access"),
-       ("scrcpy",      have("scrcpy"),      "phone screen mirroring")]
+       ("scrcpy",      have("scrcpy"),      "phone screen mirroring"),
+       ("notify-send", have("notify-send"), "confirm prompts for riskier signed actions")]
 bad = 0
 print("wrap doctor — dependency check")
 try:
@@ -142,6 +143,32 @@ for name, ok, why in req:
     bad += 0 if ok else 1
 for name, ok, why in opt:
     print(f"  [{'ok' if ok else ' - '}] {name:<13} {why} (optional)")
+
+# session + runtime — injection is X11-only; say so before it fails silently
+def env(tag, name, why): print(f"  [{tag}] {name:<13} {why}")
+sess = os.environ.get("XDG_SESSION_TYPE", "").lower()
+disp = os.environ.get("DISPLAY", "")
+if sess == "wayland":
+    env("warn", "session", "wayland — xdotool/xclip can't inject; log into an X11 session")
+    bad += 1
+elif not sess and not disp:
+    env("warn", "session", "headless (no XDG_SESSION_TYPE/DISPLAY) — injection needs an X11 desktop")
+    bad += 1
+else:
+    env("ok", "session", f"{sess or 'x11'} (DISPLAY={disp or 'unset'})")
+v = sys.version_info
+env("ok" if v >= (3, 7) else "MISSING", f"python {v.major}.{v.minor}", "daemon needs 3.7+")
+bad += 0 if v >= (3, 7) else 1
+kf = os.path.expanduser("~/.config/wf/key")
+try:
+    m = os.stat(kf).st_mode & 0o777
+    if m & 0o077:
+        env("warn", "key perms", f"{kf} is {oct(m)[2:]} — fix: chmod 600 {kf}")
+        bad += 1
+    else:
+        env("ok", "key perms", f"{kf} mode {oct(m)[2:]}")
+except OSError:
+    env("note", "key perms", "no key yet — created mode 600 on first `wrap start`")
 sys.exit(1 if bad else 0)
 PY
     ;;
