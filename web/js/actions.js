@@ -60,9 +60,26 @@ const FALLBACK_TOOLS = [
 ];
 
 const ARG_LABEL = { app: 'app name or command', url: 'https://…', keys: 'ctrl+alt+t', text: 'text to type', argv: 'program args…', index: 'number', app_pick: 'pick below' };
+/* tool-row `arg` name -> the key the canonical handler reads
+   (workspace/monitor take `n`, not `index`) */
+const ARG_KEY = { app: 'app', url: 'url', keys: 'keys', text: 'text',
+                  argv: 'argv', index: 'n' };
+/* 1:1 contract ids -> canonical type (belt: the daemon maps `tool` anyway;
+   `type` keeps the dict runnable on stub/legacy banks that look for it) */
+const TOOL_TYPE = {
+  'app.open': 'open_app', 'app.focus': 'focus_app', 'app.close': 'close_window',
+  'open.url': 'open_url', 'type.text': 'type_text', 'key.press': 'key_press',
+  'command': 'run_argv', 'macro': 'macro',
+};
 
 /* ---------- catalog ---------- */
-let CAT = null, iconsOK = null;
+let CAT = null;
+function iconsEnabled(cat) {
+  /* The daemon only serves /act/icons/<id> when it advertises the feature —
+     otherwise every app cell would 404-log to the console. */
+  const f = (cat && cat.capabilities && cat.capabilities.features) || {};
+  return !!f.icons;
+}
 async function catalog(force) {
   if (CAT && !force) return CAT;
   const r = await App.api.get('/act').catch(() => null);
@@ -80,24 +97,20 @@ async function catalog(force) {
   return CAT;
 }
 catalog.refresh = () => catalog(true);
-async function probeIcons() {
-  if (iconsOK !== null) return iconsOK;
-  const r = await App.api.get('/act/icons/').catch(() => null);
-  iconsOK = !!(r && (r.ok || (r.status !== 404 && r.status !== 405)));
-  return iconsOK;
-}
 
 /* ---------- action builders ---------- */
 function appAction(app) {
-  return { kind: 'app', tool: 'app.open', args: { id: app.id },
+  return { kind: 'app', tool: 'app.open', type: 'open_app',
+           args: { id: app.id }, id: app.id,
            label: 'open ' + (app.name || app.id), tier: 1,
            argv: app.argv && app.argv.length ? app.argv : undefined };
 }
 function toolAction(tool, argVal) {
   const a = { kind: tool.kind || 'builtin', tool: tool.id,
               label: tool.label || tool.id, tier: tool.tier == null ? 1 : tool.tier };
+  if (TOOL_TYPE[tool.id]) a.type = TOOL_TYPE[tool.id];
   if (tool.arg && argVal != null && argVal !== '') {
-    a.args = { [tool.arg]: tool.arg === 'argv'
+    a.args = { [ARG_KEY[tool.arg] || tool.arg]: tool.arg === 'argv'
       ? String(argVal).trim().split(/\s+/).filter(Boolean)
       : tool.arg === 'index' ? +argVal : argVal };
   } else if (tool.arg) {
@@ -115,11 +128,14 @@ function toolAction(tool, argVal) {
 function describe(a) {
   if (!a) return 'not bound';
   if (typeof a === 'string') return a;
+  if (a.kind === 'context' || a.by_wm_class || a.per_app) return 'per-app rules';
+  if (a.kind === 'macro' || a.steps || (a.args && a.args.steps))
+    return ((a.steps || (a.args || {}).steps || []).length || '?') + '-step macro';
+  if (a.tool && a.tool !== 'command') return a.label || a.tool;
+  if (a.argv) return (Array.isArray(a.argv) ? a.argv.join(' ') : String(a.argv));
+  if (a.args && a.args.argv)
+    return (Array.isArray(a.args.argv) ? a.args.argv.join(' ') : String(a.args.argv));
   if (a.label) return a.label;
-  if (a.kind === 'context') return 'per-app rules';
-  if (a.kind === 'macro' || a.steps) return (a.steps || (a.args && a.args.steps) || []).length + '-step macro';
-  if (a.argv) return a.argv.join(' ');
-  if (a.tool) return a.tool;
   if (a.type) return a.type.replace(/_/g, ' ');
   return 'action';
 }
@@ -141,7 +157,6 @@ function pick(opts) {
   sheet.hidden = false;
   build();
   catalog().then(() => build());
-  probeIcons().then(() => build());
   setTimeout(() => q.focus(), 60);
   return new Promise(res => { resolver = res; });
 }
@@ -173,7 +188,7 @@ async function build() {
       const it = document.createElement('button');
       it.className = 'act-app';
       const icon = document.createElement('span'); icon.className = 'act-ic';
-      if (iconsOK) {
+      if (iconsEnabled(cat)) {
         const img = document.createElement('img');
         img.src = '/act/icons/' + encodeURIComponent(a.id);
         img.alt = ''; img.loading = 'lazy';
@@ -247,8 +262,14 @@ async function build() {
         use.onclick = () => {
           const v = inp.value.trim();
           if (!v) { inp.classList.add('act-bad'); inp.focus(); return; }
-          const a = toolAction(t, null) || { kind: t.kind || 'app', tool: t.id, label: t.label, tier: t.tier };
+          const a = { kind: t.kind || 'app', tool: t.id, label: t.label,
+                      tier: t.tier == null ? 1 : t.tier };
+          if (TOOL_TYPE[t.id]) a.type = TOOL_TYPE[t.id];
           a.args = { app: v };
+          a.app = v;
+          /* no provider catalog -> the typed name IS the command to spawn;
+             only a dict would store an action the daemon can't run */
+          if (cat.mode !== 'rich') a.argv = v.split(/\s+/).filter(Boolean);
           a.label = (t.label || t.id) + ' · ' + v;
           close(a);
         };

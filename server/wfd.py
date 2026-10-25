@@ -15,6 +15,27 @@ try:
     import signbank              # W1a pure-python DTW bank — optional
 except ImportError:
     signbank = None
+try:
+    import act_iface             # the ActionProvider contract + gate
+    import act_linux             # the Linux/X11 provider
+except ImportError:
+    act_iface = act_linux = None
+try:
+    import system_ctl            # sys/media/net/clip ops behind the catalog
+except ImportError:
+    system_ctl = None
+try:
+    import macro as _macro       # {"kind":"macro","steps":[...]} chains
+except ImportError:
+    _macro = None
+try:
+    import signflow_ops          # composer: sequences, profiles, observe
+except ImportError:
+    signflow_ops = None
+try:
+    import record_action         # teach-by-demonstration input capture
+except ImportError:
+    record_action = None
 
 PORT = int(os.environ.get("WF_PORT", "8741"))
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -162,6 +183,7 @@ def type_paste(text):
 
 
 def send_text(text, mode):
+    global LAST_SEND
     if os.environ.get("WF_NO_LOG_TEXT"):
         print(f"[wfd] {mode}: <{len(text)} chars>", flush=True)
     else:
@@ -170,6 +192,8 @@ def send_text(text, mode):
         type_paste(text)
     else:
         type_keystrokes(text)
+    LAST_SEND = {"t_ms": now_ms(), "ok": True, "kind": "text",
+                 "into": active_window_class(), "n": len(text)}
 
 
 IMG_EXT = {"image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp"}
@@ -229,6 +253,9 @@ def send_image(data, ctype=""):
     cls = active_window_class()
     paste_file(path, mime, cls)
     print(f"[wfd] image: {len(data)}B {mime} into '{cls}'", flush=True)
+    global LAST_SEND
+    LAST_SEND = {"t_ms": now_ms(), "ok": True, "kind": "image",
+                 "into": cls, "n": len(data)}
     return cls, mime
 
 
@@ -242,6 +269,9 @@ def send_file(data, name, ctype):
     cls = active_window_class()
     paste_file(path, ctype or "", cls)
     print(f"[wfd] file: {len(data)}B {safe} -> {path} into '{cls}'", flush=True)
+    global LAST_SEND
+    LAST_SEND = {"t_ms": now_ms(), "ok": True, "kind": "file",
+                 "into": cls, "n": len(data), "path": path}
     return cls, path
 
 
@@ -255,12 +285,16 @@ def send_file(data, name, ctype):
 
 LIVE_LOCK = threading.RLock()
 LIVE = {"session": None, "listening": False, "ep": None,
-        "last_match": None, "seen": 0.0, "rate": deque()}
+        "last_match": None, "seen": 0.0, "rate": deque(),
+        "observe": False, "last_action": None,
+        "feed": deque(maxlen=64)}
 TEACH = {"active": False, "name": "", "takes": 0, "got": 0,
          "label": "", "action": None}
 PENDING = {}                    # confirm_id -> {gloss,label,argv,at}
 _cmd_cache = {"key": None, "rows": {}}
-LIVE_POSTS = ("/live/kp", "/teach/begin", "/teach/end", "/act/confirm")
+LIVE_POSTS = ("/live/kp", "/live/event", "/live/listen", "/live/mode",
+              "/teach/begin", "/teach/end", "/teach/record/start",
+              "/teach/record/stop", "/act/confirm")
 
 
 def now_ms():
@@ -294,6 +328,135 @@ def save_bank():
 BANK = load_bank()
 
 
+# ---------------------------------------------------------------------
+# Action provider — bank-bound action OBJECTS (the @ picker's
+# {"type":...}/{kind,tool,args} shapes, kind:context, kind:macro) execute
+# through act_iface.ActionProvider: tier>=2 confirm gate, first-use argv
+# ledger and the focus guard all live in that layer. commands.tsv argv
+# rows keep their existing direct-spawn path (legacy, already audited).
+# ---------------------------------------------------------------------
+ACT_PROVIDER = None
+if act_linux is not None:
+    try:
+        ACT_PROVIDER = act_linux.LinuxX11Provider(
+            config_dir=os.path.dirname(BANK_FILE))
+
+        if system_ctl is not None:
+            def _sys_plan(a, ctx):
+                """canonical type -> system_ctl catalog id -> ActionPlan."""
+                t = str(a.get("type") or "")
+                toolmap = {
+                    "volume": "sys.mute" if str(a.get("op")) == "mute"
+                              else "sys.volume-" + str(a.get("op", "up")),
+                    "media": "media." + str(a.get("op", "playpause")),
+                    "screenshot": "sys.screenshot-region"
+                                  if str(a.get("mode")) == "region"
+                                  else "sys.screenshot",
+                    "lock": "sys.lock",
+                    "dnd": "sys.dnd",
+                    "wifi": "net.wifi",
+                    "bluetooth": "net.bluetooth",
+                    "brightness": "sys.brightness-" + str(a.get("op", "up")),
+                    "clipboard_history": "clipboard.history",
+                }
+                tid = toolmap.get(t, t)
+                args = {k: a[k] for k in ("arg", "index", "mode", "step")
+                        if k in a}
+
+                def _fn(_c):
+                    ok, detail = system_ctl.dispatch(tid, args)
+                    if ok:
+                        return act_iface.ActionResult.done(detail)
+                    return act_iface.ActionResult.refused(detail)
+                tier = system_ctl.TOOL_TIERS.get(tid, 1)
+                return act_iface.ActionPlan(_fn, tier=tier,
+                                            describe="%s (%s)" % (a.get(
+                                                "label") or tid, tid))
+            _SYS_CAT = [
+                ("screenshot", {"id": "sys.screenshot", "kind": "sys",
+                                "label": "take a screenshot", "tier": 1,
+                                "desc": "full display -> ~/Pictures"}),
+                ("volume", {"id": "sys.volume-up", "kind": "sys",
+                            "label": "volume up", "tier": 1}),
+                ("volume", {"id": "sys.volume-down", "kind": "sys",
+                            "label": "volume down", "tier": 1}),
+                ("volume", {"id": "sys.mute", "kind": "sys",
+                            "label": "mute / unmute", "tier": 1}),
+                ("media", {"id": "media.playpause", "kind": "media",
+                           "label": "play / pause", "tier": 1}),
+                ("media", {"id": "media.next", "kind": "media",
+                           "label": "next track", "tier": 1}),
+                ("media", {"id": "media.prev", "kind": "media",
+                           "label": "previous track", "tier": 1}),
+                ("brightness", {"id": "sys.brightness-up", "kind": "sys",
+                                "label": "brightness up", "tier": 1}),
+                ("brightness", {"id": "sys.brightness-down", "kind": "sys",
+                                "label": "brightness down", "tier": 1}),
+                ("lock", {"id": "sys.lock", "kind": "sys",
+                          "label": "lock the screen", "tier": 2}),
+                ("dnd", {"id": "sys.dnd", "kind": "sys",
+                         "label": "do-not-disturb", "tier": 1}),
+                ("wifi", {"id": "net.wifi", "kind": "net",
+                          "label": "wifi toggle", "tier": 2}),
+                ("bluetooth", {"id": "net.bluetooth", "kind": "net",
+                               "label": "bluetooth toggle", "tier": 2}),
+                ("clipboard_history", {"id": "clipboard.history",
+                                       "kind": "clip",
+                                       "label": "clipboard history",
+                                       "tier": 1}),
+            ]
+            try:
+                _caps = system_ctl.capabilities()
+            except Exception:
+                _caps = {}
+            for _t, _row in _SYS_CAT:
+                row = dict(_row)
+                cap = _caps.get(row["id"], {})
+                if cap and not cap.get("available"):
+                    row["desc"] = (row.get("desc", "") +
+                                   (" — " if row.get("desc") else "") +
+                                   "not available here (needs %s)" %
+                                   "/".join(cap.get("via") or []) +
+                                   ((": " + cap["note"]) if cap.get("note")
+                                    else "")).strip(" —")
+                ACT_PROVIDER.register(_t, _sys_plan, catalog=row)
+
+        if _macro is not None:
+            def _macro_plan(a, ctx):
+                steps = a.get("steps")
+                # argv-bearing steps join the plan's argv list so the
+                # first-use gate covers them like any other command
+                argvs = [list(s["argv"]) for s in (steps or [])
+                         if isinstance(s, dict) and
+                         isinstance(s.get("argv"), list)]
+                if steps is not None:
+                    _n, _errs = _macro.validate_steps(steps)
+                    if _errs:
+                        return act_iface.ActionResult.refused(
+                            "macro: " + "; ".join(_errs))
+
+                def _fn(c):
+                    r = _macro.run_macro(
+                        steps, ACT_PROVIDER,
+                        ctx=dict(c, depth=int(c.get("depth", 0)) + 1))
+                    return act_iface.ActionResult(
+                        ok=bool(r.get("ok")),
+                        detail=r.get("error") or
+                               "%d/%d steps" % (r.get("ran", 0),
+                                                len(r.get("steps") or [])),
+                        tier=int(a.get("tier", 2) or 0),
+                        extra={"steps": r.get("steps")})
+                return act_iface.ActionPlan(
+                    _fn, describe="macro (%d steps)" % len(steps or []),
+                    argv=argvs)
+            ACT_PROVIDER.register("macro", _macro_plan)
+    except Exception as e:
+        print(f"[wfd] act provider unavailable: {e!r}", flush=True)
+        ACT_PROVIDER = None
+
+LAST_SEND = None                      # {t_ms, ok, into, kind}
+
+
 def bank_size():
     if BANK is None:
         return 0
@@ -309,8 +472,14 @@ def live_reset():
     was re-opened."""
     LIVE.update(session=None, listening=False, last_match=None, seen=0.0)
     LIVE["rate"].clear()
+    LIVE["feed"].clear()
     LIVE["ep"] = endpointer.Endpointer(
         palm_sign=PALM_SIGN, namaste_sign=NAMASTE_SIGN) if endpointer else None
+    if OPS is not None:
+        try:
+            OPS.reset_session()
+        except Exception:
+            pass
     TEACH.update(active=False, name="", takes=0, got=0, label="", action=None)
 
 
@@ -424,24 +593,64 @@ def pending_rows():
             for k, v in sorted(PENDING.items(), key=lambda kv: kv[1]["at"])]
 
 
+def _route_provider(gloss, action, label, tier):
+    """Bank-carried action dict -> act_iface provider: normalization,
+    tier>=2 / first-use-argv gating and the focus guard all happen in
+    that layer. A provider-held action lands in PENDING with provider=
+    True so POST /act/confirm releases it via provider.confirm()."""
+    if ACT_PROVIDER is None:
+        return {"routed": False, "gloss": gloss,
+                "refused": "no action provider on this box"}
+    try:
+        res = ACT_PROVIDER.run(dict(action),
+                               {"gloss": gloss, "via": "sign",
+                                "label": label})
+    except Exception as e:
+        print(f"[wfd] provider run {gloss}: {e!r}", flush=True)
+        return {"routed": False, "gloss": gloss, "refused": str(e)}
+    d = res.to_dict() if hasattr(res, "to_dict") else \
+        {"ok": res.ok, "detail": res.detail, "tier": res.tier,
+         "confirm_id": res.confirm_id}
+    if res.confirm_id:
+        _purge_pending()
+        PENDING[res.confirm_id] = {"gloss": gloss, "label": label,
+                                   "argv": [str(d.get("detail", ""))],
+                                   "at": now_ms(), "provider": True}
+        _notify("sign: %s needs confirm" % (label or gloss),
+                "tier-%d action parked — approve in composer "
+                "or POST /act/confirm" % res.tier)
+        print(f"[wfd] parked tier{res.tier} {gloss} -> "
+              f"{d.get('detail', '')} (confirm {res.confirm_id})",
+              flush=True)
+        return {"routed": True, "pending": res.confirm_id,
+                "tier": res.tier, "detail": d.get("detail")}
+    if res.ok:
+        print(f"[wfd] fired {gloss}: {d.get('detail', '')}", flush=True)
+        return {"routed": True, "fired": True, "tier": res.tier,
+                "detail": d.get("detail")}
+    print(f"[wfd] refused {gloss}: {d.get('detail', '')}", flush=True)
+    return {"routed": False, "refused": d.get("detail"), "tier": res.tier}
+
+
 def route_gloss(gloss, m_action=None, m_tier=0):
-    """An accepted match -> bound action. The commands.tsv row wins; a
-    bank-stored action dict is the fallback so imported banks carry
-    bindings. tier>=2 parks as a pending confirm — enforced HERE,
-    laptop-side, not by the composer."""
+    """An accepted match -> bound action. The commands.tsv row wins the
+    direct-spawn path; a bank-stored action OBJECT routes through the
+    provider (catalog tools, context dispatch, macros, gated argv).
+    tier>=2 parks as a pending confirm — enforced HERE, laptop-side,
+    not by the composer."""
     row = commands().get(gloss)
     argv, tier, label = None, m_tier or 0, ""
     if row:
         argv, tier, label = row["argv"], row["tier"], row["label"]
     elif isinstance(m_action, dict):
-        a = m_action.get("argv")
-        argv = ([str(x) for x in a] if isinstance(a, list)
-                else str(a).split() if a else None)
+        label = str(m_action.get("label", ""))
         try:
             tier = int(m_action.get("tier", tier))
         except (TypeError, ValueError):
             pass
-        label = str(m_action.get("label", ""))
+        # dict actions go through the provider — kind:context, kind:macro,
+        # catalog tools and run_argv all execute there with gating.
+        return _route_provider(gloss, m_action, label, tier)
     elif isinstance(m_action, str) and m_action.strip():
         argv = m_action.split()
     if not argv:
@@ -459,6 +668,111 @@ def route_gloss(gloss, m_action=None, m_tier=0):
         return {"routed": True, "pending": cid, "tier": tier}
     ok = _spawn(argv, gloss)
     return {"routed": ok, "fired": ok, "tier": tier}
+
+
+# ---------------------------------------------------------------------
+# signflow_ops composer — matches route through it BEFORE dispatch:
+# compositional sequences (compositions.json), per-profile actions and
+# observe/rehearsal mode all live in that session layer. It is pure
+# logic; effects reach the OS through _ops_router below.
+#
+# Latency contract: ops.on_match runs synchronously (microseconds —
+# dict lookups and list appends under its own lock), but EXECUTION is
+# serialized on _ACT_Q. A macro with wait steps or a 100-char type_text
+# must never stall the kp pipeline — fires run one at a time, in sign
+# order, off the request thread. The router returns {"dispatched":True}
+# so the ops' fire events stay honest about what is known when.
+# ---------------------------------------------------------------------
+_ACT_Q = queue.Queue()
+
+
+def _act_worker():
+    while True:
+        job = _ACT_Q.get()
+        try:
+            job()
+        except Exception as e:
+            print(f"[wfd] act worker: {e!r}", flush=True)
+
+
+threading.Thread(target=_act_worker, daemon=True).start()
+
+
+def _feed(ev):
+    """One event dict onto the /live/state feedback ring."""
+    if isinstance(ev, dict):
+        LIVE["feed"].append(ev)
+
+
+def _ops_sink(ev):
+    """Composer events -> /live/state feed. Would-fire and fire both
+    update last_action (fire entries get exec results backfilled by
+    _ops_exec; until then they read dispatched, not fired)."""
+    if not isinstance(ev, dict):
+        return
+    t = ev.get("type")
+    with LIVE_LOCK:
+        _feed(ev)
+        if t in ("fire", "would-fire"):
+            LIVE["last_action"] = {
+                "kind": ev.get("kind"), "glosses": ev.get("glosses"),
+                "label": ev.get("label", ""),
+                "action": ev.get("action"), "profile": ev.get("profile"),
+                "observe": t == "would-fire",
+                "ok": ev.get("ok"), "error": ev.get("error"),
+                "dispatched": True, "t_ms": ev.get("t_ms")}
+
+
+def _ops_exec(action, ctx):
+    """Worker body: the resolved action reaches the OS through the same
+    path a direct match uses — a single gloss reuses route_gloss (tsv
+    direct-spawn or provider dict), a composition resolves through the
+    provider. The result lands in /live/state last_action."""
+    glosses = list(ctx.get("glosses") or [])
+    label = str(ctx.get("label") or "")
+    if len(glosses) == 1:
+        res = route_gloss(glosses[0], action, 0)
+    else:
+        res = _route_provider("+".join(glosses) or "?",
+                              action, label, 0)
+    with LIVE_LOCK:
+        la = {"kind": ctx.get("kind"), "glosses": glosses,
+              "label": label, "profile": ctx.get("profile"),
+              "observe": False, "dispatched": True,
+              "result": res, "t_ms": now_ms()}
+        la["ok"] = bool(res.get("fired") or
+                        (res.get("routed") and not res.get("refused")))
+        if res.get("pending"):
+            la["pending"] = res["pending"]
+        if res.get("refused"):
+            la["error"] = res["refused"]
+        LIVE["last_action"] = la
+        _feed({"type": "fired", "glosses": glosses, "ok": la["ok"],
+               "result": {k: res.get(k) for k in
+                          ("routed", "fired", "pending", "refused",
+                           "detail") if res.get(k) is not None},
+               "t_ms": la["t_ms"]})
+
+
+def _ops_router(action, ctx):
+    """signflow_ops fire channel. Executions queue on _ACT_Q (serial,
+    sign order) — the ops layer gets an honest dispatched marker back;
+    last_action carries the real result when the worker lands it."""
+    if not isinstance(action, dict) or not action:
+        return {"ok": False, "error": "no resolved action"}
+    _ACT_Q.put(lambda: _ops_exec(action, dict(ctx or {})))
+    return {"ok": True, "dispatched": True}
+
+
+OPS = None
+if signflow_ops is not None:
+    try:
+        OPS = signflow_ops.SignFlowOps(
+            BANK, action_router=_ops_router, event_sink=_ops_sink)
+        OPS.set_observe(LIVE["observe"])
+    except Exception as e:
+        print(f"[wfd] signflow_ops unavailable: {e!r}", flush=True)
+        OPS = None
 
 
 def _on_segment(frames, t_ms):
@@ -500,13 +814,34 @@ def _on_segment(frames, t_ms):
             "margin": getattr(m, "margin", None),
             "second": getattr(m, "second_gloss", None),
             "reason": getattr(m, "reason", "")}
-    if m.accepted and m.gloss:
-        route = route_gloss(m.gloss, getattr(m, "action", None),
-                            getattr(m, "tier", 0))
-        if route.get("pending"):
-            last["pending"] = route["pending"]
-        last["action"] = route
-        res["action"] = route
+    if OPS is not None:
+        # composer decides: compositional sequences, profile-bound
+        # actions, observe mode — and emits events the feed reports.
+        try:
+            evs = OPS.on_match(m, t_ms=t_ms) or []
+            if evs:
+                res["events"] = evs
+        except Exception as e:
+            print(f"[wfd] signflow_ops: {e!r}", flush=True)
+    elif m.accepted and m.gloss:
+        if LIVE["observe"]:
+            # composer-less observe fallback: report, never fire
+            last["action"] = {"would_fire": True,
+                              "observe": True}
+            res["action"] = last["action"]
+            LIVE["last_action"] = {
+                "kind": "would-fire", "glosses": [m.gloss],
+                "label": last["label"], "observe": True,
+                "dispatched": False, "t_ms": t_ms}
+            _feed({"type": "would-fire", "glosses": [m.gloss],
+                   "label": last["label"], "t_ms": t_ms})
+        else:
+            route = route_gloss(m.gloss, getattr(m, "action", None),
+                                getattr(m, "tier", 0))
+            if route.get("pending"):
+                last["pending"] = route["pending"]
+            last["action"] = route
+            res["action"] = route
     LIVE["last_match"] = last
     res["match"] = last
     return res
@@ -580,6 +915,11 @@ def live_kp(data):
                     LIVE["listening"] = True
                 elif name == NAMASTE_SIGN:
                     LIVE["listening"] = False
+                    if OPS is not None:
+                        try:
+                            OPS.flush()  # held prefix resolves at session end
+                        except Exception:
+                            pass
                 LIVE["last_match"] = {
                     "gloss": name, "dist": 0.0, "at_ms": t_ms,
                     "accepted": True, "mode": True,
@@ -587,21 +927,114 @@ def live_kp(data):
                 out["mode"] = name
             elif ev.get("type") == "segment":
                 out.update(_on_segment(ev.get("frames") or [], t_ms))
+            elif ev.get("type") == "segment-drop":
+                LIVE["last_match"] = {
+                    "gloss": "", "dist": None, "at_ms": t_ms,
+                    "accepted": False, "mode": False, "label": "",
+                    "reason": "dropped:" + str(ev.get("reason", ""))}
+                out["dropped"] = ev.get("reason")
+        if OPS is not None:
+            try:
+                OPS.tick(t_ms)      # frame cadence expires held prefixes
+            except Exception:
+                pass
         return 200, out
 
 
+def _focus_info():
+    """Best-effort focused-window report for /live/state + /status."""
+    if ACT_PROVIDER is not None:
+        try:
+            f = ACT_PROVIDER.focused_app()
+            if f is not None:
+                return {"wm_class": getattr(f, "wm_class", "") or "",
+                        "title": getattr(f, "title", "") or ""}
+        except Exception:
+            pass
+    cls = active_window_class()
+    return {"wm_class": cls or "", "title": ""}
+
+
 def live_state():
+    # The composer clock ticks on state polls too — a held prefix must
+    # resolve even when no new frame arrives to drive _on_segment.
+    if OPS is not None:
+        try:
+            OPS.tick()
+        except Exception:
+            pass
     with LIVE_LOCK:
         ep = LIVE["ep"]
-        return {"listening": LIVE["listening"],
-                "session": LIVE["session"],
-                "last_match": LIVE["last_match"],
-                "segment_len": ep.current_len if ep else 0,
-                "signing": bool(ep and ep.active),
-                "teach": {"active": TEACH["active"], "name": TEACH["name"],
-                          "got": TEACH["got"], "takes": TEACH["takes"]},
-                "pending": pending_rows(),
-                "bank_size": bank_size()}
+        pend = pending_rows()
+        if ACT_PROVIDER is not None:
+            try:
+                for p in ACT_PROVIDER.pending():
+                    cid = p.get("confirm_id") or p.get("id")
+                    if cid and cid not in PENDING:
+                        pend.append({"id": cid,
+                                     "gloss": p.get("gloss", ""),
+                                     "label": p.get("describe",
+                                                    p.get("label", "")),
+                                     "argv": p.get("argv") or [],
+                                     "at_ms": p.get("at_ms", 0)})
+            except Exception:
+                pass
+        lm = LIVE["last_match"] or {}
+        focus = _focus_info()
+        st = {"listening": LIVE["listening"],
+              "session": LIVE["session"],
+              "last_match": LIVE["last_match"],
+              "reason": lm.get("reason", ""),
+              "second_gloss": lm.get("second"),
+              "margin": lm.get("margin"),
+              "segment_len": ep.current_len if ep else 0,
+              "signing": bool(ep and ep.active),
+              "teach": {"active": TEACH["active"], "name": TEACH["name"],
+                        "got": TEACH["got"], "takes": TEACH["takes"]},
+              "pending": pend,
+              "focus": focus.get("wm_class", ""),
+              "focus_title": focus.get("title", ""),
+              "observe_mode": bool(LIVE["observe"]),
+              "last_action": LIVE["last_action"],
+              "feed": list(LIVE["feed"])[-16:],
+              "bank_size": bank_size()}
+        if OPS is not None:
+            try:
+                s = OPS.state()
+                st["profile"] = s.get("profile")
+                st["observe_mode"] = bool(s.get("observe",
+                                              LIVE["observe"]))
+                st["composition_in_progress"] = s.get("pending") or None
+                st["pending_due_ms"] = s.get("pending_due_ms")
+                st["n_compositions"] = s.get("n_compositions")
+                st["profile_signs"] = s.get("profile_signs")
+                st["ops"] = s.get("stats")
+            except Exception:
+                pass
+        if record_action is not None:
+            try:
+                st["record"] = record_action.status()
+            except Exception:
+                pass
+        return st
+
+
+def _status_payload():
+    """GET /status — the composer status strip's feed: focused window,
+    live-listening flag, last send, parked confirms."""
+    with LIVE_LOCK:
+        lst = LIVE["listening"]
+        last = dict(LIVE["last_match"] or {})
+    f = _focus_info()
+    out = {"ok": True, "engine": detect_engine(),
+           "display": "x11" if os.environ.get("DISPLAY") else "",
+           "focus": f.get("wm_class", ""), "focus_title": f.get("title", ""),
+           "live": {"on": True, "listening": lst},
+           "last_send": LAST_SEND, "last_match": last or None,
+           "confirms": live_state()["pending"],
+           "bank_size": bank_size(),
+           "name": os.uname().nodename}
+    return out
 
 
 def _norm_gloss(s):
@@ -662,33 +1095,125 @@ def bank_rows():
                 continue
             rows[g.upper()] = {"gloss": g, "label": e.get("label", ""),
                                "n_exemplars": e.get("n_exemplars", 0),
+                               "exemplar_count": e.get("n_exemplars", 0),
                                "tier": e.get("tier", 0), "taught": True}
+            a = e.get("action")
+            if isinstance(a, dict):
+                rows[g.upper()]["action"] = a
+                rows[g.upper()]["bound"] = True
     for g, r in cmds.items():
         row = rows.setdefault(g, {"gloss": g, "taught": False,
-                                  "n_exemplars": 0})
+                                  "n_exemplars": 0, "exemplar_count": 0})
         row.update({"label": r["label"], "argv": r["raw"],
                     "args": r["argv"], "tier": r["tier"]})
     for g, r in rows.items():
-        r["bound"] = g in cmds
-    return sorted(rows, key=lambda x: x["gloss"])
+        r["bound"] = r.get("bound") or g in cmds
+    return sorted(rows.values(), key=lambda x: x["gloss"])
 
 
 def bank_put(data):
-    """Bind/annotate a sign: writes the commands.tsv row (the live
-    routing source) and mirrors it into the bank via set_action so an
-    exported signbank.json carries its bindings."""
+    """Create/update a sign row. Fields the wizard sends:
+      gloss,label               — annotate/rename
+      exemplars:[{frames:[..]}] — add performances to the bank
+      add_exemplar:{frames:..}  — one performance
+      rename:{gloss,label}      — retitle (gloss rename retargets the row)
+      action:{...} | argv       — bind: dict -> provider routing,
+                                  str/list -> commands.tsv spawn row
+    Dict actions live ONLY in the bank (provider routes them with the
+    tier/argv gates); plain argv keeps the commands.tsv fast path."""
     if not isinstance(data, dict):
         return 400, {"ok": False, "error": "json object required"}
     gloss = _norm_gloss(data.get("gloss"))
     if not gloss:
         return 400, {"ok": False, "error": "gloss required"}
     label = str(data.get("label", ""))[:120]
-    argv_in = data.get("argv", data.get("action"))
     rows = dict(commands())
-    if argv_in is None:
-        if gloss not in rows and not label:
-            return 400, {"ok": False, "error": "argv required to bind"}
-    else:
+    changed = False
+
+    # --- exemplars into the DTW bank --------------------------------
+    if BANK is not None:
+        exs = data.get("exemplars")
+        if isinstance(exs, list):
+            added = 0
+            for e in exs:
+                frames = e.get("frames") if isinstance(e, dict) else None
+                if not frames:
+                    continue
+                try:
+                    if BANK.add_exemplar(gloss, frames,
+                                         label=label or gloss):
+                        added += 1
+                except Exception as ex:
+                    print(f"[wfd] add_exemplar {gloss}: {ex!r}",
+                          flush=True)
+            if added:
+                changed = True
+                print(f"[wfd] teach {gloss}: +{added} exemplar(s)",
+                      flush=True)
+        ae = data.get("add_exemplar")
+        if isinstance(ae, dict) and ae.get("frames"):
+            try:
+                if BANK.add_exemplar(gloss, ae["frames"],
+                                     label=label or gloss):
+                    changed = True
+            except Exception as ex:
+                print(f"[wfd] add_exemplar {gloss}: {ex!r}", flush=True)
+        if data.get("remove_exemplar"):
+            # not needed by the wizard; kept out deliberately
+            pass
+
+    # --- rename: {rename:{gloss,label}} ------------------------------
+    rn = data.get("rename")
+    if isinstance(rn, dict):
+        ngl = _norm_gloss(rn.get("gloss")) or gloss
+        nlb = str(rn.get("label", label or ""))[:120]
+        if ngl != gloss and BANK is not None:
+            try:
+                t = BANK._find(gloss)          # same-repo internal
+                if t is not None:
+                    t["gloss"] = ngl
+                    t["label"] = nlb or t.get("label", "")
+                    changed = True
+            except Exception as ex:
+                print(f"[wfd] rename {gloss}: {ex!r}", flush=True)
+            if gloss in rows:
+                rows[ngl] = rows.pop(gloss)
+                rows[ngl]["label"] = nlb or rows[ngl].get("label", "")
+                _write_commands(rows)
+        gloss, label = ngl, nlb or label
+
+    # --- binding: dict action (provider) vs argv (tsv) ---------------
+    argv_in = data.get("argv")
+    action_in = data.get("action")
+    if argv_in is not None and not isinstance(argv_in, (str, list)):
+        argv_in = None
+    if action_in is not None and not isinstance(action_in, dict):
+        # teach.js legacy shape: action may BE the argv string
+        if isinstance(action_in, str):
+            argv_in = action_in if argv_in is None else argv_in
+            action_in = None
+    try:
+        tier = int(data.get("tier")) if data.get("tier") is not None else None
+    except (TypeError, ValueError):
+        tier = None
+    if isinstance(action_in, dict):
+        act = dict(action_in)
+        if tier is not None:
+            act["tier"] = tier
+        if label:
+            act["label"] = label
+        if BANK is not None:
+            try:
+                BANK.set_action(gloss, label=label or None, action=act,
+                                tier=act.get("tier"))
+                changed = True
+            except Exception as ex:
+                print(f"[wfd] set_action {gloss}: {ex!r}", flush=True)
+        else:
+            return 503, {"ok": False, "error": "signbank unavailable"}
+        # NB: no commands.tsv mirror — a dict with argv must route
+        # through the provider's first-use gate, not the direct spawn.
+    elif argv_in is not None:
         if isinstance(argv_in, list):
             argv = [str(a) for a in argv_in]
             raw = " ".join(argv)
@@ -697,29 +1222,37 @@ def bank_put(data):
             argv = raw.split()
         if not argv:
             return 400, {"ok": False, "error": "empty argv"}
-        try:
-            tier = int(data.get("tier")) if data.get("tier") is not None \
-                else rows.get(gloss, {}).get("tier", 0)
-        except (TypeError, ValueError):
-            tier = 0
+        tt = tier if tier is not None else rows.get(gloss, {}).get("tier", 0)
         rows[gloss] = {"label": label or rows.get(gloss, {}).get("label", ""),
-                       "argv": argv, "raw": raw, "tier": max(tier, 0)}
+                       "argv": argv, "raw": raw, "tier": max(int(tt), 0)}
         _write_commands(rows)
-    if label and argv_in is None and gloss in rows:
-        r = dict(rows[gloss])
-        r["label"] = label
-        rows[gloss] = r
-        _write_commands(rows)
-    if BANK is not None:
-        try:
-            rr = commands().get(gloss)
-            act = ({"argv": rr["argv"], "tier": rr["tier"],
-                    "label": rr["label"]} if rr else None)
-            BANK.set_action(gloss, label=label or None, action=act)
-            save_bank()
-        except Exception as e:
-            print(f"[wfd] set_action: {e!r}", flush=True)
-    row = [r for r in bank_rows() if r["gloss"] == gloss]
+        if BANK is not None:
+            try:
+                BANK.set_action(gloss, label=label or None,
+                                action={"argv": argv, "tier": int(tt),
+                                        "label": rows[gloss]["label"]})
+                changed = True
+            except Exception as ex:
+                print(f"[wfd] set_action {gloss}: {ex!r}", flush=True)
+    elif label:
+        # annotation only
+        if gloss in rows:
+            r = dict(rows[gloss])
+            r["label"] = label
+            rows[gloss] = r
+            _write_commands(rows)
+        if BANK is not None:
+            try:
+                BANK.set_action(gloss, label=label)
+                changed = True
+            except Exception as ex:
+                print(f"[wfd] label {gloss}: {ex!r}", flush=True)
+    elif not changed:
+        return 400, {"ok": False, "error":
+                     "nothing to do (need exemplars, action, argv or label)"}
+    if changed:
+        save_bank()
+    row = [r for r in bank_rows() if r["gloss"].upper() == gloss.upper()]
     return 200, {"ok": True, "sign": row[0] if row else {"gloss": gloss}}
 
 
@@ -881,11 +1414,102 @@ class Handler(BaseHTTPRequestHandler):
                 return self._jreply(503, {"ok": False,
                                           "error": "signbank unavailable"})
             return self._jreply(200, {"ok": True, "signs": bank_rows()})
+        if p == "/status":
+            if not self._gate():
+                return
+            return self._jreply(200, _status_payload())
         if p == "/act":
             if not self._gate():
                 return
-            return self._jreply(200, {"ok": True, "actions": act_catalog(),
-                                      "pending": pending_rows()})
+            out = {"ok": True, "actions": act_catalog(),
+                   "pending": live_state()["pending"],
+                   "display": "x11" if os.environ.get("DISPLAY") else ""}
+            if ACT_PROVIDER is not None:
+                try:
+                    cat = ACT_PROVIDER.catalog() or {}
+                    out["apps"] = cat.get("apps", [])
+                    out["tools"] = cat.get("tools", [])
+                    out["capabilities"] = cat.get("capabilities")
+                    out["provider"] = cat.get("provider",
+                                              cat.get("name", "x11"))
+                    out["display"] = cat.get("display") or out["display"]
+                except Exception as e:
+                    out["provider_error"] = str(e)
+            # merged capability table: provider tools (apps, win, type,
+            # key, url, command) + system_ctl features (sys.*, media.*,
+            # net.*, clipboard.*) as the picker's features rows.
+            sys_caps = {}
+            if system_ctl is not None:
+                try:
+                    sys_caps = system_ctl.capabilities() or {}
+                    out["capabilities_system"] = sys_caps
+                except Exception:
+                    pass
+            feats, seen = [], set()
+            for r in (out.get("tools") or []):
+                tid = r.get("id") or r.get("type")
+                if not tid or tid in seen:
+                    continue
+                seen.add(tid)
+                cap = sys_caps.get(tid) or {}
+                feats.append({"type": tid,
+                              "label": r.get("label", tid),
+                              "tier": r.get("tier", cap.get("tier", 1)),
+                              "kind": r.get("kind", cap.get("kind", "")),
+                              "arg": r.get("arg"),
+                              "available": cap.get("available", True),
+                              "via": cap.get("via", [])})
+            for tid, cap in sorted(sys_caps.items()):
+                if tid in seen:
+                    continue
+                feats.append({"type": tid,
+                              "label": cap.get("label", tid),
+                              "tier": cap.get("tier", 1),
+                              "kind": cap.get("kind", "system"),
+                              "available": bool(cap.get("available")),
+                              "via": cap.get("via", []),
+                              "note": cap.get("note", "")})
+            out["features"] = feats
+            out["commands"] = out["actions"]   # alias: bound gloss->argv
+            return self._jreply(200, out)
+        if p.startswith("/act/icons/"):
+            if not self._gate():
+                return
+            aid = urllib.parse.unquote(p[len("/act/icons/"):])
+            # desktop-file-id charset only — '/', '..', '%2f' and any
+            # traversal die here before the resolver is ever asked.
+            if not re.match(r"^[A-Za-z0-9._+-]{1,200}$", aid):
+                return self._reply(404, b"nope")
+            path = None
+            if ACT_PROVIDER is not None:
+                try:
+                    path = ACT_PROVIDER.icon_path(aid)
+                except Exception:
+                    path = None
+            if not path or not os.path.isfile(path):
+                return self._reply(404, b"no icon")
+            try:
+                with open(path, "rb") as f:
+                    data = f.read(4 * 1024 * 1024 + 1)
+            except OSError:
+                return self._reply(404, b"no icon")
+            if len(data) > 4 * 1024 * 1024:
+                return self._reply(413, b"icon too large")
+            # content-sniffed type only — we serve icons, not files
+            head = data[:512]
+            if head.startswith(b"\x89PNG\r\n\x1a\n"):
+                ct = "image/png"
+            elif head.startswith(b"\xff\xd8\xff"):
+                ct = "image/jpeg"
+            elif head[:6] in (b"GIF87a", b"GIF89a"):
+                ct = "image/gif"
+            elif head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+                ct = "image/webp"
+            elif b"<svg" in head or b"XPM" in head[:64]:
+                ct = "image/svg+xml" if b"<svg" in head else "image/x-xpixmap"
+            else:
+                return self._reply(404, b"not an image")
+            return self._reply(200, data, ct)
         if p == "/engine":
             if not self._gate():
                 return
@@ -901,8 +1525,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._reply(404, b"nope")
         ct = "text/html; charset=utf-8" if name.endswith(".html") else \
              "application/javascript" if name.endswith(".js") else \
+             "text/css; charset=utf-8" if name.endswith(".css") else \
              "application/manifest+json" if name.endswith(".webmanifest") else \
-             "image/svg+xml" if name.endswith(".svg") else "application/octet-stream"
+             "image/svg+xml" if name.endswith(".svg") else \
+             "image/png" if name.endswith(".png") else \
+             "application/octet-stream"
         with open(path, "rb") as f:
             self._reply(200, f.read(), ct)
 
@@ -983,6 +1610,124 @@ class Handler(BaseHTTPRequestHandler):
                 data = {}
             code, obj = teach_end(data)
             return self._jreply(code, obj)
+        if p == "/live/listen":
+            try:
+                data = json.loads(raw or b"{}")
+            except Exception:
+                data = {}
+            with LIVE_LOCK:
+                on = bool(data.get("on", True))
+                LIVE["listening"] = on
+                if not on and OPS is not None:
+                    try:
+                        OPS.flush()      # resolve any held prefix now
+                    except Exception:
+                        pass
+                LIVE["last_match"] = {
+                    "gloss": PALM_SIGN if on else NAMASTE_SIGN,
+                    "dist": 0.0, "at_ms": now_ms(), "accepted": True,
+                    "mode": True,
+                    "label": "listening" if on else "stopped"}
+            return self._jreply(200, {"ok": True, "listening": on})
+        if p == "/live/event":
+            # composer-side gesture-meter events: palm_open -> start
+            # listening, namaste -> stop. Same semantics as the
+            # endpointer's mode events; idempotent.
+            try:
+                data = json.loads(raw or b"{}")
+            except Exception:
+                data = {}
+            typ = str(data.get("type", ""))
+            with LIVE_LOCK:
+                if typ in ("palm_open", "listen", "on", "start"):
+                    LIVE["listening"] = True
+                elif typ in ("namaste", "stop", "off", "palm_closed"):
+                    LIVE["listening"] = False
+                    if OPS is not None:
+                        try:
+                            OPS.flush()
+                        except Exception:
+                            pass
+                lst = LIVE["listening"]
+            return self._jreply(200, {"ok": True, "listening": lst})
+        if p == "/live/mode":
+            # {"mode":"live"|"observe"} — observe computes + reports
+            # everything the live path would do but never executes.
+            try:
+                data = json.loads(raw or b"{}")
+            except Exception:
+                data = {}
+            mode = str(data.get("mode", "")).lower()
+            if mode in ("observe", "rehearse", "rehearsal"):
+                observe = True
+            elif mode in ("live", "fire", "on", ""):
+                observe = bool(data.get("observe", False)) \
+                    if mode == "" else False
+            else:
+                return self._jreply(400, {"ok": False,
+                                          "error": "mode must be live or observe"})
+            with LIVE_LOCK:
+                LIVE["observe"] = observe
+            if OPS is not None:
+                try:
+                    OPS.set_observe(observe)
+                except Exception as e:
+                    print(f"[wfd] set_observe: {e!r}", flush=True)
+            print(f"[wfd] mode -> {'observe' if observe else 'live'}",
+                  flush=True)
+            return self._jreply(200, {"ok": True,
+                                      "mode": "observe" if observe else "live",
+                                      "observe": observe})
+        if p == "/teach/record/start":
+            # Teach-by-demonstration: capture real keystrokes/clicks via
+            # xinput test-xi2 --root; /teach/record/stop returns the macro.
+            if record_action is None:
+                return self._jreply(503, {"ok": False,
+                                          "error": "record_action unavailable"})
+            try:
+                data = json.loads(raw or b"{}")
+            except Exception:
+                data = {}
+            name = str(data.get("name") or "").strip() or \
+                "rec-%d" % int(time.time())
+            try:
+                name = record_action.sanitize_name(name)
+            except Exception:
+                return self._jreply(400, {"ok": False, "error": "bad name"})
+            try:
+                r = record_action.start(name)
+            except Exception as e:
+                return self._jreply(500, {"ok": False, "error": str(e)})
+            if not r.get("ok"):
+                reason = r.get("reason", "refused")
+                code = 409 if reason == "already-recording" else 503
+                return self._jreply(code, {"ok": False, "error": reason,
+                                           "display": r.get("display"),
+                                           "recording": False})
+            r["recording"] = True
+            r["name"] = name
+            return self._jreply(200, r)
+        if p == "/teach/record/stop":
+            if record_action is None:
+                return self._jreply(503, {"ok": False,
+                                          "error": "record_action unavailable"})
+            try:
+                r = record_action.stop(save=True)
+            except Exception as e:
+                return self._jreply(500, {"ok": False, "error": str(e)})
+            if not r.get("ok"):
+                return self._jreply(409, {"ok": False,
+                                          "error": r.get("reason", "refused")})
+            # steps are the bindable macro — the UI PUTs `action` onto
+            # a sign's bank row and the recording replays through the
+            # provider's macro engine (tier>=2 stays gated).
+            r["action"] = {"kind": "macro", "tier": 2,
+                           "label": r.get("name", "recorded"),
+                           "steps": r.get("steps", []),
+                           "duration_ms": r.get("duration_ms", 0),
+                           "context": r.get("context", {})}
+            r["recording"] = False
+            return self._jreply(200, r)
         if p == "/act/confirm":
             try:
                 data = json.loads(raw)
@@ -995,9 +1740,27 @@ class Handler(BaseHTTPRequestHandler):
                 return self._jreply(404, {"ok": False,
                                           "error": "no such confirm"})
             if data.get("cancel"):
+                if pend.get("provider") and ACT_PROVIDER is not None:
+                    try:
+                        ACT_PROVIDER.deny(str(data.get("id", "")))
+                    except Exception:
+                        pass
                 print(f"[wfd] confirm cancelled: {pend['gloss']}", flush=True)
                 return self._jreply(200, {"ok": True, "cancelled": True,
                                           "gloss": pend["gloss"]})
+            if pend.get("provider") and ACT_PROVIDER is not None:
+                try:
+                    res = ACT_PROVIDER.confirm(str(data.get("id", "")))
+                    d = res.to_dict() if hasattr(res, "to_dict") else \
+                        {"ok": res.ok, "detail": res.detail}
+                    ok = bool(res.ok)
+                    return self._jreply(
+                        200 if ok else 409,
+                        {"ok": ok, "fired": ok, "gloss": pend["gloss"],
+                         "detail": d.get("detail"), "result": d})
+                except Exception as e:
+                    return self._jreply(500, {"ok": False,
+                                              "error": str(e)})
             ok = _spawn(pend["argv"], pend["gloss"])
             return self._jreply(200 if ok else 500,
                                 {"ok": ok, "fired": ok,

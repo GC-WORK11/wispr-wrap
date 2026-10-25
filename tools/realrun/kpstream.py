@@ -40,7 +40,17 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
 import synth  # noqa: E402
 
 FRAME_MS = 1000.0 / 15.0    # synthetic stream time runs at 15 Hz
-BASE_MS = [0.0]
+# t_ms seeds from WALL CLOCK: each kpstream process must keep the daemon's
+# endpointer clock monotonic (a restart at 0 gives dt<=0 -> zero motion
+# energy -> the clip is invisible). Within a clip we still advance 66.7ms
+# per frame — the 15 Hz phone cadence.
+BASE_MS = [time.monotonic() * 1000.0]
+
+# Jitter budget: the endpointer's exit_v is 0.7 palm-widths/s. Our palm
+# is ~0.034 normalized units, so jitter of 0.003 = ~1.3 pw/s of pure
+# noise -> a "still" tail reads as motion and the segment NEVER closes.
+# 0.0004 keeps realism (no frozen landmarks) while staying under exit_v.
+JITTER = 0.0004
 
 # The gate's sign grammar — every bound gloss gets its OWN motion-distinct
 # path so the DTW bank never confuses two bound glosses (it is direction
@@ -121,7 +131,7 @@ def palm_hold(n=12):
     endpointer fires on whichever hand qualifies)."""
     path = [(0.50, 0.55)]
     return synth.render_clip(path, n_motion=n, lead=0, tail=0, absent=0,
-                             jitter=0.001)
+                             jitter=JITTER)
 
 
 def namaste_hold(n=12):
@@ -165,7 +175,8 @@ def main():
             else:
                 path = synth.unknown_path(7)
             ok &= emit(synth.render_clip(path, n_motion=18, lead=4,
-                                         tail=8, absent=3),
+                                         tail=10, absent=10,
+                                         jitter=JITTER),
                        a.base, a.key, a.fps, a.quiet)
         else:
             print(f"unknown clip {c!r}", file=sys.stderr)

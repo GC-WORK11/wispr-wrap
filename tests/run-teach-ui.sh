@@ -1,12 +1,14 @@
 #!/bin/sh
-# run-teach-ui.sh — headless UI test for web/teach.{html,js,css}.
+# run-teach-ui.sh — headless UI test for the merged app shell
+# (web/index.html + js/* modules).
 #
 #   1. serves tests/stub_wfd.py + web/ on :8743
-#   2. drives a REAL headless Chrome through /selftest — it teaches a fake
-#      sign (name → countdown → 3 injected kp42 takes → preview → open_app →
-#      PUT /bank), then exercises +take and delete against the stub bank
-#   3. checks the old-daemon path: stub --old 404s /bank → the page must
-#      show the honest "older wrap" banner, not fake success
+#   2. drives a REAL headless Chrome through /selftest — the #/teach wizard
+#      inside the merged shell teaches a fake sign (name → 3 daemon-captured
+#      kp42 takes via the WFFakeTrack seam → @ picker → PUT /bank), then
+#      exercises +take, rename and delete against the stub bank
+#   3. checks the old-daemon path: stub --old 404s /bank → the signs sheet
+#      must show the honest "older wrap" banner, not fake success
 #
 # Needs: python3, google-chrome (headless). No node, no deps.
 # Usage: tests/run-teach-ui.sh [port]   exit 0 = all green
@@ -67,24 +69,26 @@ i=0; while [ $i -lt 60 ]; do
 done
 timeout 45 "$CHROME_BIN" --headless=new --disable-gpu --no-sandbox \
   --user-data-dir=/tmp/wf-chrome-teach-old --virtual-time-budget=12000 \
-  --dump-dom "http://127.0.0.1:$((PORT + 1))/teach.html?k=teach-stub-key" \
+  --dump-dom "http://127.0.0.1:$((PORT + 1))/index.html?k=teach-stub-key#/signs" \
   >/tmp/wf-dom-old.html 2>/dev/null
 if grep -q "older wrap" /tmp/wf-dom-old.html; then
   echo "  older-daemon banner shown (honest 404 path)"
 else
   echo "FAIL: /bank 404 did not surface the 'older wrap' banner"; exit 1
 fi
-if grep -q 'id="banner" hidden' /tmp/wf-dom-old.html; then
+if grep -q 'id="lib-banner" hidden' /tmp/wf-dom-old.html; then
   echo "FAIL: banner still hidden on old daemon"; exit 1
 fi
 
 echo "== clean-load check =="
 timeout 45 "$CHROME_BIN" --headless=new --disable-gpu --no-sandbox \
   --user-data-dir=/tmp/wf-chrome-teach-load --virtual-time-budget=10000 \
-  --dump-dom "http://127.0.0.1:$PORT/teach.html?k=teach-stub-key" \
+  --dump-dom "http://127.0.0.1:$PORT/index.html?k=teach-stub-key" \
   >/tmp/wf-dom-load.html 2>/dev/null
-grep -q 'id="signs"' /tmp/wf-dom-load.html || { echo "FAIL: library root missing"; exit 1; }
+grep -q 'id="box"' /tmp/wf-dom-load.html || { echo "FAIL: composer textarea missing"; exit 1; }
+grep -q 'id="tw-name"' /tmp/wf-dom-load.html || { echo "FAIL: teach sheet not mounted"; exit 1; }
+grep -q 'id="lv-cam"' /tmp/wf-dom-load.html || { echo "FAIL: live sheet not mounted"; exit 1; }
 grep -q 'teach a sign' /tmp/wf-dom-load.html || { echo "FAIL: teach CTA missing"; exit 1; }
-grep -q 'class="arow' /tmp/wf-dom-load.html && echo "note: picker pre-rendered" || true
+grep -q 'id="lib-list"' /tmp/wf-dom-load.html || { echo "FAIL: signs sheet not mounted"; exit 1; }
 
 echo "ALL GREEN — teach page: selftest + old-daemon banner + clean load"

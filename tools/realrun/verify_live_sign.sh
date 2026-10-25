@@ -17,13 +17,15 @@ rm -f "$MARKER"
 snapshot > "$PROOF/before.txt"
 
 # --- teach through the real endpoints -------------------------------------
-code=$(call POST /teach/begin "{\"name\":\"$G\",\"takes\":1,\"label\":\"realrun swipe\"}")
-echo "teach/begin -> $code $(cat "$CALL_BODY")"
+call POST /teach/begin "{\"name\":\"$G\",\"takes\":1,\"label\":\"realrun swipe\"}" >/dev/null
+code=$CALL_CODE
+echo "teach/begin -> $code $(call_body)"
 [ "$code" = 200 ] || verdict PENDING "/teach/begin -> $code (not wired)"
 python3 "$HERE/kpstream.py" --base "$BASE" --key "$KEY" --fps 40 teach:$G
 sleep 0.3
-code=$(call POST /teach/end '{}')
-echo "teach/end -> $code $(cat "$CALL_BODY")"
+call POST /teach/end '{}' >/dev/null
+code=$CALL_CODE
+echo "teach/end -> $code $(call_body)"
 call GET /bank > /dev/null; call_body | python3 -c '
 import json,sys
 rows=json.load(sys.stdin).get("signs",[])
@@ -33,8 +35,9 @@ for r in rows:
 ' | tee "$PROOF/taught.txt"
 
 # --- bind through the real API (writes commands.tsv, no shell) -------------
-code=$(call PUT /bank "{\"gloss\":\"$G\",\"label\":\"realrun swipe\",\"argv\":\"/usr/bin/touch $MARKER\",\"tier\":0}")
-echo "PUT /bank -> $code $(cat "$CALL_BODY")" | tee "$PROOF/bind.txt"
+call PUT /bank "{\"gloss\":\"$G\",\"label\":\"realrun swipe\",\"argv\":\"/usr/bin/touch $MARKER\",\"tier\":0}" >/dev/null
+code=$CALL_CODE
+echo "PUT /bank -> $code $(call_body)" | tee "$PROOF/bind.txt"
 [ "$code" = 200 ] || verdict FAILED "bind failed"
 
 # --- gate check: same sign WITHOUT listening must not commit ---------------

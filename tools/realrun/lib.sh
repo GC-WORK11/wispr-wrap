@@ -36,8 +36,11 @@ load_env() {
 
 # --- HTTP --------------------------------------------------------------
 # call METHOD PATH [body-or-@file] [extra curl args...]
-#   -> prints "<http_code>" ; body lands in $CALL_BODY (temp file)
-CALL_BODY=""
+#   -> prints "<http_code>" AND sets $CALL_CODE; body lands in $CALL_BODY.
+#   NB: `code=$(call ...)` runs call in a SUBSHELL — CALL_BODY/CALL_CODE
+#   are lost to the parent. When you need the body, run call plainly:
+#       call POST /x '{"a":1}' >/dev/null; code=$CALL_CODE; call_body
+CALL_BODY=""; CALL_CODE=""
 call() {
     local m="$1" p="$2" body="${3:-}"
     if [ $# -ge 3 ]; then shift 3; else shift $#; fi
@@ -55,6 +58,7 @@ call() {
         code=$(curl -sS -o "$CALL_BODY" -w '%{http_code}' -X "$m" \
                  -H "X-WF-Key: $KEY" "$@" "$BASE$p")
     fi
+    CALL_CODE="$code"
     printf '%s' "$code"
 }
 # unauthenticated call (auth-gate probes)
@@ -68,6 +72,7 @@ call_noauth() {
     else
         code=$(curl -sS -o "$CALL_BODY" -w '%{http_code}' -X "$m" "$BASE$p")
     fi
+    CALL_CODE="$code"
     printf '%s' "$code"
 }
 call_body() { cat "$CALL_BODY"; }

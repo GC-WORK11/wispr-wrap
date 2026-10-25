@@ -163,6 +163,15 @@ function onStatus(s) {
 async function startCapture() {
   recErr.textContent = '';
   camErr.hidden = true;
+  W.link.reset();
+  /* test seam: tests/selftest.html injects window.WFFakeTrack — a fake kp42
+     source so headless Chrome drives the real wizard. Never defined in
+     production; camera/model paths run untouched there. */
+  if (window.WFFakeTrack && typeof window.WFFakeTrack.start === 'function') {
+    recEl.classList.add('on');
+    W.link.start(vid, null, { onFrame, onResp, onStatus });
+    return;
+  }
   /* dev seam: a loopback kp42 replay service (tools/demo-rec) stands in for
      camera+model on displays without one — same detectFrame shape. */
   try {
@@ -170,7 +179,7 @@ async function startCapture() {
     if (rep) {
       W.engine = rep; W.front = false;
       recLead.textContent += ' (dev: replayed keypoints)';
-      W.link.reset();
+      recEl.classList.add('on');
       W.link.start(vid, W.engine, { onFrame, onResp, onStatus });
       return;
     }
@@ -191,12 +200,13 @@ async function startCapture() {
     recErr.textContent = 'pose model failed: ' + (Pose.error || e.message);
     return;
   }
-  W.link.reset();
+  recEl.classList.add('on');
   W.link.start(vid, W.engine, { onFrame, onResp, onStatus });
 }
 
 function stopCapture() {
   W.link.stop();
+  recEl.classList.remove('on');
   if (W.stream) { for (const t of W.stream.getTracks()) t.stop(); W.stream = null; }
   vid.srcObject = null;
 }

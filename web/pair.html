@@ -61,8 +61,10 @@ const bad=m=>{ err.textContent=m; };
 
 function finish(url,key){
   err.textContent='paired';
-  try{ window.WF && window.WF.pairOk(url,key); }
-  catch(e){ location.href=url+'?k='+encodeURIComponent(key); }
+  var bridged=false;
+  try{ bridged=!!(window.WF&&window.WF.pairOk&&window.WF.pairOk(url,key)); }
+  catch(e){ bridged=false; }
+  if(!bridged) location.href=url+'?k='+encodeURIComponent(key);
 }
 
 document.getElementById('go').onclick=async()=>{

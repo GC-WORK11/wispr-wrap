@@ -85,7 +85,8 @@ to emit, ("fire", ev, action, ctx) to route-then-emit — and _dispatch
 invokes the injected callables afterwards, so callbacks may re-enter
 ops freely.  action_router(action_dict, ctx_dict) and event_sink(dict)
 are the only effect channels; this module never spawns processes and
-never imports subprocess.  It is the pure-logic layer wfd wires.
+has no process-spawning imports at all.  It is the pure-logic layer
+wfd wires.
 
 HONEST LIMITS:
   * window_ms is a constant (~1.2 s default, file-overridable): a sign
@@ -173,8 +174,11 @@ class SignFlowOps:
         self.profile = "default"
         self.observe = False
         self._pending = []                    # held prefix items
-        self._comp = {}                       # (G1,G2,...) -> action
-        self._prefixes = set()                # proper prefixes of comp keys
+        # composition tables are PER-PROFILE namespaces: a sequence
+        # defined under "default" does not hold signs under "cooking".
+        # save() flattens every table into the file's declared profile,
+        # so a round-trip keeps composing where it was saved.
+        self._comp_by_profile = {"default": {}}
         self._profile_signs = {}              # programmatic gloss -> profile
         self._file_profile_signs = {}         # file-loaded gloss -> profile
         self._comp_mtime = _MISSING           # forces first stat to "load"
@@ -270,6 +274,16 @@ class SignFlowOps:
     def _seq(self):
         return tuple(i["gkey"] for i in self._pending)
 
+    def _tbl(self):
+        """The active profile's composition table (created on demand)."""
+        return self._comp_by_profile.setdefault(self.profile, {})
+
+    @property
+    def _prefixes(self):
+        """Proper prefixes of the active profile's compositions —
+        computed live so programmatic + file edits take effect at once."""
+        return {k[:i] for k in self._tbl() for i in range(1, len(k))}
+
     def _accept_locked(self, it):
         self._stats["accepted"] += 1
         ev = {"type": "match", "gloss": it["gloss"], "label": it["label"],
@@ -307,7 +321,7 @@ class SignFlowOps:
         if seq in self._prefixes:
             out.append(("event", self._partial_ev()))
             return out
-        if seq in self._comp:
+        if seq in self._tbl():
             # exact entry, not a prefix of anything longer: commit NOW
             return out + self._resolve_pending_locked()
         # dead end: the held prefix can't extend into any composition —
@@ -366,8 +380,8 @@ class SignFlowOps:
         if self.window_ms > 0 and key in self._prefixes:
             self._pending.append(it)
             return [("event", self._partial_ev())]
-        if key in self._comp:
-            return self._fire_locked("sequence", [it], self._comp[key])
+        if key in self._tbl():
+            return self._fire_locked("sequence", [it], self._tbl()[key])
         act = self._bound(it["gkey"])
         if act is None:
             act = it["action"]
@@ -381,13 +395,13 @@ class SignFlowOps:
             seq = self._seq()
             k = 0
             for n in range(len(seq), 0, -1):
-                if seq[:n] in self._comp:
+                if seq[:n] in self._tbl():
                     k = n
                     break
             if k:
                 items, self._pending = self._pending[:k], self._pending[k:]
                 out += self._fire_locked("sequence", items,
-                                         self._comp[seq[:k]])
+                                         self._tbl()[seq[:k]])
             else:
                 it = self._pending.pop(0)
                 act = self._bound(it["gkey"])
@@ -398,11 +412,11 @@ class SignFlowOps:
 
     def _partial_ev(self):
         seq = self._seq()
-        nxt = sorted({k[len(seq)] for k in self._comp
+        nxt = sorted({k[len(seq)] for k in self._tbl()
                       if len(k) > len(seq) and k[:len(seq)] == seq})
         return {"type": "partial",
                 "seq": [i["gloss"] for i in self._pending],
-                "next": nxt, "exact": seq in self._comp,
+                "next": nxt, "exact": seq in self._tbl(),
                 "due_ms": self._pending[-1]["t"] + self.window_ms,
                 "t_ms": self._pending[-1]["t"], "profile": self.profile}
 
@@ -498,16 +512,20 @@ class SignFlowOps:
     def _maybe_reload_locked(self):
         if not self.compositions_path:
             return []
+        # (mtime_ns, size) — a bare mtime check misses edits made within
+        # one filesystem clock tick (os.utime in tests, fast rewrites in
+        # the UI).  Same-size same-tick rewrites remain a documented gap
+        # — reload_compositions() force-reloads regardless.
         try:
-            mt = os.stat(self.compositions_path).st_mtime_ns
+            st = os.stat(self.compositions_path)
+            mt = (st.st_mtime_ns, st.st_size)
         except OSError:
             mt = None
         if mt == self._comp_mtime:
             return []
         self._comp_mtime = mt
         if mt is None:
-            self._comp = {}
-            self._prefixes = set()
+            self._comp_by_profile = {}
             self._file_profile_signs = {}
             return []
         try:
@@ -523,9 +541,13 @@ class SignFlowOps:
             self._file_profile_signs = {
                 norm_gloss(k): str(v)
                 for k, v in (data.get("profile_signs") or {}).items()}
-            self._comp = comp
-            self._prefixes = {k[:i] for k in comp
-                              for i in range(1, len(k))}
+            # a flat "sequences" table belongs to the profile the file
+            # declares (absent -> "default"); tables set programmatically
+            # under other profiles are untouched.
+            fprof = data.get("profile")
+            if not isinstance(fprof, str) or not fprof.strip():
+                fprof = "default"
+            self._comp_by_profile[fprof.strip()] = comp
             out = [("event", {"type": "compositions", "ok": True,
                               "n": len(comp), "t_ms": self._clock()})]
             prof = data.get("profile")
