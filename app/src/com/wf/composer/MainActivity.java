@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.InputType;
@@ -25,6 +26,7 @@ public class MainActivity extends Activity {
     private static final String USB_URL = "http://localhost:8741/";
     private static final String PAIR_PAGE = "file:///android_asset/pair.html";
     private static final int FILE_REQ = 42;
+    private static final int PERM_REQ = 43;
     private WebView web;
     private SharedPreferences prefs;
     private ValueCallback<Uri[]> fileCallback;
@@ -84,6 +86,16 @@ public class MainActivity extends Activity {
             }
         });
         setContentView(web);
+
+        // CAMERA/RECORD_AUDIO are runtime perms — the WebView's RESOURCE_*
+        // grant in onPermissionRequest only yields a stream if the app holds them
+        if (checkSelfPermission(android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED
+                || checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{
+                    android.Manifest.permission.CAMERA,
+                    android.Manifest.permission.RECORD_AUDIO}, PERM_REQ);
+        }
+
         loadStart();
     }
 

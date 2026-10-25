@@ -3,49 +3,58 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#0a0a0a">
+<meta name="theme-color" content="#f6f8fb">
 <title>wispr wrap — pair</title>
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { height:100%; }
   body {
-    font-family:ui-monospace,'SF Mono','Cascadia Mono',Menlo,monospace;
-    background:#0a0a0a; color:#e8e8e8;
+    font-family:Inter,ui-sans-serif,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    background:#f6f8fb; color:#0f172a;
     display:flex; align-items:center; justify-content:center;
     min-height:100dvh; padding:28px;
   }
-  .card { width:100%; max-width:340px; display:flex; flex-direction:column; gap:26px; }
+  .card {
+    width:100%; max-width:340px; display:flex; flex-direction:column; gap:22px;
+    background:#fff; border:1px solid #e7ecf3; border-radius:22px;
+    padding:34px 26px 28px;
+    box-shadow:0 1px 2px rgba(35,45,80,.05), 0 10px 28px rgba(35,45,80,.10);
+  }
   h1 {
-    font-size:15px; font-weight:500; letter-spacing:.34em; text-transform:uppercase;
-    color:#fafafa; text-align:center;
+    font-size:17px; font-weight:700; letter-spacing:-.01em;
+    color:#0f172a; text-align:center;
   }
-  h1::before { content:''; display:block; width:34px; height:1px; background:#fafafa;
-    margin:0 auto 22px; }
-  .sub { font-size:11px; color:#666; text-align:center; margin-top:-14px; letter-spacing:.08em; }
+  h1 span { color:#94a3b8; font-weight:500; }
+  .sub { font-size:12px; color:#94a3b8; text-align:center; margin-top:-14px; letter-spacing:.02em; }
   input {
-    width:100%; background:transparent; color:#e8e8e8; font:inherit; font-size:14px;
-    border:none; border-bottom:1px solid #2e2e2e; padding:14px 2px; outline:none;
-    letter-spacing:.04em; border-radius:0; transition:border-color .2s;
+    width:100%; background:#fff; color:#0f172a; font:inherit; font-size:14.5px;
+    border:1px solid #e7ecf3; border-radius:12px; padding:12px 13px; outline:none;
+    letter-spacing:.02em; transition:border-color .15s, box-shadow .15s;
   }
-  input:focus { border-color:#fafafa; }
-  input::placeholder { color:#3d3d3d; }
-  input.code { letter-spacing:.42em; font-size:16px; }
+  input:focus { border-color:#4a7dff; box-shadow:0 0 0 3px rgba(74,125,255,.14); }
+  input::placeholder { color:#94a3b8; }
+  input.code { letter-spacing:.4em; font-size:16px; text-align:center; font-weight:600; }
   button {
-    margin-top:8px; padding:15px; cursor:pointer; font:inherit; font-size:12px;
-    letter-spacing:.28em; text-transform:uppercase;
-    background:#fafafa; color:#0a0a0a; border:1px solid #fafafa; border-radius:0;
-    transition:opacity .15s;
+    margin-top:2px; padding:13px; cursor:pointer; font:inherit; font-size:14px; font-weight:600;
+    letter-spacing:.01em;
+    background:#4a7dff; color:#fff; border:none; border-radius:12px;
+    box-shadow:0 4px 14px rgba(74,125,255,.3);
+    transition:transform .12s, opacity .15s;
   }
-  button:active { opacity:.75; }
-  .err { min-height:15px; font-size:11px; color:#999; text-align:center; letter-spacing:.06em; }
-  .hint { font-size:10px; color:#4a4a4a; text-align:center; line-height:1.9; letter-spacing:.04em; }
-  .hint code { color:#8a8a8a; }
+  button:active { transform:scale(.97); opacity:.9; }
+  .err { min-height:15px; font-size:12px; color:#cd4b47; text-align:center; letter-spacing:.01em; }
+  .hint { font-size:11.5px; color:#94a3b8; text-align:center; line-height:1.8; letter-spacing:.01em; }
+  .hint code { color:#64748b; font-family:ui-monospace,'SF Mono',Menlo,monospace; font-size:11px;
+    background:#f0f4fe; padding:1px 5px; border-radius:5px; }
 </style>
 </head>
 <body>
   <div class="card">
-    <h1>wispr wrap</h1>
-    <div class="sub">pair with laptop</div>
+    <h1>wispr<span>wrap</span></h1>
+    <div class="sub">pair with your laptop</div>
     <input id="addr" placeholder="laptop address — 10.0.0.2:8741" inputmode="url" autocapitalize="none" autocorrect="off" autocomplete="off">
     <input id="code" class="code" placeholder="CODE" maxlength="8" autocapitalize="characters" autocorrect="off" autocomplete="off">
     <button id="go">connect</button>

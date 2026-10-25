@@ -98,6 +98,9 @@ const nameIn = $('tw-name'), glossPre = $('tw-gloss'), nameErr = $('tw-name-err'
       bindErr = $('tw-bind-err'), saveBtn = $('tw-save'),
       doneT = $('tw-done-t'), doneM = $('tw-done-m');
 
+/* the REC chip mirrors the daemon's capture session, nothing else */
+const setTeaching = v => { W.teaching = v; recEl.classList.toggle('on', v); };
+
 const slug = s => s.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32);
 const RESERVED = new Set(['PALM-OPEN', 'NAMASTE']);
 const NEED = 3;
@@ -144,7 +147,7 @@ function onResp(j) {
       App.buzz(); renderTakebar();
       if (W.got >= W.need) {
         App.api.post('/teach/end', { name: W.gloss, takes: W.got }).catch(() => {});
-        W.teaching = false;
+        setTeaching(false);
         if (W.mode === 'add') { finishAdd(); return; }
         buildBind(); showStep('bind');
       } else {
@@ -152,6 +155,8 @@ function onResp(j) {
       }
     } else if (t.ok === false) {
       recErr.textContent = 'the daemon dropped that take (too short or no hands) — sign a beat slower.';
+      const slot = takebar.children[W.got];
+      if (slot) { slot.classList.add('miss'); setTimeout(() => slot.classList.remove('miss'), 2000); }
     }
   }
 }
@@ -230,7 +235,7 @@ nameNext.onclick = async () => {
     return;
   }
   if (!r.ok) { nameErr.textContent = (r.json && r.json.error) || 'teach session refused'; return; }
-  W.teaching = true;
+  setTeaching(true);
   recLead.textContent = 'perform ' + W.gloss + ' — sign once, drop your hands. three takes; each lands as an exemplar on the laptop.';
   recDone.hidden = false; recBack.textContent = 'back';
   renderTakebar();
@@ -251,11 +256,11 @@ function renderTakebar() {
   recDone.textContent = W.got >= NEED ? 'bind it ›' : 'bind anyway (' + W.got + '/' + NEED + ') ›';
 }
 recBack.onclick = async () => {
-  if (W.teaching) { await App.api.post('/teach/end', { name: W.gloss }).catch(() => {}); W.teaching = false; }
+  if (W.teaching) { await App.api.post('/teach/end', { name: W.gloss }).catch(() => {}); setTeaching(false); }
   if (W.mode === 'add') App.back(); else showStep('name');
 };
 recDone.onclick = async () => {
-  if (W.teaching) { await App.api.post('/teach/end', { name: W.gloss, takes: W.got }).catch(() => {}); W.teaching = false; }
+  if (W.teaching) { await App.api.post('/teach/end', { name: W.gloss, takes: W.got }).catch(() => {}); setTeaching(false); }
   if (W.mode === 'add') { finishAdd(); return; }
   buildBind(); showStep('bind');
 };
@@ -297,7 +302,7 @@ $('tw-bind-back').onclick = () => {
   showStep('record');
   if (!W.teaching && W.gloss) {
     App.api.post('/teach/begin', { name: W.gloss, takes: 5, label: W.label })
-      .then(r => { W.teaching = !!(r && r.ok); W.need = 5; })
+      .then(r => { setTeaching(!!(r && r.ok)); W.need = 5; })
       .catch(() => {});
   }
 };
@@ -353,7 +358,7 @@ async function open() {
 }
 async function close() {
   stopCapture();
-  if (W.teaching) { App.api.post('/teach/end', { name: W.gloss }).catch(() => {}); W.teaching = false; }
+  if (W.teaching) { App.api.post('/teach/end', { name: W.gloss }).catch(() => {}); setTeaching(false); }
 }
 
 /* library's "+ take" lands here */
@@ -369,7 +374,7 @@ const Teach = {
       App.nav('signs');
       return;
     }
-    W.teaching = true;
+    setTeaching(true);
     recLead.textContent = 'same sign, one more take — it joins the stored exemplars.';
     recDone.hidden = true; recBack.textContent = 'cancel';
     showStep('record');

@@ -478,7 +478,11 @@ class SignBank:
                                 for p in raw) / npts)
             hand_px = (sum(scales[dom]) / len(scales[dom])) \
                 if scales[dom] else 0.0
-            if rms < max(2.0, self.still_frac * hand_px):
+            # the collapse bound is purely hand-relative — an absolute
+            # pixel floor (2.0) silently killed the traj channel for
+            # normalized [0,1] input, where every rms < 2.0. hand_px==0
+            # (no scale evidence) never collapses.
+            if rms < self.still_frac * hand_px:
                 raw = [(mx, my)] * npts
         traj = _normalize(_resample(raw, RESAMPLE_N))
         # Per-hand clip shape = upper median of observed dims; a hand
