@@ -277,10 +277,13 @@ def wait_js(ws, expr, timeout=12, what=""):
 
 
 def type_into(ws, sel, text, delay=45):
-    """Focus an input then type real keystrokes into the page (focus is
-    already on the browser window — it's the pairing form)."""
-    js(ws, "document.querySelector(%s).focus()" % json.dumps(sel))
-    time.sleep(0.2)
+    """Clear + focus an input then type real keystrokes into the page
+    (focus is already on the browser window — it's the pairing form)."""
+    js(ws, """(() => { const el = document.querySelector(%s);
+        if (!el) return false;
+        el.value = ''; el.dispatchEvent(new Event('input',{bubbles:true}));
+        el.focus(); return true; })()""" % json.dumps(sel))
+    time.sleep(0.25)
     xdo("type", "--delay", str(delay), text)
     time.sleep(0.2)
 
