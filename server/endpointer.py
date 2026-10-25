@@ -26,8 +26,14 @@ feed(frame) -> list of events:
 
 Motion model: per-hand wrist velocity + palm-centroid velocity + hand
 spread (openness) rate, EMA-smoothed, with enter/exit hysteresis.
-Coordinates are normalized image space (0..1), so velocities are in
-screen-fractions/second and all thresholds are unitless rates.
+
+Units: velocities are measured in PALM-WIDTHS per second (each hand's
+own wrist->middle-MCP length is the ruler). That makes every threshold
+invariant to camera distance AND to whether the wire carries pixel or
+normalized-0..1 coordinates — signbank wants px upstream of it, but
+this segmenter doesn't care. Openness/spread is likewise a unitless
+ratio (mean fingertip reach / palm width). A hand whose palm size is
+unmeasurable falls back to raw-units speed so nothing silently dies.
 """
 import math
 from collections import deque
@@ -88,7 +94,7 @@ class _Hand:
 class Endpointer:
     """feed() one frame at a time; collect segment + mode events.
 
-    Knobs (defaults tuned for 15-30fps normalized kp42):
+    Knobs (defaults tuned for 15-30fps kp42, speeds in palm-widths/s):
       enter_v/exit_v   EMA energy hysteresis — start above, end below
       quiet_s          quiet end-of-sign window (seconds of stillness)
       min_seg_s        shortest real sign — shorter motion is dropped
@@ -105,10 +111,10 @@ class Endpointer:
       palm_sign / namaste_sign   emitted mode-event names (None disables)
     """
 
-    def __init__(self, enter_v=0.18, exit_v=0.09, ema=0.45,
+    def __init__(self, enter_v=1.5, exit_v=0.7, ema=0.45,
                  quiet_s=0.35, min_seg_s=0.20, max_seg_s=3.0,
                  pre_roll=4, min_frames=4,
-                 hold_s=0.45, hold_v=0.15,
+                 hold_s=0.45, hold_v=0.6,
                  open_ratio=1.75, rearm_ratio=1.40,
                  namaste_gap=1.4, namaste_open=1.35,
                  palm_sign="PALM-OPEN", namaste_sign="NAMASTE"):
@@ -173,8 +179,10 @@ class Endpointer:
         for i, h in enumerate(hands):
             p = self._prev[i]
             if h.present and p is not None and p.present and dt > 0:
-                vw = _d(h.wx, h.wy, p.wx, p.wy) / dt       # wrist speed
-                vc = _d(h.cx, h.cy, p.cx, p.cy) / dt       # palm speed
+                # speeds in palm-widths/s — unit-free across px/normalized
+                ruler = max(h.palm, p.palm, 1e-6)
+                vw = _d(h.wx, h.wy, p.wx, p.wy) / (dt * ruler)
+                vc = _d(h.cx, h.cy, p.cx, p.cy) / (dt * ruler)
                 vs = abs(h.openness - p.openness) / dt     # spread rate
                 h.speed = vw
                 energy += vw + 0.4 * vc + 0.5 * vs

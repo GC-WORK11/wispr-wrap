@@ -190,8 +190,12 @@ def exec_split(exec_str, app_name="", icon="", desktop_path=""):
                 if code == "%":
                     out.append("%")
                 elif code == "i":
+                    # %i expands to TWO argv words: --icon <icon>
                     if icon:
-                        out.extend(["--icon", icon])
+                        if "".join(out).strip():
+                            argv.append("".join(out).strip())
+                        out = []
+                        argv.extend(["--icon", icon])
                 elif code == "c":
                     out.append(app_name or "")
                 elif code == "k":
@@ -368,7 +372,6 @@ class IconResolver:
             for base in (os.environ.get("XDG_DATA_DIRS") or
                          "/usr/local/share:/usr/share").split(":"):
                 roots.append(os.path.join(base, "icons"))
-            roots.append("/usr/share/pixmaps/../icons")  # no-op if missing
             icon_roots = [r for r in roots if os.path.isdir(r)]
         if pixmap_dirs is None:
             pixmap_dirs = [d for d in ("/usr/share/pixmaps",
@@ -462,7 +465,8 @@ class IconResolver:
 class _XConn:
     """One shared python-xlib connection (locked — the daemon threads)."""
 
-    def __init__(self):
+    def __init__(self, display_name=None):
+        self._name = display_name or None
         self._disp = None
         self._tried = False
         self.lock = threading.RLock()
@@ -472,7 +476,7 @@ class _XConn:
             if self._disp is None and not self._tried and HAVE_XLIB:
                 self._tried = True
                 try:
-                    self._disp = _xdisplay.Display()
+                    self._disp = _xdisplay.Display(self._name)
                 except Exception:
                     self._disp = None
             return self._disp
@@ -504,8 +508,8 @@ class _XConn:
             if p is None or p.value is None:
                 return None
             if p.format == 8:
-                raw = bytes(p.value)
-                return raw.split(b"\0")[0].decode("utf-8", "replace")
+                # keep interior NULs — WM_CLASS is "instance\0class\0"
+                return bytes(p.value).decode("utf-8", "replace")
             return list(p.value)
         except Exception:
             return None
@@ -586,7 +590,7 @@ class LinuxX11Provider(ActionProvider):
         self.icons = IconResolver(icon_roots)
         self.display = display if display is not None else \
             os.environ.get("DISPLAY", "")
-        self._x = _XConn()
+        self._x = _XConn(self.display)
         self.register("open_app", self._h_open_app)
         self.register("focus_app", self._h_focus_app)
         self.register("close_window", self._h_close_window)

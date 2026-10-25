@@ -191,15 +191,18 @@ class Decision:
     channel mismatch); gloss set + accepted=False is a threshold REJECT.
     The two are different failures and stay distinguishable."""
 
-    __slots__ = ("gloss", "dist", "second", "accepted", "score", "refused")
+    __slots__ = ("gloss", "dist", "second", "accepted", "score", "refused",
+                 "extra")
 
-    def __init__(self, gloss, dist, second, accepted, score, refused=None):
+    def __init__(self, gloss, dist, second, accepted, score, refused=None,
+                 extra=None):
         self.gloss = gloss
         self.dist = dist
         self.second = second
         self.accepted = accepted
         self.score = score
         self.refused = refused
+        self.extra = extra or {}
 
     def __repr__(self):
         return (f"Decision(gloss={self.gloss!r} d={self.dist:.4f} "
@@ -349,6 +352,82 @@ class RefBank:
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         with os.fdopen(fd, "w") as f:
             json.dump(self.to_json_dict(), f)
+
+
+# ---------------------------------------------------------------------------
+# kp42 frame -> dominant-hand centroid path.
+#
+# Mirrors W1 server/signbank.py's frame ingestion (_frame_hands/_hand_obs):
+# score-weighted centroid of confident keys (>= min_score, need min_keys),
+# dominant hand = the one observed in MORE frames (tie -> right block).
+# The reference shares this rule so "identical inputs" in the parity test
+# means identical frames, honestly derived on both sides. The still-collapse
+# gate is an impl-side documented extension (still_frac) that we adopt ONLY
+# as an optional input-prep parity step — flagged, never hidden.
+# ---------------------------------------------------------------------------
+
+def _kp_pt(p):
+    if isinstance(p, dict):
+        s = p.get("score", 1.0)
+        return (float(p.get("x", 0.0)), float(p.get("y", 0.0)),
+                1.0 if s is None else float(s))
+    return (float(p[0]), float(p[1]), float(p[2]) if len(p) > 2 else 1.0)
+
+
+def hand_obs(pts, min_score=0.5, min_keys=8):
+    """(centroid, bbox_scale) for one 21-pt hand block, or (None, 0)."""
+    conf = [p for p in pts if p[2] >= min_score]
+    if len(conf) < min_keys:
+        return None, 0.0
+    sw = sum(p[2] for p in conf)
+    if sw <= 0.0:
+        return None, 0.0
+    cx = sum(p[0] * p[2] for p in conf) / sw
+    cy = sum(p[1] * p[2] for p in conf) / sw
+    xs = [p[0] for p in conf]
+    ys = [p[1] for p in conf]
+    bs = max(max(xs) - min(xs), max(ys) - min(ys), 1e-6)
+    return (cx, cy), bs
+
+
+def dominant_centroid_path(frames, min_score=0.5, min_keys=8,
+                           still_frac=None):
+    """kp42 frames -> raw centroid trajectory [(x,y), ...] of the dominant
+    hand + the hand's mean bbox size (for the optional still gate).
+    Returns (path, hand_px). points[0:21]=left, [21:42]=right (W1 wire);
+    21-pt frames read as one hand via frame["hand"] (default right)."""
+    cents = [[], []]
+    scales = [[], []]
+    for fr in frames or []:
+        pts = [_kp_pt(p) for p in (fr.get("points") or [])]
+        if len(pts) == 21:
+            idx = 1 if str(fr.get("hand", "right")).lower() == "right" else 0
+            hands = [None, None]
+            hands[idx] = pts
+        else:
+            hands = [pts[0:21], pts[21:42]]
+        for h in range(2):
+            c, bs = hand_obs(hands[h], min_score, min_keys) if hands[h] \
+                else (None, 0.0)
+            if c is not None:
+                cents[h].append(c)
+                scales[h].append(bs)
+    dom = 1 if len(cents[1]) >= len(cents[0]) else 0
+    raw = list(cents[dom])
+    hand_px = (sum(scales[dom]) / len(scales[dom])) if scales[dom] else 0.0
+    if still_frac is not None and len(raw) >= 2:
+        # ADOPTED impl-side gate (documented deviation in signbank.prep):
+        # a path whose RMS radius is a small fraction of hand size is a
+        # hold, not a motion — collapse before resample. Kept optional so
+        # the reference can run either semantics; parity runs enable it
+        # with the impl's own still_frac value.
+        mx = sum(p[0] for p in raw) / len(raw)
+        my = sum(p[1] for p in raw) / len(raw)
+        rms = math.sqrt(sum((p[0] - mx) ** 2 + (p[1] - my) ** 2
+                            for p in raw) / len(raw))
+        if rms < max(2.0, still_frac * hand_px):
+            raw = [(mx, my)] * len(raw)
+    return raw, hand_px
 
 
 def bank_from_raw_exemplars(exemplars, reject_threshold=DEFAULT_REJECT, space="Pixel"):
