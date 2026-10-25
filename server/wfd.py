@@ -36,6 +36,10 @@ try:
     import record_action         # teach-by-demonstration input capture
 except ImportError:
     record_action = None
+try:
+    import laptop_engine         # sign-flow sf-engine: the laptop-webcam power path
+except ImportError:
+    laptop_engine = None
 
 PORT = int(os.environ.get("WF_PORT", "8741"))
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -52,7 +56,7 @@ MAX_BODY = int(os.environ.get("WF_MAX_BODY", str(256 * 1024 * 1024)))
 BODY_CAPS = {"/pair": 16 * 1024, "/live/kp": 256 * 1024,
              "/send": 8 * 1024 * 1024, "/teach/begin": 64 * 1024,
              "/teach/end": 64 * 1024, "/act/confirm": 64 * 1024,
-             "/bank": 256 * 1024}
+             "/bank": 256 * 1024, "/live/source": 4 * 1024}
 # live pipeline knobs — env-tunable, not hidden constants
 LIVE_MAX_FPS = int(os.environ.get("WF_LIVE_MAX_FPS", "45"))
 LIVE_IDLE_S = float(os.environ.get("WF_LIVE_IDLE_S", "120"))
@@ -287,12 +291,12 @@ LIVE_LOCK = threading.RLock()
 LIVE = {"session": None, "listening": False, "ep": None,
         "last_match": None, "seen": 0.0, "rate": deque(),
         "observe": False, "last_action": None,
-        "feed": deque(maxlen=64)}
+        "feed": deque(maxlen=64), "last_frame": None}
 TEACH = {"active": False, "name": "", "takes": 0, "got": 0,
          "label": "", "action": None}
 PENDING = {}                    # confirm_id -> {gloss,label,argv,at}
 _cmd_cache = {"key": None, "rows": {}}
-LIVE_POSTS = ("/live/kp", "/live/event", "/live/listen", "/live/mode",
+LIVE_POSTS = ("/live/kp", "/live/event", "/live/listen", "/live/mode", "/live/source",
               "/teach/begin", "/teach/end", "/teach/record/start",
               "/teach/record/stop", "/act/confirm")
 
@@ -326,6 +330,19 @@ def save_bank():
 
 
 BANK = load_bank()
+
+# Laptop-webcam power path (laptop_engine.py): one camera feeds the
+# endpointer at a time — the phone's, or sf-engine's when the composer
+# picks "laptop camera" (POST /live/source).
+LAPTOP = None
+if laptop_engine is not None:
+    try:
+        LAPTOP = laptop_engine.LaptopEngine(
+            PORT, KEY_FILE, os.environ.get("WF_STATE_DIR") or
+            os.path.expanduser("~/.cache/wf"))
+    except Exception as e:
+        print(f"[wfd] laptop engine glue unavailable: {e!r}", flush=True)
+        LAPTOP = None
 
 
 # ---------------------------------------------------------------------
@@ -879,6 +896,11 @@ def live_kp(data):
         t_ms = int(data.get("t_ms", now_ms()))
     except (TypeError, ValueError):
         return 400, {"ok": False, "error": "bad t_ms"}
+    # one camera feeds the endpointer: frames from the inactive source
+    # are refused (sf-engine stops itself on 409 — camera light off)
+    if LAPTOP is not None and not LAPTOP.admit(data.get("source")):
+        return 409, {"ok": False, "error": "source-inactive",
+                     "source": LAPTOP.source}
     now = time.time()
     with LIVE_LOCK:
         sid = data.get("session")
@@ -902,6 +924,12 @@ def live_kp(data):
         frame = {"t_ms": t_ms, "points": pts}
         if "hand" in data:
             frame["hand"] = str(data["hand"])
+        lf = {"t_ms": t_ms, "points": pts, "at": now,
+              "source": "laptop" if data.get("source") == "laptop" else "phone"}
+        for k in ("w", "h", "hands"):
+            if isinstance(data.get(k), (int, float)):
+                lf[k] = data[k]
+        LIVE["last_frame"] = lf
         out = {"ok": True, "session": LIVE["session"]}
         try:
             events = LIVE["ep"].feed(frame) or []
@@ -1034,6 +1062,7 @@ def _status_payload():
            "confirms": live_state()["pending"],
            "bank_size": bank_size(),
            "name": os.uname().nodename}
+    out.update(laptop_report())
     return out
 
 
@@ -1321,12 +1350,25 @@ def detect_engine():
             return v
     except OSError:
         pass
-    for cand in ("alive-app", "sign-flow", "alive"):
-        if shutil.which(cand):
-            return "rust-kp53"
+    # (a binary named alive/sign-flow on PATH does not serve THIS bank —
+    # the laptop camera path is reported separately, see laptop_report())
     if signbank is not None:
         return "python-dtw"
     return "none"
+
+
+def laptop_report():
+    """/engine + /status: which camera feeds the bank, honestly."""
+    if LAPTOP is None:
+        return {"laptop_cam": False, "camera": "phone",
+                "perception": "browser", "laptop": None}
+    st = LAPTOP.status()
+    attached = bool(st.get("attached"))
+    return {"laptop_cam": bool(st.get("available")),
+            "camera": st.get("source", "phone"),
+            "perception": ("sf-engine " + str(st.get("vision") or "rtmw-l"))
+            if attached else "browser",
+            "laptop": st}
 
 
 def authed(headers):
@@ -1407,6 +1449,17 @@ class Handler(BaseHTTPRequestHandler):
             if not self._gate():
                 return
             return self._jreply(200, live_state())
+        if p == "/live/frame":
+            # latest keypoint frame (any source) — the laptop-camera
+            # skeleton in the composer; keypoints only, never pixels
+            if not self._gate():
+                return
+            with LIVE_LOCK:
+                f = dict(LIVE["last_frame"] or {})
+            if f:
+                f["age_ms"] = int((time.time() - f.pop("at")) * 1000)
+            return self._jreply(200, {"ok": True, "frame": f or None,
+                                      "camera": LAPTOP.source if LAPTOP else "phone"})
         if p == "/bank":
             if not self._gate():
                 return
@@ -1515,10 +1568,12 @@ class Handler(BaseHTTPRequestHandler):
                 return
             with LIVE_LOCK:
                 lst = LIVE["listening"]
-            return self._jreply(200, {"engine": detect_engine(),
-                                      "bank_size": bank_size(),
-                                      "listening": lst,
-                                      "signbank": signbank is not None})
+            out = {"engine": detect_engine(),
+                   "bank_size": bank_size(),
+                   "listening": lst,
+                   "signbank": signbank is not None}
+            out.update(laptop_report())
+            return self._jreply(200, out)
         name = p.lstrip("/") or "index.html"
         path = os.path.normpath(os.path.join(WEB, name))
         if not path.startswith(WEB) or not os.path.isfile(path):
@@ -1610,6 +1665,37 @@ class Handler(BaseHTTPRequestHandler):
                 data = {}
             code, obj = teach_end(data)
             return self._jreply(code, obj)
+        if p == "/live/source":
+            # {"source":"laptop"|"phone"} — the laptop camera runs sf-engine
+            # (camera on while it runs); "phone"/"off" stops it.
+            try:
+                data = json.loads(raw or b"{}")
+            except Exception:
+                data = {}
+            if LAPTOP is None:
+                return self._jreply(503, {"ok": False,
+                                          "error": "laptop engine glue unavailable"})
+            src = str(data.get("source", "")).lower()
+            if src == "off":
+                src = "phone"
+            with LIVE_LOCK:
+                before = LAPTOP.source
+                ok, msg = LAPTOP.set_source(src)
+                if ok and LAPTOP.source != before:
+                    # a new camera is a new stream: fresh endpointer, no half
+                    # segment; listening survives the switch, and the engine's
+                    # own session id is pre-bound so its first frame doesn't
+                    # reset again (a teach begun right after the switch holds)
+                    keep = LIVE["listening"]
+                    live_reset()
+                    LIVE["listening"] = keep
+                    st0 = LAPTOP.status()
+                    if LAPTOP.source == "laptop" and st0.get("pid"):
+                        LIVE["session"] = "laptop-%d" % st0["pid"]
+            rep = {"ok": ok, "source": LAPTOP.source, "message": msg}
+            rep.update(laptop_report())
+            print(f"[wfd] live source -> {LAPTOP.source} ({msg})", flush=True)
+            return self._jreply(200 if ok else 409, rep)
         if p == "/live/listen":
             try:
                 data = json.loads(raw or b"{}")
@@ -1809,4 +1895,8 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     print(f"[wfd] listening on http://0.0.0.0:{PORT} (key: {KEY_FILE})", flush=True)
     print(f"[wfd] pair code: {PAIR_CODE} (valid until stop)", flush=True)
-    ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+    try:
+        ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+    finally:
+        if LAPTOP is not None:
+            LAPTOP.stop("daemon exit")
