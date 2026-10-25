@@ -670,7 +670,7 @@ def bank_rows():
                     "args": r["argv"], "tier": r["tier"]})
     for g, r in rows.items():
         r["bound"] = g in cmds
-    return sorted(rows, key=lambda x: x["gloss"])
+    return sorted(rows.values(), key=lambda x: x["gloss"])
 
 
 def bank_put(data):
