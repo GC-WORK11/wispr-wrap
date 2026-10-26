@@ -1,0 +1,122 @@
+---
+// Hero — the tonal ASCII lotus blooms on load (same petals/tones as the app's
+// flower), the pink blob mark above it, one concrete line. No-JS: a bloomed
+// static frame renders server-side.
+import { createLotus, LOTUS_TONES } from '../lib/lotus.mjs';
+const L = createLotus({ cols: 62, rows: 33, cw: 9, lh: 14 });
+const still = L.frame(1.2, 1); // bloomed, gently mid-sway
+---
+
+<header class="hero">
+  <div class="bar">
+    <a class="mark" href="/" aria-label="Sign-Flow home">
+      <img src="/icon.svg" width="34" height="34" alt="" />
+      <span>Sign-Flow</span>
+    </a>
+    <nav class="nav">
+      <a href="#try">Try</a>
+      <a href="#how">Set up</a>
+    </nav>
+  </div>
+
+  <div class="lotus" data-lotus aria-hidden="true">
+    {still.map((txt, i) => <pre class={`t${i}`}>{txt}</pre>)}
+  </div>
+
+  <h1 class="hero-line">Your phone types, sends and signs on your laptop.</h1>
+</header>
+
+<script>
+  import { createLotus, LOTUS_TONES } from '../lib/lotus.mjs';
+  const el = document.querySelector('[data-lotus]');
+  if (el && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const layers = [...el.querySelectorAll('pre')];
+    // fit the grid to the rendered box
+    const cw = 9, lh = 14;
+    const cols = Math.max(40, Math.floor(el.clientWidth / cw) - 1);
+    const rows = Math.max(24, Math.floor(el.clientHeight / lh) - 1);
+    const L = createLotus({ cols, rows, cw, lh });
+    layers.forEach((p, i) => (p.style.color = LOTUS_TONES[i]));
+    const T0 = performance.now();
+    let last = -1;
+    const tick = (now) => {
+      const t = (now - T0) / 1000;
+      // bloom eases open over ~2.2s, then the flower keeps breathing
+      const bloom = Math.min(1, t / 2.2);
+      const b = 1 - Math.pow(1 - bloom, 3);
+      if (t - last > 1 / 30) {
+        last = t;
+        const fr = L.frame(t + 1.2, b);
+        layers.forEach((p, i) => { p.textContent = fr[i]; });
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+</script>
+
+<style>
+  .hero {
+    min-height: min(96vh, 980px);
+    display: flex;
+    flex-direction: column;
+    padding: clamp(16px, 2.4vw, 28px) var(--pad) 0;
+  }
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    font-size: 17px;
+    letter-spacing: -0.02em;
+  }
+  .nav { display: flex; gap: clamp(16px, 2.6vw, 34px); font-size: 15px; color: var(--muted); }
+  .nav a:hover { color: var(--text); }
+
+  .lotus {
+    position: relative;
+    flex: 1;
+    min-height: 320px;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+  }
+  .lotus pre {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    translate: -50% -50%;
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 14px;
+    letter-spacing: 0;
+    white-space: pre;
+    user-select: none;
+  }
+  .lotus .t0 { color: #c2185b; }
+  .lotus .t1 { color: #e91e8c; }
+  .lotus .t2 { color: #ff309c; }
+  .lotus .t3 { color: #ff6fb8; }
+  .lotus .t4 { color: #ffb3d9; }
+
+  .hero-line {
+    font-size: clamp(26px, 3.6vw, 44px);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 1.06;
+    text-align: center;
+    padding: 0 var(--pad) clamp(48px, 6vw, 88px);
+    max-width: 22ch;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 700px) {
+    .lotus pre { font-size: 12px; line-height: 12px; }
+  }
+</style>

@@ -1,0 +1,225 @@
+---
+// Try — the real Go Live + Teach pipeline in this browser: vendored MediaPipe
+// reads the hands, the same endpointer cuts signs, the same DTW bank matches
+// them, and hand.js air gestures write/point/click. Nothing is uploaded —
+// video never leaves the page, keypoints never leave the tab.
+---
+
+<section class="try" id="try" aria-labelledby="try-t">
+  <h2 id="try-t" class="h2">Type with your hands.</h2>
+
+  <div class="stage-wrap" data-try>
+    <div class="stage" data-try-stage>
+      <video data-try-video playsinline muted autoplay></video>
+      <canvas data-try-skel></canvas>
+      <canvas data-try-ink></canvas>
+      <span class="cur" data-try-cursor hidden></span>
+
+      <p class="note" data-try-note hidden></p>
+
+      <div class="hud">
+        <p class="words" data-try-words aria-live="polite"></p>
+        <div class="hud-row">
+          <span class="mode" data-try-mode hidden>draw</span>
+          <p class="status" data-try-status aria-live="polite"></p>
+        </div>
+      </div>
+
+      <div class="teachbox" data-try-teachbox hidden>
+        <input data-try-name type="text" placeholder="name the sign" maxlength="24"
+               autocomplete="off" autocapitalize="none" spellcheck="false" aria-label="Name the sign" />
+        <div class="takes">
+          <i data-try-take></i><i data-try-take></i><i data-try-take></i>
+        </div>
+        <button class="rb go" data-try-record type="button">Record</button>
+      </div>
+    </div>
+
+    <div class="ctl">
+      <button class="rb start" data-try-start type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></svg>
+        Start camera
+      </button>
+      <button class="rb teach" data-try-teach type="button" hidden>Teach a sign</button>
+    </div>
+  </div>
+</section>
+
+<script type="module" src="/js/try.mjs"></script>
+
+<style>
+  .try {
+    padding: clamp(80px, 10vw, 150px) var(--pad) 0;
+    max-width: 1160px;
+    margin: 0 auto;
+    text-align: center;
+  }
+  .stage-wrap { margin-top: clamp(28px, 4vw, 52px); }
+
+  .stage {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    max-height: min(72vh, 640px);
+    margin: 0 auto;
+    max-width: min(100%, 853px);
+    border-radius: var(--r-block);
+    background:
+      radial-gradient(90% 90% at 50% 10%, rgb(255 48 156 / 0.05), transparent 60%),
+      var(--surface);
+    box-shadow: var(--shadow-soft), 0 0 0 1px var(--border);
+    overflow: hidden;
+  }
+  .stage.is-live { background: #141414; box-shadow: var(--shadow-lift); }
+
+  video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity 0.5s var(--ease-out);
+  }
+  video.mir { transform: scaleX(-1); }
+  .is-live video { opacity: 1; }
+  canvas[data-try-skel], canvas[data-try-ink] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  .cur {
+    position: absolute;
+    left: -11px;
+    top: -11px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2.5px solid var(--pink);
+    background: rgb(255 48 156 / 0.14);
+    pointer-events: none;
+    z-index: 3;
+  }
+  .cur::after {
+    content: '';
+    position: absolute;
+    inset: -7px;
+    border-radius: 50%;
+    border: 2px solid var(--pink);
+    opacity: 0;
+  }
+  .cur.pulse::after { animation: cur-pulse 0.6s var(--ease-out); }
+  @keyframes cur-pulse {
+    from { opacity: 0.9; transform: scale(0.5); }
+    to { opacity: 0; transform: scale(1.9); }
+  }
+
+  .note {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    color: var(--muted);
+    font-size: 15px;
+    z-index: 2;
+  }
+
+  .hud {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 14px 18px calc(14px + env(safe-area-inset-bottom, 0px));
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+    pointer-events: none;
+  }
+  .words {
+    min-height: 30px;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: clamp(19px, 2.6vw, 26px);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: #fff;
+    text-shadow: 0 1px 8px rgb(0 0 0 / 0.45);
+  }
+  .stage:not(.is-live) .words { color: var(--faint); text-shadow: none; }
+  .words .tw.new { color: var(--pink); animation: tw-in 0.4s var(--ease-spring); }
+  @keyframes tw-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.8); }
+    to { opacity: 1; transform: none; }
+  }
+  .hud-row { display: flex; align-items: center; gap: 12px; min-height: 22px; }
+  .mode {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #fff;
+    background: rgb(255 48 156 / 0.85);
+    padding: 3px 10px;
+    border-radius: 999px;
+  }
+  .status {
+    font-size: 14px;
+    color: rgb(255 255 255 / 0.85);
+    text-shadow: 0 1px 6px rgb(0 0 0 / 0.5);
+  }
+  .stage:not(.is-live) .status { color: var(--muted); text-shadow: none; }
+
+  .teachbox {
+    position: absolute;
+    left: 50%;
+    top: 18px;
+    translate: -50% 0;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    border-radius: 999px;
+    padding: 6px 6px 6px 18px;
+    box-shadow: var(--shadow-lift);
+  }
+  .teachbox input {
+    border: 0;
+    outline: 0;
+    font: inherit;
+    font-size: 15px;
+    width: 11ch;
+    background: transparent;
+  }
+  .teachbox input::placeholder { color: var(--faint); }
+  .takes { display: flex; gap: 5px; }
+  .takes i {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: background 0.25s, transform 0.25s;
+  }
+  .takes i.got { background: var(--pink); transform: scale(1.15); }
+  .teachbox .go { padding: 8px 16px; font-size: 14px; font-weight: 600; color: #fff; background: var(--pink); }
+  .teachbox .go:hover { background: var(--pink-deep); }
+
+  .ctl {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 18px;
+  }
+  .ctl .rb { padding: 12px 22px; font-size: 15px; font-weight: 600; }
+  .ctl .start svg { width: 20px; height: 20px; }
+  .ctl .teach { color: var(--pink-deep); }
+
+  @media (max-width: 760px) {
+    .stage { aspect-ratio: 3 / 4; }
+  }
+</style>
