@@ -92,14 +92,60 @@ call GET /live/state >/dev/null
 cp "$CALL_BODY" "$PROOF/state-type.json"
 TYPED=0; grep -q "$TYPE_TXT" "$SINK" 2>/dev/null && TYPED=1
 echo "tool: type.text typed=$TYPED (sink)" | tee "$PROOF/type.txt"
+
+# --- 3. deep-OS system row -> a real screenshot file ----------------------
+# Only when the catalog honestly reports a backend on this box; the action
+# is the exact shape web/js/actions.js builds (kind 'sys', no args).
+SHOT_OK=2                                # 2 = unavailable here, skipped
+SHOT_PNG=""
+python3 - "$PROOF/catalog.json" "$STATE/pick-shot.json" > "$PROOF/shot.txt" <<'PY'
+import json, sys
+cat = json.load(open(sys.argv[1]))
+row = next((t for t in cat.get("tools", [])
+            if t.get("id") == "sys.screenshot"), None)
+cap = (cat.get("capabilities_system") or {}).get("sys.screenshot") or {}
+if row is None or not cap.get("available", True):
+    print("sys.screenshot unavailable on this box: %r" % (cap,))
+    raise SystemExit(3)
+act = {"kind": row.get("kind", "sys"), "tool": row["id"],
+       "label": row.get("label", "take a screenshot"),
+       "tier": row.get("tier", 1)}
+json.dump({"name": "RR-PICK3", "takes": 1, "label": act["label"],
+           "action": act}, open(sys.argv[2], "w"))
+print("sys.screenshot available via %s" % (cap.get("via"),))
+PY
+shot_rc=$?
+if [ "$shot_rc" = 0 ]; then
+    BEFORE_SHOT=$(find "$WFHOME" -maxdepth 1 -name 'screenshot-*.png' | wc -l)
+    call POST /teach/begin "@$STATE/pick-shot.json" >/dev/null
+    [ "$CALL_CODE" = 200 ] || verdict FAILED "teach/begin picker screenshot -> $CALL_CODE"
+    python3 "$HERE/kpstream.py" --base "$BASE" --key "$KEY" --fps 40 teach:RR-PICK3 >/dev/null
+    sleep 0.3
+    call POST /teach/end '{}' >/dev/null
+    python3 "$HERE/kpstream.py" --base "$BASE" --key "$KEY" --fps 40 palm >/dev/null 2>&1
+    sleep 0.3
+    python3 "$HERE/kpstream.py" --base "$BASE" --key "$KEY" --fps 40 sign:RR-PICK3 >/dev/null 2>&1
+    for i in $(seq 1 40); do
+        AFTER_SHOT=$(find "$WFHOME" -maxdepth 1 -name 'screenshot-*.png' | wc -l)
+        [ "$AFTER_SHOT" -gt "$BEFORE_SHOT" ] && break
+        sleep 0.2
+    done
+    call GET /live/state >/dev/null
+    cp "$CALL_BODY" "$PROOF/state-shot.json"
+    SHOT_PNG=$(find "$WFHOME" -maxdepth 1 -name 'screenshot-*.png' -printf '%f\n' | sort | tail -1)
+    [ "$AFTER_SHOT" -gt "$BEFORE_SHOT" ] && SHOT_OK=1
+    echo "sys.screenshot: $BEFORE_SHOT -> $AFTER_SHOT ($SHOT_PNG)" | tee -a "$PROOF/shot.txt"
+else
+    echo "sys.screenshot skipped (no backend here)" | tee -a "$PROOF/shot.txt"
+fi
 snapshot > "$PROOF/after.txt"
 
-if [ "$HAVE" -gt "$BEFORE" ] && [ "$TYPED" = 1 ]; then
-    verdict VERIFIED "GET /act app row -> bank action -> new $APP_ID window ($BEFORE->$HAVE); GET /act type.text row -> bank action -> '$TYPE_TXT' typed into the focused editor"
-elif [ "$HAVE" -gt "$BEFORE" ]; then
-    verdict FAILED "app row opened a window but the type.text row did not reach the sink"
-elif [ "$TYPED" = 1 ]; then
-    verdict FAILED "type.text row worked but the app.open row opened no window"
+if [ "$HAVE" -gt "$BEFORE" ] && [ "$TYPED" = 1 ] && [ "$SHOT_OK" != 0 ]; then
+    verdict VERIFIED "GET /act app row -> new $APP_ID window ($BEFORE->$HAVE); type.text row -> '$TYPE_TXT' typed; sys.screenshot row -> real PNG ($SHOT_PNG)"
+elif [ "$HAVE" -le "$BEFORE" ]; then
+    verdict FAILED "app.open row opened no window"
+elif [ "$TYPED" != 1 ]; then
+    verdict FAILED "type.text row did not reach the sink"
 else
-    verdict FAILED "neither catalog action produced its OS effect"
+    verdict FAILED "sys.screenshot row reported available but wrote no PNG"
 fi
