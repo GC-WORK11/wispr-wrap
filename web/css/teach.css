@@ -105,6 +105,7 @@
   animation: msg-in var(--t-3) var(--ease-out);
 }
 .tw-act-n { flex: 1; min-width: 0; font-size: 16px; font-weight: 550; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tw-act-w { flex: none; font-size: 12.5px; color: var(--muted); }
 
 /* done */
 .tw-done { text-align: center; padding: 28px 4px 8px; display: flex; flex-direction: column; gap: 12px; align-items: center; }

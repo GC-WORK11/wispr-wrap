@@ -161,7 +161,7 @@ function onResp(j) {
   }
 }
 function onStatus(s) {
-  if (s === 'dead') recErr.textContent = 'this daemon has no live surface — update wrap on the laptop.';
+  if (s === 'dead') recErr.textContent = 'This laptop runs an older wrap — update it and try again.';
   if (s === 'denied') recErr.textContent = 'unpaired — rescan the QR.';
 }
 
@@ -247,7 +247,7 @@ nameNext.onclick = async () => {
     return;
   }
   if (r.status === 503 || (r.json && r.json.error && /signbank/.test(r.json.error))) {
-    nameErr.textContent = 'no sign engine on the laptop — the daemon needs its signbank module.';
+    nameErr.textContent = 'This laptop can’t learn signs yet — update wrap on it first.';
     return;
   }
   if (!r.ok) { nameErr.textContent = (r.json && r.json.error) || 'teach session refused'; return; }
@@ -300,13 +300,15 @@ function buildBind() {
   saveBtn.disabled = true;
 }
 pickBtn.onclick = async () => {
+  // spec §3: the @ picker is a laptop feature — offer pairing instead when offline
+  if (!(App.state.online && App.state.paired)) { App.emit('unpaired'); return; }
   const a = await Actions.pick({ forGloss: W.gloss });
   if (!a) return;
   W.action = a;
   actionEl.hidden = false;
   actionEl.innerHTML =
     `<span class="tw-act-n">${esc(Actions.describe(a))}</span>` +
-    `<span class="chip ${a.tier >= 2 ? 'warn' : 'accent'}">${a.tier >= 2 ? 'laptop confirm' : 'instant'}</span>`;
+    `<span class="tw-act-w">${a.tier >= 2 ? 'asks for a yes on your laptop' : 'runs instantly'}</span>`;
   pickBtn.textContent = 'Change it';
   saveBtn.disabled = false;
 };
@@ -387,12 +389,12 @@ const Teach = {
     $('tw-title').textContent = 'add a take · ' + gloss;
     const r = await App.api.post('/teach/begin', { name: gloss, takes: 1 }).catch(() => null);
     if (!r || !r.ok) {
-      App.toast(r && r.json && r.json.error ? r.json.error : 'teach refused — check the daemon', true);
+      App.toast(r && r.json && r.json.error ? r.json.error : 'couldn’t teach that — try again', true);
       App.nav('signs');
       return;
     }
     setTeaching(true);
-    recLead.textContent = 'same sign, one more take — it joins the stored exemplars.';
+    recLead.textContent = 'Same sign once more — every take makes it surer.';
     recDone.hidden = true; recBack.textContent = 'cancel';
     showStep('record');
     startCapture();

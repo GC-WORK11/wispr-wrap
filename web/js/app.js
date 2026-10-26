@@ -85,6 +85,9 @@ function renderStatus() {
     sub = nm + (state.focus ? ' · typing into ' + state.focus : '');
   }
   if (lapSub) lapSub.textContent = sub;
+  // spec: laptop features exist only while a laptop is connected; otherwise one "Connect your laptop" row
+  for (const id of ['tray-teach', 'tray-signs']) { const el = document.getElementById(id); if (el) el.hidden = !ok; }
+  const dc = document.getElementById('dr-connect'); if (dc) dc.hidden = ok;
   if (connHint) connHint.hidden = ok || !state.checked || !K;
   emit('statusbar', state);
 }
@@ -384,6 +387,7 @@ document.getElementById('tray-live').onclick = () => nav(current === 'live' ? ''
 document.getElementById('tray-teach').onclick = go('teach');
 document.getElementById('tray-signs').onclick = go('signs');
 document.getElementById('dr-laptop').onclick = go('laptop');
+document.getElementById('dr-connect').onclick = () => { openDrawer(false); App.connect(); };
 document.getElementById('dr-settings').onclick = go('settings');
 if (connHint) connHint.onclick = () => nav('laptop');
 on('route', name => { openDrawer(false); document.body.classList.toggle('sheet-open', name !== ''); });
