@@ -30,7 +30,7 @@ die() { log "FATAL: $*"; exit 1; }
 
 teardown() {
     # the laptop's Chrome was started by the daemon inside our scratch HOME
-    pkill -f -- "--remote-debugging-port=8962" 2>/dev/null
+    pkill -f "^/opt/google/chrome/chrome .*remote-debugging-port=8962" 2>/dev/null
     for pidf in "$STATE"/pids.*; do
         [ -f "$pidf" ] || continue
         pid="$(cat "$pidf" 2>/dev/null)"
@@ -129,7 +129,7 @@ cat > "$BIN/google-chrome" <<'CHR'
 #!/bin/sh
 exec /usr/bin/google-chrome-stable --no-sandbox --no-first-run --no-default-browser-check \
   --disable-dev-shm-usage --password-store=basic --disable-features=Translate,DefaultBrowserPromptRefresh \
-  --start-maximized --lang=en-US --remote-debugging-port=8962 --remote-allow-origins=http://127.0.0.1:8962 "$@"
+  --start-maximized --lang=en-US --remote-debugging-port=8962 --remote-allow-origins=* "$@"
 CHR
 chmod +x "$BIN/google-chrome"
 mkdir -p "$WFHOME/.config/google-chrome/Default" "$WFHOME/.local/share/applications"

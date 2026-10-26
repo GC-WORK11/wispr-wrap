@@ -152,7 +152,12 @@ export function createHandLines(canvas) {
     const pts = (points && points.length > 1) ? points : (ink || []);
     const bbox = bboxOf(pts);
     const src = resample(pts, 64);
-    const tpl = template(letter, bbox, 64);
+    let tpl = template(letter, bbox, 64);
+    // morph along the direction the stroke was drawn (a reversed pairing loops)
+    if (src && src.length === 64 && tpl && tpl.length === 64) {
+      const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+      if (d(src[0], tpl[63]) + d(src[63], tpl[0]) < d(src[0], tpl[0]) + d(src[63], tpl[63])) tpl = tpl.slice().reverse();
+    }
     // src must be a valid 64-array even if pts was tiny
     const srcSafe = (src && src.length === 64) ? src : template(letter, bbox, 64);
     ensureRunning();
