@@ -78,16 +78,33 @@ fi
 # ---------- 3. chrome on :97 ----------------------------------------------------
 rm -rf "$PROFILE"; mkdir -p "$PROFILE"
 URL="http://127.0.0.1:$PORT/?k=$KEY&replay"
-log "launching chrome -> $URL"
-DISPLAY="$D" setsid google-chrome \
-    --user-data-dir="$PROFILE" \
-    --no-sandbox --disable-dev-shm-usage \
-    --no-first-run --no-default-browser-check \
-    --disable-session-crashed-bubble --hide-crash-restore-bubble \
-    --no-proxy-server --disable-background-networking \
-    --disable-component-update --mute-audio \
-    --window-size=1280,800 --window-position=0,0 \
-    "$URL" </dev/null > "$DEMO_STATE/chrome.log" 2>&1 &
+if [ "${DEMO_APP:-0}" = "1" ]; then
+    # chromeless app window (no URL bar / tabs) driven by CDP — the 9pm-cut
+    # look. DEMO_CDP tells lib.sh chrome_nav to route through nav.mjs.
+    log "launching chrome --app + cdp :9222 -> $URL"
+    DISPLAY="$D" setsid google-chrome \
+        --app="$URL" \
+        --remote-debugging-port=9222 \
+        --user-data-dir="$PROFILE" \
+        --no-sandbox --disable-dev-shm-usage \
+        --no-first-run --no-default-browser-check \
+        --disable-session-crashed-bubble --hide-crash-restore-bubble \
+        --no-proxy-server --disable-background-networking \
+        --disable-component-update --mute-audio \
+        --window-size=1280,800 --window-position=0,0 \
+        </dev/null > "$DEMO_STATE/chrome.log" 2>&1 &
+else
+    log "launching chrome -> $URL"
+    DISPLAY="$D" setsid google-chrome \
+        --user-data-dir="$PROFILE" \
+        --no-sandbox --disable-dev-shm-usage \
+        --no-first-run --no-default-browser-check \
+        --disable-session-crashed-bubble --hide-crash-restore-bubble \
+        --no-proxy-server --disable-background-networking \
+        --disable-component-update --mute-audio \
+        --window-size=1280,800 --window-position=0,0 \
+        "$URL" </dev/null > "$DEMO_STATE/chrome.log" 2>&1 &
+fi
 echo $! > "$DEMO_STATE/pids.chrome"
 
 WID=""
@@ -124,6 +141,7 @@ REPLAY=$REPLAY
 REPLAY_OWNER=$REPLAY_OWNER
 STATE=$DEMO_STATE
 EOF
+if [ "${DEMO_APP:-0}" = "1" ]; then echo "DEMO_CDP=http://127.0.0.1:9222" >> "$DEMO_STATE/env"; fi
 chmod 600 "$DEMO_STATE/env"
 # NOTE: KEY stays in $REALRUN_STATE/env (mode 600) — lib.sh call() reads it
 # from there; never duplicated into demo artifacts.

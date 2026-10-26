@@ -164,8 +164,14 @@ chrome_wid() {
     fi
     DISPLAY="$D" xdotool search --name "Wispr Wrap" 2>/dev/null | tail -1
 }
-chrome_nav() { # chrome_nav '#/live' — same-doc hash nav (no reload) via ctrl+l
+chrome_nav() { # chrome_nav '#/live' — same-doc hash nav (no reload)
     local frag="$1" wid
+    if [ -n "${DEMO_CDP:-}" ]; then
+        # chromeless --app window: no URL bar — navigate through CDP
+        python3 "$HERE/nav.py" "$frag" >/dev/null || { log "chrome_nav: cdp nav failed"; return 1; }
+        sleep 0.8
+        return 0
+    fi
     wid=$(chrome_wid)
     [ -n "$wid" ] || { log "chrome_nav: no chrome window"; return 1; }
     DISPLAY="$D" xdotool windowactivate --sync "$wid" 2>/dev/null

@@ -24,8 +24,13 @@
 import { App } from './app.js';
 import { Pose } from './pose.js';
 import { Skel } from './skeleton.js';
-import { createHand } from './hand.js';
+import { createHand, classify } from './hand.js';
 import { createHandLines } from './handlines.js';
+
+/* the app's quiet sound cues, when the shell ships them (optional module) */
+let SND = null;
+import('./sound.js').then(m => { SND = m.Sound || null; }).catch(() => {});
+const sound = k => { try { if (SND && SND[k]) SND[k](); } catch (e) { /* audio is optional */ } };
 
 const sheet = App.el.sheetLive;
 if (!sheet) throw new Error('live: #sheet-live missing');
@@ -40,6 +45,7 @@ const ICON = {
   lock: svg('<rect x="4.5" y="11" width="15" height="10" rx="2.5"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/>', 1.7),
   laptop: svg('<rect x="4" y="5" width="16" height="11" rx="2"/><path d="M2.5 19.5h19"/>', 1.7),
   check: svg('<path d="M20 6 9 17l-5-5"/>', 2.6),
+  linkOff: svg('<rect x="4" y="5" width="16" height="11" rx="2"/><path d="M2.5 19.5h19"/><path d="M3 3l18 18"/>', 1.7),
 };
 
 /* ---------- DOM (built once; index.html keeps only the mount) ---------- */
@@ -51,7 +57,7 @@ sheet.innerHTML = `
     <canvas id="lv-lines" aria-hidden="true"></canvas>
     <canvas id="lv-skel" aria-hidden="true"></canvas>
     <div class="lv-top">
-      <p class="lv-net" id="lv-net" hidden><i></i><span>Reconnecting to your laptop</span></p>
+      <span class="lv-net" id="lv-net" hidden role="img" aria-label="Reconnecting to your laptop">${ICON.linkOff}</span>
       <button class="lv-rb" id="lv-flip" aria-label="Flip camera">${ICON.flip}</button>
     </div>
     <div class="lv-cover" id="lv-cover" hidden>
@@ -65,7 +71,7 @@ sheet.innerHTML = `
     <div class="lv-foot">
       <div class="lv-cap" id="lv-cap">
         <p class="lv-line" id="lv-guess" aria-live="polite"></p>
-        <p class="lv-act" id="lv-act" aria-live="polite"><i class="lv-ok">${ICON.check}</i><span id="lv-act-t"></span></p>
+        <p class="lv-sr" id="lv-act" aria-live="polite"><span id="lv-act-t"></span></p>
         <button class="lv-cta" id="lv-cta" hidden></button>
         <p class="lv-why" id="lv-why"></p>
       </div>
@@ -175,12 +181,12 @@ export class KpLink {
 
 /* ---------- session state ---------- */
 const S = {
-  open: false, gen: 0, openAt: 0, tipUntil: 0,
+  open: false, gen: 0, openAt: 0,
   stream: null, front: true, engine: null, replay: null, remote: false, booting: false, hidden: false,
   link: new KpLink(), stT: null, polling: false, linkUp: false, wantListen: true,
   mode: (() => { try { return localStorage.getItem('wf.livemode') === 'text' ? 'text' : 'control'; } catch (e) { return 'control'; } })(),
   textLocal: false, modeAt: 0,
-  listening: false, listenAt: 0, userPaused: false,
+  listening: false, listenAt: 0, listenBusy: false, listenDone: 0, userPaused: false,
   words: [], seen: new Set(), base: false,
   bank: new Map(), bankSize: null, fireAct: {},
   pendKey: '', energy: 0, hands: 0, prev: null, lastFrame: 0,
@@ -205,7 +211,7 @@ function signName(g, label) {
 function appName(a) {
   const ar = a.args || {};
   const id = String(ar.id || ar.app || a.id || a.app || '');
-  if (id && APPS.has(id.toLowerCase())) return APPS.get(id.toLowerCase());
+  if (id && APPS.has(id.toLowerCase())) return APPS.get(id.toLowerCase()).replace(/^(xfce|gnome|kde|mate|lxqt)\s+(?=\S)/i, '');
   const m = /^(?:open|close|focus|switch to)\s+(.+)$/i.exec(String(a.label || '').trim());
   if (m && !/^app( window)?$/i.test(m[1])) return m[1];
   return id ? cap(human(id.replace(/\.desktop$/, ''))) : 'the app';
@@ -263,43 +269,48 @@ function askText(a, fallback) {
   return cap(human(a.label || fallback || 'Run this'));
 }
 
-/* ---------- captions ---------- */
-const T = { text: '', kind: '', until: 0, timer: 0 };
+/* ---------- what the view says ----------
+   On screen: only the content (your words, or the action you signed with a
+   state icon) and primary buttons. Every status sentence goes to a hidden live
+   region (#lv-act-t) for screen readers and tools; motion and icons carry the
+   meaning visually (FOUNDER-RULE-1652: no helper text, no captions). */
+const T = { text: '', until: 0, timer: 0 };
 function say(text, kind = '', ms = 3200) {
-  T.text = text; T.kind = kind; T.until = performance.now() + ms;
+  T.text = text; T.until = performance.now() + ms;
   clearTimeout(T.timer); T.timer = setTimeout(() => renderSub(), ms + 30);
+  if (kind) mark(kind === 'soft' ? 'fail' : kind);
   renderSub();
 }
-function hint() {
-  if (S.booting) return { t: 'Getting ready…', kind: 'wait' };
-  if (App.state && App.state.online === false) return { t: '' };
-  if (S.mode === 'control' && !laptopOn()) return { t: '', cta: 'Connect your laptop' };
-  if (S.bankSize === 0 && S.mode === 'text') return { t: 'No signs yet', cta: 'Teach a sign' };
-  if (!S.listening) return { t: 'Paused' };
-  if (performance.now() > S.tipUntil) return { t: '' };      // how-to tips fade; the camera stays clean
-  if (S.mode === 'text') return { t: S.textLocal && S.words.length ? '' : 'Sign to type', cta: S.textLocal && S.words.length ? 'Send to laptop' : '' };
-  if (S.browse) return { t: 'Point, pinch to click' };
-  return { t: 'Draw C or V' };
+/* the state icon in front of the action you signed: ok | wait | fail | '' */
+function mark(kind) {
+  const st = guessEl.querySelector('.lv-st');
+  if (st) st.className = 'lv-st' + (kind ? ' ' + kind : '');
 }
-/* show the how-to tip for a few seconds after opening or switching */
-function tip() { S.tipUntil = performance.now() + 4500; clearTimeout(tip.t); tip.t = setTimeout(renderSub, 4600); renderSub(); }
+/* a failure with nothing on screen to mark: the control shakes once */
+function miss(el) {
+  el = el || listenBtn;
+  el.classList.remove('miss'); void el.offsetWidth; el.classList.add('miss');
+  clearTimeout(el._miss); el._miss = setTimeout(() => el.classList.remove('miss'), 600);
+}
+function hint() {
+  if (S.booting) return { s: 'Getting ready' };
+  // both modes need the laptop: one way to fix it, nothing else
+  if (!laptopOn()) return { s: 'No laptop connected', cta: 'Connect your laptop' };
+  if (S.bankSize === 0 && S.mode === 'text') return { s: 'No signs yet', cta: 'Teach a sign' };
+  if (!S.listening) return { s: 'Paused' };
+  if (S.mode === 'text' && S.textLocal && S.words.length) return { s: '', cta: 'Send to laptop' };
+  return { s: '' };
+}
 /* laptop control only while a laptop is connected (spec: otherwise one "Connect" row) */
 function laptopOn() {
   try { return App.connected ? !!App.connected() : !!(App.state.online && App.state.paired); } catch (e) { return false; }
 }
-let subShown = '';
 function renderSub() {
-  const live = performance.now() < T.until;
-  const h = live ? { t: T.text, kind: T.kind } : hint();
-  const k = (h.t || '') + '|' + (h.kind || '');
-  actEl.className = 'lv-act' + (h.kind ? ' ' + h.kind : '') + (h.t ? '' : ' empty');
-  if (k !== subShown) {
-    subShown = k;
-    actT.textContent = h.t || '';
-    actEl.classList.remove('in'); void actEl.offsetWidth; actEl.classList.add('in');
-  } else actEl.classList.add('in');
-  ctaBtn.hidden = !h.cta || live;
-  if (h.cta) ctaBtn.textContent = h.cta;
+  const h = hint();
+  const txt = performance.now() < T.until ? T.text : (h.s || '');
+  if (actT.textContent !== txt) actT.textContent = txt;
+  ctaBtn.hidden = !h.cta;
+  if (h.cta && ctaBtn.textContent !== h.cta) ctaBtn.textContent = h.cta;
 }
 ctaBtn.onclick = () => {
   if (ctaBtn.textContent === 'Send to laptop') App.emit('text:send');
@@ -334,9 +345,14 @@ function onWord(word, gloss, t) {
   if (S.textLocal) App.emit('text:append', word);
   say(S.textLocal ? 'Added' : 'Typed', 'ok', 1800);
   hit();
+  if (!S.textLocal) sound('word');        // a local append already chimes through the composer
 }
 function showSign(g, label) {
-  guessEl.textContent = signName(g, label);
+  guessEl.textContent = '';
+  const st = document.createElement('i'); st.className = 'lv-st'; st.setAttribute('aria-hidden', 'true');
+  st.innerHTML = '<span class="ok-i">' + ICON.check + '</span><span class="x">' + ICON.x + '</span>';
+  const nm = document.createElement('span'); nm.textContent = signName(g, label);
+  guessEl.append(st, nm);
   guessEl.classList.remove('pop', 'gone', 'long');
   void guessEl.offsetWidth;
   guessEl.classList.add('pop');
@@ -368,7 +384,7 @@ function onMatch(m) {
   if (m.dup_suppressed) return;            // the second half of one sign: already handled
   dev(m);
   if (!m.accepted) {
-    if (!/^dropped/.test(m.reason || '')) { fadeSign(); say('Didn’t catch that', 'soft', 2400); }
+    if (!/^dropped/.test(m.reason || '')) { fadeSign(); say('Didn’t catch that', '', 2400); miss(); }
     return;
   }
   const a = m.action || null;
@@ -386,8 +402,9 @@ function onFired(ev) {
   const r = ev.result || {};
   const act = S.fireAct[up(g)] || (bankRow(g) || {}).action || null;
   if (r.pending) { say('Waiting for your OK', 'wait', 8000); return; }
-  if (ev.ok === false || r.fired === false || r.refused) { say('Couldn’t do that on your laptop', 'soft', 3200); return; }
+  if (ev.ok === false || r.fired === false || r.refused) { say('Couldn’t do that on your laptop', 'soft', 3200); sound('error'); return; }
   say(doneText(act), 'ok');
+  sound('fired');
 }
 function feed(evs) {
   if (!Array.isArray(evs)) return;
@@ -409,9 +426,12 @@ function feed(evs) {
   }
   if (S.seen.size > 600) { const keep = [...S.seen].slice(-250); S.seen.clear(); keep.forEach(x => S.seen.add(x)); }
 }
-function renderState(j) {
-  if (typeof j.listening === 'boolean' && j.listening !== S.listening &&
-      performance.now() - S.listenAt > 900) setListening(j.listening);
+function renderState(j, sent) {
+  /* follow the laptop's listening flag, but never with a reply to a poll that
+     left before our own last listen change was confirmed (a slow link would
+     otherwise flick the button back for a moment) */
+  if (typeof j.listening === 'boolean' && j.listening !== S.listening && !S.listenBusy &&
+      (sent == null || sent > S.listenDone)) setListening(j.listening);
   if (typeof j.bank_size === 'number' && j.bank_size !== S.bankSize) {
     const first = S.bankSize == null;
     S.bankSize = j.bank_size;
@@ -431,10 +451,11 @@ async function poll() {
   if (!S.open || S.polling) return;
   S.polling = true;
   try {
+    const sent = performance.now();
     const r = await App.api.get('/live/state');
     if (!S.open) return;
     if (r.status === 404 || r.status === 405) { outdated(); return; }
-    if (r.ok && r.json) renderState(r.json);
+    if (r.ok && r.json) renderState(r.json, sent);
   } catch (e) { /* offline: the net line says so */ }
   finally { S.polling = false; }
   if (performance.now() - S.lastFrame > 450 && (S.energy > .01 || S.hands)) { S.energy *= .4; S.hands = 0; setBars(); }
@@ -468,9 +489,7 @@ function renderPending(rows) {
   t.className = 'lv-ask-t';
   const b = document.createElement('b');
   b.textContent = askText(act, signName(p.gloss, p.label)) + '?';
-  const s = document.createElement('span');
-  s.textContent = rows.length > 1 ? rows.length + ' waiting' : '';
-  t.append(b, s);
+  t.append(b);
   const btns = document.createElement('div');
   btns.className = 'lv-ask-b';
   const no = document.createElement('button');
@@ -480,14 +499,14 @@ function renderPending(rows) {
   yes.onclick = async () => {
     yes.disabled = no.disabled = true;
     const r = await App.api.post('/act/confirm', { id: p.id }).catch(() => null);
-    if (r && r.ok) { say(doneText(act), 'ok'); hit(); }
+    if (r && r.ok) { say(doneText(act), 'ok'); hit(); sound('fired'); }
     else say('Couldn’t do that on your laptop', 'soft');
     S.pendKey = '#'; poll();
   };
   no.onclick = async () => {
     yes.disabled = no.disabled = true;
     await App.api.post('/act/confirm', { id: p.id, cancel: true }).catch(() => null);
-    say('Cancelled', 'soft', 1800);
+    say('Cancelled', '', 1800); mark('');
     S.pendKey = '#'; poll();
   };
   btns.append(no, yes);
@@ -514,15 +533,17 @@ function setListening(on) {
 function listenFromLaptop(on) {
   S.userPaused = !on;                      // an open palm / palms together is you deciding
   if (on === S.listening) return;
-  S.listenAt = performance.now();
+  S.listenAt = S.listenDone = performance.now();
   setListening(on);
   App.buzz();
 }
 async function listen(on) {
   S.listenAt = performance.now();
   setListening(on);
+  S.listenBusy = true;
   const r = await App.api.post('/live/listen', { on }).catch(() => null);
-  if (!r || !r.ok) { setListening(!on); say('Couldn’t reach your laptop', 'soft'); }
+  S.listenBusy = false; S.listenDone = performance.now();
+  if (!r || !r.ok) { setListening(!on); say('Couldn’t reach your laptop', ''); miss(); }
 }
 listenBtn.onclick = () => { S.wantListen = false; S.userPaused = S.listening; listen(!S.listening); };
 
@@ -539,7 +560,7 @@ function setMode(m, persist = true) {
   guessEl.textContent = '';
   T.until = 0;
   H.reset(); lines.setInk(null); setBrowse(false);
-  tip();
+  renderSub();
   return syncMode(true);
 }
 /* tell the laptop; an older laptop without text mode falls back to "words go
@@ -572,7 +593,9 @@ App.on('sent', r => {
    it swells with how much your hands move (transform/opacity only, set at the
    frame cadence with a CSS transition, so it stays smooth on the compositor) */
 function setBars() {
-  const on = S.listening && !S.booting && S.hands > 0;
+  viewEl.classList.toggle('booting', !!S.booting);
+  if (S.booting) { ring.style.transform = ''; ring.style.opacity = ''; ring._t = ring._o = null; return; }
+  const on = S.listening && S.hands > 0;
   const e = on ? Math.min(1, S.energy) : 0;
   const t = on ? 'scale(' + (1.04 + .2 * e).toFixed(3) + ')' : 'scale(.92)';
   const o = on ? (.32 + .6 * e).toFixed(2) : '0';
@@ -619,14 +642,25 @@ const ZERO42 = Array.from({ length: 42 }, () => ({ x: 0, y: 0, z: 0, score: 0 })
 const OWN = new Set(['point', 'v', 'pinch']);
 S.browse = false; S.pose = 'none'; S.firing = false;
 const present = (pts, o) => pts[o] && pts[o + 9] && pts[o].score > .28 && pts[o + 9].score > .28;
-/* one hand, display space (mirrored like the preview), right hand first */
-function pickHand(pts) {
-  const o = present(pts, 21) ? 21 : present(pts, 0) ? 0 : -1;
-  if (o < 0) return null;
-  const m = S.front && !S.replay;
-  const lm = new Array(21);
+/* the one hand that controls, in display space (mirrored like the preview).
+   With two hands in view: the one making a gesture (point, pinch, V), else the
+   one already in control, else slot 0 — MediaPipe labels hands as if the image
+   were mirrored, and the phone feeds raw selfie frames, so 'Left' is your right hand. */
+const GESTURE = new Set(['point', 'pinch', 'v']);
+function handAt(pts, o) {
+  const m = S.front && !S.replay, lm = new Array(21);
   for (let i = 0; i < 21; i++) { const p = pts[o + i]; lm[i] = { x: m ? 1 - p.x : p.x, y: p.y }; }
   return lm;
+}
+function pickHand(pts) {
+  const a = present(pts, 0), b = present(pts, 21);
+  if (!a && !b) { S.slot = -1; return null; }
+  if (a !== b) { S.slot = a ? 0 : 21; return handAt(pts, S.slot); }
+  const L = handAt(pts, 0), R = handAt(pts, 21);
+  const gl = GESTURE.has(classify(L).pose), gr = GESTURE.has(classify(R).pose);
+  if (gl !== gr) S.slot = gl ? 0 : 21;
+  else if (S.slot !== 0 && S.slot !== 21) S.slot = 0;
+  return S.slot === 0 ? L : R;
 }
 /* normalized video coords -> css px of the view (object-fit: cover), for ink/cursor */
 function toPx(p) {
@@ -662,9 +696,11 @@ function onGesture(ev) {
       lines.ignite(ev.letter, pxs(ev.points));
       fireLetter(ev.letter);
       break;
-    case 'reject': lines.setInk(null); say('Try again', 'soft', 1800); break;
+    case 'stroke-cancel': lines.setInk(null); break;        // a twitch, not a letter: say nothing
+    case 'reject': lines.setInk(null); say('Try again', '', 1800); miss(); break;
     case 'vsign': fireLetter('V'); break;
-    case 'palm': setBrowse(!S.browse); App.buzz(); break;     // open palm: drawing <-> pointing
+    case 'pinch': if (!S.browse) { setBrowse(true); App.buzz(); } break;    // pinch: start pointing
+    case 'palm': if (S.browse) { setBrowse(false); App.buzz(); } break;     // still open hand: back to drawing
     case 'cursor': {
       S.cur = { x: ev.x, y: ev.y };
       const c = toPx(S.cur); lines.setCursor(c.x, c.y, S.dwell || 0);
@@ -691,7 +727,7 @@ function setBrowse(on) {
   H.setMode(S.browse ? 'browse' : 'write');
   viewEl.classList.toggle('browse', S.browse);
   if (!S.browse) { lines.setCursor(null); S.cur = null; S.dwell = 0; }
-  tip();
+  renderSub();
 }
 /* an air letter: the laptop runs what it is bound to (C -> Chrome, V -> YouTube
    unless you bound AIR-C / AIR-V to something else). POST /live/event queues it;
@@ -702,7 +738,7 @@ async function fireLetter(letter) {
   S.firing = true; setTimeout(() => { S.firing = false; }, 1600);
   const name = AIR_NAME[letter] || letter;
   showSign('AIR-' + letter, 'open ' + name);
-  if (!laptopOn()) { say('Connect your laptop to use this', 'soft', 2600); return; }
+  if (!laptopOn()) { say('Connect your laptop to use this', 'soft', 2600); miss(ctaBtn); return; }
   say('Opening ' + name + '…', 'wait', 9000);
   S.airWait = { letter, name };
   const r = await App.api.post('/live/event', { type: 'air', letter }).catch(() => null);
@@ -716,8 +752,8 @@ function onAirResult(ev) {
   const name = (S.airWait && S.airWait.letter === ev.letter && S.airWait.name) || AIR_NAME[ev.letter] || cap(human(ev.label || 'it'));
   S.airWait = null;
   if (r.pending) say('Waiting for your OK', 'wait', 8000);
-  else if (r.fired || (r.routed && !r.refused)) { say('Opened ' + name, 'ok'); hit(); }
-  else say('Couldn’t open ' + name + ' on your laptop', 'soft', 3200);
+  else if (r.fired || (r.routed && !r.refused)) { say('Opened ' + name, 'ok'); hit(); sound('fired'); }
+  else { say('Couldn’t open ' + name + ' on your laptop', 'soft', 3200); sound('error'); }
 }
 /* pointer ops to the laptop: moves are latest-wins (~20/s), clicks and scrolls queue */
 const PTR = { q: [], move: null, busy: false, last: 0 };
@@ -748,6 +784,7 @@ function card(icon, title, msg, buttons) {
   cardM.textContent = msg || '';
   cardB.textContent = '';
   for (const b of buttons || []) if (b) cardB.appendChild(b);
+  cardI.classList.toggle('pulse', !cardB.children.length && icon === 'cam');
   coverEl.hidden = false;
   viewEl.classList.add('has-cover');
 }
@@ -955,7 +992,7 @@ flipBtn.onclick = async () => {
     }
     if (!ok && gen === S.gen) {
       await openCam(wasFront, was || undefined).catch(() => {});
-      say('No other camera on this device', 'soft', 2200);
+      say('No other camera on this device', '', 2200); miss(flipBtn);
     }
   } catch (e) {
     if (gen === S.gen && !S.stream) camFail(e);

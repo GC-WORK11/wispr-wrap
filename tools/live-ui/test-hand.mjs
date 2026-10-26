@@ -162,6 +162,30 @@ function runClip(engine, clip) {
 }
 
 // --------------------------------------------------------------------------
+// mode switching + quiet failure (Go Live: pinch -> pointing, still palm -> drawing)
+// --------------------------------------------------------------------------
+{
+  const h = createHand({ mode: 'write' });
+  const evs = runClip(h, pinchAt({ x: 0.5, y: 0.5 }));
+  check('write pinchAt -> exactly one pinch event', evs.filter(e => e.type === 'pinch').length === 1, 'got ' + evs.filter(e => e.type === 'pinch').length);
+  check('write pinchAt -> no click, no letter, no reject', !evs.some(e => ['click', 'letter', 'reject'].includes(e.type)), evs.map(e => e.type).join(','));
+}
+{
+  const h = createHand({ mode: 'write' });
+  const wiggle = [...slide({ x: 0.5, y0: 0.5, y1: 0.45, ms: 150 }), ...dwellAt({ x: 0.5, y: 0.45, ms: 700 }).map(f => ({ ...f, t_ms: f.t_ms + 150 }))];
+  const evs = runClip(h, wiggle);
+  check('write tiny wiggle -> stroke-cancel, no reject', evs.some(e => e.type === 'stroke-cancel') && !evs.some(e => e.type === 'reject' || e.type === 'letter'), evs.filter(e => e.type !== 'ink' && e.type !== 'pose').map(e => e.type).join(','));
+}
+{
+  const h = createHand({ mode: 'browse' });
+  const moving = [];
+  for (let i = 0; i < 40; i++) moving.push({ t_ms: i * 33, lm: handPose('palm', { x: 0.3 + i * 0.01, y: 0.7 }) });
+  check('moving open hand (a sign) -> no palm event', !runClip(h, moving).some(e => e.type === 'palm'));
+  const h2 = createHand({ mode: 'browse' });
+  check('still open hand -> exactly one palm event', runClip(h2, palm(1000)).filter(e => e.type === 'palm').length === 1);
+}
+
+// --------------------------------------------------------------------------
 // toKp42 sanity
 // --------------------------------------------------------------------------
 {

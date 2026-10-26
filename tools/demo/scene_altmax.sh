@@ -60,7 +60,11 @@ play palm-hold.json
 sleep 0.6
 
 # --- perform MAX-WIN: the focused window really maximizes ---------------------
-TARGET=$(DISPLAY="$D" xdotool getactivewindow 2>/dev/null)
+# Camera-visible version: maximize the small SinkEdit editor so the growth
+# reads on video (the chromeless app window is already near-fullscreen).
+TARGET=$(DISPLAY="$D" xdotool search --class SinkEdit 2>/dev/null | tail -1)
+[ -n "$TARGET" ] && DISPLAY="$D" xdotool windowactivate "$TARGET" 2>/dev/null && sleep 0.5
+[ -z "$TARGET" ] && TARGET=$(DISPLAY="$D" xdotool getactivewindow 2>/dev/null)
 G0=$(DISPLAY="$D" xdotool getwindowgeometry --shell "$TARGET" 2>/dev/null)
 note "target window $TARGET before: $G0" | tee -a "$EVE"
 play perform-OPEN-NOTES.json
@@ -75,6 +79,10 @@ else
 fi
 
 # --- perform ALT-TAB: the active window really changes ------------------------
+# Camera-visible: app window active -> alt+Tab -> previous window (the sink)
+# comes forward; the swap reads on video.
+CW=$(chrome_wid)
+[ -n "$CW" ] && DISPLAY="$D" xdotool windowactivate "$CW" 2>/dev/null && sleep 0.6
 A0=$(DISPLAY="$D" xdotool getactivewindow 2>/dev/null)
 play perform-TYPE-HELLO.json
 sleep 1.2

@@ -11,7 +11,7 @@
 //  (d) the old path still works: name -> record -> bind -> done (old ids)
 //  (e) 390x844@2x screenshots of every stage + start screen at 360/768/1280.
 import path from 'node:path';
-import { stack, newPage, loadClips, playAndWait, sleep, shotTo, reporter, daemon, root, recorder } from './lib.mjs';
+import { stack, newPage, loadClips, playAndWait, sleep, shotTo, reporter, daemon, root, recorder, visibleText, isLabel } from './lib.mjs';
 
 const OUT = path.join(root, 'proofs/ui-v2/site-teach');
 const S = stack(process.env.SITE_ENV || '/tmp/wf-site-overlay/env');
@@ -41,21 +41,19 @@ try {
 
   /* ---------- (a) ready-made signs from GET /packs ---------- */
   await openTeach(page);
-  // ready-made signs sit behind one quiet text link under the grid
-  await page.waitFor(`!document.querySelector('#tw-packs-toggle').hidden`, 8000, 'ready-made link');
-  await page.click('#tw-packs-toggle'); await sleep(500);
-  await page.waitFor(`!document.querySelector('#tw-packs').hidden && document.querySelectorAll('#tw-packs .tw-pk').length > 0`, 8000, 'packs rendered');
-  const packNames = await page.eval(`[...document.querySelectorAll('#tw-packs .tw-pk .tw-pk-n')].map(n => n.textContent)`);
-  check('ready-made signs render from the real GET /packs', packNames.length >= 3, packNames.join(', '));
-  check('Hello / Namaste / I am Govinda listed', ['Hello', 'Namaste', 'I am Govinda'].every(t => packNames.includes(t)), packNames.join(', '));
-  const builtin = await page.eval(`[...document.querySelectorAll('#tw-packs .tw-pk')].some(r => /Namaste/.test(r.textContent) && r.querySelector('.tw-pk-off'))`);
-  check('Namaste shows as built in (not selectable)', builtin, '');
+  // ready-made signs are plain tiles in the same grid (Hello, I am Govinda); Namaste is the built-in pause
+  await page.waitFor(`document.querySelectorAll('.qa-tile').length >= 15`, 12000, 'grid');
+  await sleep(900);
+  const tileNames = await page.eval(`[...document.querySelectorAll('.qa-tile .qa-l')].map(n => n.textContent)`);
+  check('Hello and I am Govinda are tiles from the real GET /packs', ['Hello', 'I am Govinda'].every(t => tileNames.includes(t)), tileNames.slice(-4).join(', '));
+  check('the start screen shows tile names and one button, nothing else',
+    (await visibleText(page, '#sheet-teach')).every(isLabel), (await visibleText(page, '#sheet-teach')).filter(t => !isLabel(t)).join(' | '));
   await shotTo(page, OUT, '01-start');
 
   /* ---------- (b) full Teach: pick action -> 3 takes -> train -> done ---------- */
   // pick the action with the one-tap grid: the "Type text" tile + the words (FOUNDER-SIMPLIFY-1433)
   await page.waitFor(`document.querySelectorAll('.qa-tile').length >= 15`, 10000, 'quick grid');
-  await page.click('.qa-tile[data-id="text"]'); await sleep(400);
+  await page.click('.qa-tile[data-id="type.text"]'); await sleep(400);
   await page.focus('#qa-text-in'); await page.type('hello-from-site'); await sleep(400);
   check('an action was chosen through the quick grid', await page.eval(`!document.querySelector('#tw-name-next').disabled`), await page.eval(`document.querySelector('#tw-pick-tx').textContent`));
 
@@ -75,7 +73,11 @@ try {
   await page.eval(`window.__play('teach-TYPE-HELLO')`);
   for (let n = 1; n <= 3; n++) {
     await page.waitFor(`document.querySelectorAll('#tw-takebar .tk.got').length >= ${n}`, 30000, 'take ' + n);
-    if (n === 2) await shotTo(page, OUT, '04-take-2');
+    if (n === 2) {
+      await shotTo(page, OUT, '04-take-2');
+      const vt = await visibleText(page, '#sheet-teach');
+      check('recording screen: the only text is the Back button', vt.length <= 1 && vt.every(t => t === 'Back'), vt.join(' | ') || 'no text');
+    }
   }
   check('3 takes stored by the daemon\'s own endpointer', true);
 
@@ -87,11 +89,15 @@ try {
     await page.waitFor(`document.querySelector('#tw-train li[data-k="read"]').classList.contains('done')`, 8000, 'reading stage done').catch(() => {});
     await sleep(350);
     await shotTo(page, OUT, '05-training');
+    const vt = await visibleText(page, '#sheet-teach');
+    check('training screen: no text at all, just your paths and a bar', vt.length === 0, vt.join(' | ') || 'no text');
   }
   await page.waitFor(`document.querySelector('.tw-step[data-step="done"]').classList.contains('on')`, 12000, 'done step');
   if (!sawTrain) await shotTo(page, OUT, '05-training');
   await sleep(900);                       // entry animation settled
   await shotTo(page, OUT, '06-done');
+  const vtd = await visibleText(page, '#sheet-teach');
+  check('Ready screen: the chosen action and one button', vtd.length <= 2 && vtd.includes('Try it now') && vtd.every(isLabel), vtd.join(' | '));
   check('training view led to the done screen', true, sawTrain ? 'train view shown' : 'train info absent — no false check');
 
   // verify it is really in the bank

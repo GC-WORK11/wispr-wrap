@@ -31,8 +31,9 @@ const sinkHas = async (since, text, ms = 4000) => { const t0 = Date.now(); while
 const shot = n => page.shot(path.join(out, n + '.png'));
 const toast = () => page.eval(`document.querySelector('#toast').textContent`);
 const ready = () => page.eval(`document.querySelector('#pill').classList.contains('ready')`);
-const liveShown = () => page.eval(`(() => { const s = getComputedStyle(document.querySelector('#tray-live')); return +s.opacity > .5; })()`);
-const goShown = () => page.eval(`(() => { const s = getComputedStyle(document.querySelector('#go')); return +s.opacity > .5; })()`);
+// one black pill morphs: waveform (Go Live hit area live) <-> arrow (send hit area live)
+const liveShown = () => page.eval(`(() => { const p = document.querySelector('#pill'), l = document.querySelector('#tray-live'); return !p.classList.contains('ready') && getComputedStyle(l).pointerEvents !== 'none'; })()`);
+const goShown = () => page.eval(`(() => { const p = document.querySelector('#pill'), g = document.querySelector('#go'); return p.classList.contains('ready') && getComputedStyle(g).pointerEvents !== 'none'; })()`);
 const waitToast = (re, what) => page.waitFor(`/${re}/.test(document.querySelector('#toast').textContent)`, 15000, what);
 const burstCount = () => page.eval(`window.__burstN || 0`);
 
@@ -80,7 +81,7 @@ async function run() {
     before = sink().length;
     const b0 = await burstCount();
     await page.enter();
-    await waitToast('→', 'Enter delivered');
+    await waitToast('Sent', 'Enter delivered');
     check('Enter sends the message to the laptop', await sinkHas(before, 'Enter sends this line'), 'sink got it');
     check('box clears and the waveform returns after send', !(await ready()) && (await liveShown()), 'ready=false');
     check('the lotus bursts on a successful send', (await burstCount()) > b0, `bursts ${b0}->${await burstCount()}`);
@@ -116,7 +117,7 @@ async function run() {
     await page.eval(`(() => { const b = document.querySelector('#box'); b.value = ${JSON.stringify(U)}; b.dispatchEvent(new Event('input')); })()`);
     before = sink().length;
     await page.click('#go');
-    await waitToast('→', 'unicode delivered');
+    await waitToast('Sent', 'unicode delivered');
     const uok = await sinkHas(before, 'café ☕ 日本語 — emoji 🎉✳️', 7000);
     const uok2 = await sinkHas(before, 'second line ✓', 7000);
     check('unicode/emoji/newlines arrive intact in the editor', uok && uok2, 'both lines present with glyphs');
@@ -128,7 +129,7 @@ async function run() {
     // two taps in quick succession; the second must be a no-op (sending guard)
     await page.click('#go');
     await page.eval(`document.querySelector('#go').click()`);   // synchronous second tap, no touch sequence
-    await waitToast('→', 'single send');
+    await waitToast('Sent', 'single send');
     await sleep(1200);
     const dupes = (sink().slice(before).match(/NODUPE-marker-42/g) || []).length;
     check('double-tap send does not duplicate on the laptop', dupes === 1, `typed ${dupes}x`);
@@ -177,7 +178,7 @@ async function run() {
     before = sink().length;
     sh('xdotool', ['windowfocus', S.TERM_WID]); await sleep(200);
     await page.click('#go');
-    await waitToast('→', 'recovered send');
+    await waitToast('Sent', 'recovered send');
     check('the next send works after the daemon is reachable again', await sinkHas(before, 'offline keeps this text'), 'recovered');
 
     // --- BIG FILE: progress line + percent status + cancel (Task 1) ---
@@ -194,13 +195,13 @@ async function run() {
     // catch the progress UI mid-upload
     let sawProgress = false, sawLine = false, sampled = '';
     for (let i = 0; i < 80; i++) {
-      const st = await page.eval(`(() => ({ up: document.querySelector('#pill').classList.contains('uploading'), t: document.querySelector('#toast').textContent }))()`);
+      const st = await page.eval(`(() => { const p = document.querySelector('#pill'); return { up: p.classList.contains('uploading'), f: parseFloat(p.style.getPropertyValue('--up')) }; })()`);
       if (st.up) sawLine = true;
-      if (/Sending .*\d+%/.test(st.t)) { sawProgress = true; sampled = st.t; }
-      if (sawProgress && sawLine && /[1-9]\d?%/.test(sampled)) { await shot('09-upload-progress'); break; }
+      if (st.up && st.f > 0.01 && st.f < 0.99) { sawProgress = true; sampled = Math.round(st.f * 100) + '%'; }   // founder 1652: no percent text, the line carries it
+      if (sawProgress && sawLine) { await shot('09-upload-progress'); break; }
       await sleep(120);
     }
-    check('big-file upload shows a percent status line under the pill', sawProgress, sampled);
+    check('big-file upload advances the progress line on the pill (no text)', sawProgress, sampled);
     check('big-file upload draws the 2px progress line on the pill', sawLine);
     // cancel it mid-flight via the attachment x
     const stillUp = await page.eval(`document.querySelector('#pill').classList.contains('uploading')`);
@@ -212,7 +213,7 @@ async function run() {
       await shot('10-upload-cancelled');
     } else {
       const t = await toast();
-      check('big-file upload resolved to a clear outcome (no hang)', /→|too big|said no|reach/i.test(t), t);
+      check('big-file upload resolved to a clear outcome (no hang)', /Sent|too big|said no|reach/i.test(t), t);
     }
     await page.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
 

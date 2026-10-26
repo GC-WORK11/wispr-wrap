@@ -27,13 +27,13 @@ if (!sheet) throw new Error('actions: #sheet-actions missing');
 sheet.innerHTML = `
   <div class="sheet-card">
     <div class="sheet-head">
-      <h1 id="act-title">Pick an app or action</h1>
-      <button class="sheet-x" id="act-x" aria-label="Cancel">×</button>
+      <h1 id="act-title" class="sr-only">Pick an app or action</h1>
+      <button class="sheet-x" id="act-x" aria-label="Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <div class="act-search">
       <span class="act-at" aria-hidden="true">@</span>
       <input class="input" id="act-q" type="search"
-        placeholder="Search apps and actions" autocomplete="off" autocapitalize="none">
+        placeholder="Search" aria-label="Search" autocomplete="off" autocapitalize="none">
     </div>
     <div class="sheet-body" id="act-list"></div>
     <div class="act-note" id="act-note"></div>
@@ -86,14 +86,10 @@ function glyphFor(id) {
 
 /* ---------- fallback tools (pre-provider daemon) ---------- */
 const FALLBACK_TOOLS = [
-  { id: 'open.url', kind: 'builtin', label: 'Open a page', arg: 'url',
-    desc: 'open a web page in the laptop browser', tier: 1 },
-  { id: 'key.press', kind: 'builtin', label: 'Press keys', arg: 'keys',
-    desc: 'send a keyboard shortcut', tier: 1 },
-  { id: 'type.text', kind: 'builtin', label: 'Type text', arg: 'text',
-    desc: 'type a phrase at the cursor', tier: 1 },
-  { id: 'command', kind: 'command', label: 'Run a command', arg: 'argv',
-    desc: 'run a program on your laptop', tier: 2 },
+  { id: 'open.url', kind: 'builtin', label: 'Open a page', arg: 'url', tier: 1 },
+  { id: 'key.press', kind: 'builtin', label: 'Press keys', arg: 'keys', tier: 1 },
+  { id: 'type.text', kind: 'builtin', label: 'Type text', arg: 'text', tier: 1 },
+  { id: 'command', kind: 'command', label: 'Run a command', arg: 'argv', tier: 2 },
 ];
 
 const ARG_KEY = { app: 'app', url: 'url', keys: 'keys', text: 'text', argv: 'argv', index: 'n' };
@@ -232,46 +228,46 @@ function argOf(a) {
   return '';
 }
 function sentence(a) {
-  if (!a) return 'do nothing yet';
+  if (!a) return '';
   const tool = a.tool || '';
   const arg = argOf(a).trim();
   const quo = s => '\u201c' + s + '\u201d';
   switch (tool) {
-    case 'type.text': return arg ? 'type ' + quo(arg) : 'type text at your cursor';
-    case 'open.url': return arg ? 'open ' + arg + ' in your browser' : 'open a page in your browser';
+    case 'type.text': return arg ? 'type ' + quo(arg) : 'type text';
+    case 'open.url': return arg ? 'open ' + arg : 'open a page';
     case 'key.press': return arg ? 'press ' + arg : 'press a key';
     case 'app.open': return 'open ' + (arg || 'the app');
-    case 'app.focus': return 'bring ' + (a.args && (a.args.app || a.app) || 'the app') + ' to the front';
+    case 'app.focus': return 'show ' + (a.args && (a.args.app || a.app) || 'the app');
     case 'app.close': return 'close the window';
-    case 'win.tile-left': return 'tile the window to the left';
-    case 'win.tile-right': return 'tile the window to the right';
+    case 'win.tile-left': return 'tile left';
+    case 'win.tile-right': return 'tile right';
     case 'win.maximize': return 'maximize the window';
-    case 'win.workspace-next': return 'switch to the next workspace';
-    case 'command': return arg ? 'run ' + quo(arg) + ' — after you say yes on the laptop' : 'run a command';
-    case 'macro': return 'run your steps in order';
+    case 'win.workspace-next': return 'next workspace';
+    case 'command': return arg ? 'run ' + quo(arg) : 'run a command';
+    case 'macro': return 'run steps';
     case 'sys.screenshot': return 'take a screenshot';
     case 'sys.lock': return 'lock the screen';
   }
-  if (a.kind === 'context' || a.by_wm_class) return 'do different things depending on the open app';
-  if (a.kind === 'macro' || (a.args && a.args.steps)) return 'run your steps in order';
+  if (a.kind === 'context' || a.by_wm_class) return 'switch by app';
+  if (a.kind === 'macro' || (a.args && a.args.steps)) return 'run steps';
   const d = describe(a);
   return d.charAt(0).toLowerCase() + d.slice(1);
 }
 
 /* ---------- describe ---------- */
 function describe(a) {
-  if (!a) return 'not bound';
+  if (!a) return '';
   if (typeof a === 'string') return a;
-  if (a.kind === 'context' || a.by_wm_class || a.per_app) return 'per-app rules';
+  if (a.kind === 'context' || a.by_wm_class || a.per_app) return 'By app';
   if (a.kind === 'macro' || a.steps || (a.args && a.args.steps))
-    return ((a.steps || (a.args || {}).steps || []).length || '?') + '-step macro';
+    return ((a.steps || (a.args || {}).steps || []).length || '') + ' steps'.trim();
   if (a.tool && a.tool !== 'command') return a.label || a.tool;
   if (a.argv) return (Array.isArray(a.argv) ? a.argv.join(' ') : String(a.argv));
   if (a.args && a.args.argv)
     return (Array.isArray(a.args.argv) ? a.args.argv.join(' ') : String(a.args.argv));
   if (a.label) return a.label;
   if (a.type) return a.type.replace(/_/g, ' ');
-  return 'action';
+  return '';
 }
 
 /* ---------- pick sheet ---------- */
@@ -283,8 +279,11 @@ function close(result) {
   if (r) r(result || null);
 }
 
+let APPS_ONLY = false;
 function pick(opts) {
   opts = opts || {};
+  APPS_ONLY = !!opts.apps;
+  sheet.classList.toggle('apps-only', APPS_ONLY);
   titleEl.textContent = opts.title ||
     (opts.forGloss ? 'What should this sign do?' : 'Pick an app or action');
   q.value = opts.query ? String(opts.query) : '';
@@ -306,8 +305,10 @@ function matchTool(txt, t) {
   return ((t.label || '') + ' ' + (t.desc || '') + ' ' + (t.id || '')).toLowerCase().includes(txt);
 }
 
-function sectHead(text) {
-  const h = document.createElement('div'); h.className = 'act-sect'; h.textContent = text;
+const LOCK = '<svg class="act-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Asks first"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+/* sections are separated by space, not by headings */
+function sectHead() {
+  const h = document.createElement('div'); h.className = 'act-sect'; h.setAttribute('role', 'presentation');
   listEl.appendChild(h);
 }
 
@@ -341,19 +342,12 @@ function toolRow(t) {
   top.innerHTML = glyph(glyphFor(t.id)) +
     `<span class="act-name">${esc(t.label || t.id)}</span>`;
   row.appendChild(top);
-  const line = tier >= 2 ? 'Asks you first on your laptop' : (t.desc || '');
-  if (line) {
-    const d = document.createElement('div'); d.className = 'act-desc' + (tier >= 2 ? ' ask' : '');
-    d.textContent = line;
-    row.appendChild(d);
-  }
+  if (tier >= 2) top.insertAdjacentHTML('beforeend', LOCK);
   if (t.arg) {
     const argWrap = document.createElement('div'); argWrap.className = 'act-arg';
     const inp = document.createElement('input');
     inp.className = 'input act-input'; inp.type = 'text';
-    inp.placeholder = { url: 'https://example.org', keys: 'ctrl+shift+t',
-      text: 'text to type', argv: 'program and arguments',
-      app: 'app name, e.g. Firefox' }[t.arg] || 'what to use';
+    inp.setAttribute('aria-label', t.label || t.id);
     inp.autocomplete = 'off'; inp.autocapitalize = 'none';
     const use = document.createElement('button');
     use.className = 'act-use'; use.textContent = 'Use this';
@@ -381,9 +375,9 @@ function parseOwn(raw) {
   const verb = (m ? m[1] : '').toLowerCase();
   const rest = m ? m[2].trim() : '';
   if (!VERBS.includes(verb))
-    return { ok: false, preview: '', err: 'Start with open, type, press or run.' };
+    return { ok: false, preview: '', err: 'open, type, press or run' };
   if (!rest)
-    return { ok: false, preview: '', err: 'Add what to ' + verb + '.' };
+    return { ok: false, preview: '', err: verb + ' what?' };
   if (verb === 'open') {
     const isUrl = /^https?:\/\//i.test(rest) || /\.[a-z]{2,}(\/|$)/i.test(rest);
     const isPath = rest.startsWith('/') || rest.startsWith('~');
@@ -416,7 +410,7 @@ function parseOwn(raw) {
     return { ok: true, risky: true, preview: 'Run ' + rest + ' — asks you first on your laptop',
       action: { kind: 'command', tool: 'command', args: { argv }, argv, label: 'Run ' + rest.slice(0, 40), tier: 2 } };
   }
-  return { ok: false, preview: '', err: 'Start with open, type, press or run.' };
+  return { ok: false, preview: '', err: 'open, type, press or run' };
 }
 
 function ownSection() {
@@ -424,11 +418,9 @@ function ownSection() {
   const wrap = document.createElement('div'); wrap.className = 'act-own';
   const inp = document.createElement('input');
   inp.className = 'input act-own-in'; inp.type = 'text';
-  inp.placeholder = 'open youtube.com';
+  inp.setAttribute('aria-label', 'Write your own');
   inp.autocomplete = 'off'; inp.autocapitalize = 'none'; inp.spellcheck = false;
   const prev = document.createElement('div'); prev.className = 'act-own-prev';
-  const hint = document.createElement('div'); hint.className = 'act-own-hint';
-  hint.textContent = 'open \u00b7 type \u00b7 press \u00b7 run';
   const bar = document.createElement('div'); bar.className = 'act-own-bar';
   const openThis = document.createElement('button');
   openThis.className = 'act-open-this'; openThis.type = 'button';
@@ -436,7 +428,7 @@ function ownSection() {
   const use = document.createElement('button');
   use.className = 'act-use act-own-use'; use.textContent = 'Use this'; use.disabled = true;
   bar.append(openThis, use);
-  wrap.append(inp, prev, hint, bar);
+  wrap.append(inp, prev, bar);
   listEl.appendChild(wrap);
 
   let cur = null;
@@ -445,9 +437,9 @@ function ownSection() {
     cur = r.ok ? r.action : null;
     use.disabled = !r.ok;
     inp.classList.toggle('act-bad', !!(r.err && !r.empty));
-    if (r.empty) { prev.textContent = ''; prev.className = 'act-own-prev'; hint.hidden = false; }
-    else if (r.ok) { prev.textContent = r.preview; prev.className = 'act-own-prev show' + (r.risky ? ' ask' : ''); hint.hidden = true; }
-    else { prev.textContent = r.err; prev.className = 'act-own-prev err'; hint.hidden = true; }
+    if (r.empty) { prev.textContent = ''; prev.className = 'act-own-prev'; }
+    else if (r.ok) { prev.textContent = r.preview; prev.className = 'act-own-prev show' + (r.risky ? ' ask' : ''); }
+    else { prev.textContent = r.err; prev.className = 'act-own-prev err'; }
   };
   inp.addEventListener('input', render);
   inp.addEventListener('keydown', e => { if (e.key === 'Enter' && cur) { e.preventDefault(); close(cur); } });
@@ -462,22 +454,18 @@ async function build() {
   const cat = CAT || { mode: 'offline', apps: [], tools: FALLBACK_TOOLS, bound: [], capabilities: {} };
   const query = q.value.trim().toLowerCase();
   listEl.textContent = '';
-  noteEl.textContent = cat.mode === 'offline'
-    ? 'Connect your laptop to see its apps. These actions will run once it is connected.'
-    : '';
+  noteEl.textContent = '';
 
   /* --- a typed command works right here ("open youtube.com", "press ctrl+shift+t") --- */
-  const typed = query ? parseOwn(q.value.trim()) : null;
+  const typed = (query && !APPS_ONLY) ? parseOwn(q.value.trim()) : null;
   if (typed && typed.ok) {
     const row = document.createElement('div'); row.className = 'act-row act-cmd';
-    row.innerHTML = `<div class="act-row-top">${glyph('bolt')}<span class="act-name">${esc(typed.preview)}</span></div>` +
-      (typed.risky ? '<div class="act-desc ask">Asks you first on your laptop</div>' : '<div class="act-desc">Press Enter to use it</div>');
+    row.innerHTML = `<div class="act-row-top">${glyph('bolt')}<span class="act-name">${esc(typed.preview)}</span>${typed.risky ? LOCK : ''}</div>`;
     row.onclick = () => close(typed.action);
     listEl.appendChild(row);
-  } else if (!query) {
+  } else if (!query && !APPS_ONLY) {
     const row = document.createElement('div'); row.className = 'act-row act-own-link';
-    row.innerHTML = `<div class="act-row-top">${glyph('text')}<span class="act-name">Write your own</span></div>` +
-      '<div class="act-desc">open \u00b7 type \u00b7 press \u00b7 run</div>';
+    row.innerHTML = `<div class="act-row-top">${glyph('text')}<span class="act-name">Write your own</span></div>`;
     row.onclick = () => {
       const o = listEl.querySelector('.act-own-in'); if (!o) return;
       o.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -517,6 +505,8 @@ async function build() {
     listEl.appendChild(grid);
   }
 
+  if (APPS_ONLY) { setTimeout(() => sel(selIdx), 0); return; }   // Teach: just the laptop's apps
+
   /* --- Actions (flat list) --- */
   const tools = (cat.tools || []).filter(t => t.id !== 'app.open' && matchTool(query, t));
   if (tools.length) {
@@ -524,13 +514,12 @@ async function build() {
     for (const t of tools) listEl.appendChild(toolRow(t));
     // advanced: macro + per-app rule (same list, quieter)
     const adv = [
-      { id: '_macro', label: 'Chain a few steps', desc: 'do several things in order', tier: 1, g: 'bolt' },
-      { id: '_context', label: 'Change by app', desc: 'do different things depending on what is open', tier: 1, g: 'window' },
+      { id: '_macro', label: 'Steps', tier: 1, g: 'bolt' },
+      { id: '_context', label: 'By app', tier: 1, g: 'window' },
     ].filter(x => matchTool(query, x));
     for (const x of adv) {
       const row = document.createElement('div'); row.className = 'act-row';
-      row.innerHTML = `<div class="act-row-top">${glyph(x.g)}<span class="act-name">${esc(x.label)}</span></div>` +
-        `<div class="act-desc">${esc(x.desc)}</div>`;
+      row.innerHTML = `<div class="act-row-top">${glyph(x.g)}<span class="act-name">${esc(x.label)}</span></div>`;
       row.onclick = async () => {
         const a = x.id === '_macro' ? await Macro.edit() : await Macro.editContext();
         if (a) close(a); else build();
@@ -545,7 +534,7 @@ async function build() {
   setTimeout(() => sel(selIdx), 0);
   if (!listEl.querySelector('.act-app, .act-row') && !listEl.querySelector('.act-own') && query) {
     const d = document.createElement('div'); d.className = 'act-empty';
-    d.textContent = 'Nothing matches. Try “Write your own” below.';
+    d.textContent = '';
     listEl.appendChild(d);
   }
 }

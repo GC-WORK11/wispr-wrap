@@ -22,13 +22,13 @@ if (!sheet) throw new Error('macro: #sheet-macro missing');
 sheet.innerHTML = `
   <div class="sheet-card">
     <div class="sheet-head">
-      <h1 id="mc-title">macro</h1>
-      <button class="sheet-x" id="mc-x" aria-label="Cancel">×</button>
+      <h1 id="mc-title">Steps</h1>
+      <button class="sheet-x" id="mc-x" aria-label="Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <div class="sheet-body" id="mc-body"></div>
     <div class="sheet-foot">
-      <button class="btn btn-ghost btn-block" id="mc-cancel">cancel</button>
-      <button class="btn btn-primary btn-block" id="mc-done" disabled>bind macro</button>
+      <button class="btn btn-ghost btn-block" id="mc-cancel">Cancel</button>
+      <button class="btn btn-primary btn-block" id="mc-done" disabled>Use this</button>
     </div>
   </div>`;
 const $ = id => sheet.querySelector('#' + id);
@@ -49,11 +49,11 @@ sheet.addEventListener('keydown', e => { if (e.key === 'Escape') finish(null); }
 
 /* ---------- step kinds (macro.py normalize_step wire shapes) ---------- */
 const STEP_KINDS = [
-  { k: 'open_app', label: 'open app', ph: 'firefox — or a .desktop id' },
-  { k: 'wait_ms', label: 'wait', ph: 'milliseconds (max 60000)', num: true },
-  { k: 'type', label: 'type text', ph: 'text at the cursor' },
-  { k: 'keys', label: 'key press', ph: 'ctrl+alt+t' },
-  { k: 'argv', label: 'terminal command', ph: 'notify-send "done"', tier2: true },
+  { k: 'open_app', label: 'Open app' },
+  { k: 'wait_ms', label: 'Wait', num: true },
+  { k: 'type', label: 'Type text' },
+  { k: 'keys', label: 'Keys' },
+  { k: 'argv', label: 'Command', tier2: true },
 ];
 
 function stepRow(st, i) {
@@ -66,13 +66,13 @@ function stepRow(st, i) {
     (st._k === 'tool' ? `<span class="mc-t">${st.tool}</span>` : '');
   const inp = document.createElement('input');
   inp.className = 'input mc-in';
-  inp.placeholder = k ? k.ph : 'args';
+  inp.setAttribute('aria-label', k ? k.label : 'Step');
   inp.value = st._v || '';
   if (k && k.num) inp.inputMode = 'numeric';
   inp.oninput = () => { st._v = inp.value; syncDone(); };
   const del = document.createElement('button');
   del.className = 'mc-del'; del.textContent = '×';
-  del.title = 'remove step';
+  del.setAttribute('aria-label', 'Remove');
   del.onclick = () => { steps.splice(steps.indexOf(st), 1); render(); };
   row.append(inp, del);
   return row;
@@ -90,11 +90,11 @@ function addStepRow() {
   }
   // any catalog tool can be a step (macro.py {tool,args} passthrough)
   const t = document.createElement('button');
-  t.className = 'mc-chip'; t.textContent = '+ any @ action';
+  t.className = 'mc-chip'; t.textContent = '+ @';
   t.onclick = async () => {
     const cat = await Actions.catalog();
     const tools = (cat.tools || []).filter(x => x.id && !x.id.startsWith('_'));
-    if (!tools.length) { App.toast('no tool catalog on this daemon', true); return; }
+    if (!tools.length) return;
     const pick = await pickTool(tools);
     if (pick) { steps.push({ _k: 'tool', tool: pick.id, _v: '', _tool: pick }); render(); }
   };
@@ -108,7 +108,7 @@ function pickTool(tools) {
     const wrap = document.createElement('div');
     wrap.className = 'mc-toolpick';
     const back = document.createElement('button');
-    back.className = 'mc-chip'; back.textContent = '‹ back';
+    back.className = 'mc-chip'; back.textContent = 'Back';
     back.onclick = () => { wrap.remove(); res(null); };
     wrap.appendChild(back);
     for (const t of tools.slice(0, 40)) {
@@ -125,23 +125,15 @@ function pickTool(tools) {
 function render() {
   body.textContent = '';
   if (mode === 'macro') {
-    const lead = document.createElement('p');
-    lead.className = 'hint';
-    lead.textContent = 'steps run in order; the chain stops on the first failure. a terminal command asks for a yes on the laptop the first time.';
-    body.appendChild(lead);
     steps.forEach((st, i) => body.appendChild(stepRow(st, i)));
     body.appendChild(addStepRow());
-    done.textContent = steps.length ? 'bind ' + steps.length + '-step macro' : 'bind macro';
+    done.textContent = 'Use this';
     done.disabled = !steps.length || steps.some(s => s._k !== 'tool' && !(s._v || '').trim());
     done.classList.toggle('btn-danger', steps.some(s => s._k === 'argv'));
   } else {
-    const lead = document.createElement('p');
-    lead.className = 'hint';
-    lead.textContent = 'the same sign does different things depending on which app is in front. pick the app; “default” fires when none match.';
-    body.appendChild(lead);
     rules.forEach((r, i) => body.appendChild(ruleRow(r, i)));
     const add = document.createElement('button');
-    add.className = 'mc-addone'; add.textContent = '+ rule';
+    add.className = 'mc-addone'; add.textContent = '+ App';
     add.onclick = async () => {
       const cat = await Actions.catalog();
       const rr = { app: '', action: null };
@@ -151,18 +143,18 @@ function render() {
     const drow = document.createElement('div');
     drow.className = 'mc-def';
     const dl = document.createElement('span');
-    dl.className = 'mc-rt'; dl.textContent = 'default';
+    dl.className = 'mc-rt'; dl.textContent = 'Default';
     const arw = document.createElement('span');
     arw.className = 'mc-arrow'; arw.setAttribute('aria-hidden', 'true'); arw.textContent = '→';
     const db = document.createElement('button');
-    db.className = 'mc-chip mc-act'; db.textContent = defAction ? Actions.describe(defAction) : 'pick action…';
+    db.className = 'mc-chip mc-act'; db.textContent = defAction ? Actions.describe(defAction) : '@';
     db.onclick = async () => {
-      const a = await Actions.pick({ title: 'default action (no rule matched)' });
+      const a = await Actions.pick({ title: 'Default' });
       if (a) { defAction = a; render(); }
     };
     drow.append(dl, arw, db);
     body.appendChild(drow);
-    done.textContent = 'bind context rule';
+    done.textContent = 'Use this';
     done.disabled = !rules.length || rules.some(r => !r.app || !r.action);
     done.classList.remove('btn-danger');
   }
@@ -172,10 +164,10 @@ function ruleRow(r, i) {
   const row = document.createElement('div');
   row.className = 'mc-rule';
   row.innerHTML =
-    '<div class="mc-rule-top"><span class="mc-rt">when</span></div>' +
+    '<div class="mc-rule-top"></div>' +
     '<div class="mc-rule-act"><span class="mc-arrow" aria-hidden="true">→</span></div>';
   const sel = document.createElement('input');
-  sel.className = 'input mc-in'; sel.placeholder = 'app name, e.g. firefox';
+  sel.className = 'input mc-in'; sel.setAttribute('aria-label', 'App');
   sel.value = r.app;
   sel.oninput = () => { r.app = sel.value.trim(); syncDone(); };
   Actions.catalog().then(cat => {
@@ -193,14 +185,14 @@ function ruleRow(r, i) {
   });
   const act = document.createElement('button');
   act.className = 'mc-chip mc-act';
-  act.textContent = r.action ? Actions.describe(r.action) : 'pick action…';
+  act.textContent = r.action ? Actions.describe(r.action) : '@';
   act.onclick = async () => {
-    const a = await Actions.pick({ title: 'when ' + (r.app || 'app') + ' is focused…' });
+    const a = await Actions.pick({ title: r.app || 'App' });
     if (a) { r.action = a; render(); }
   };
   const del = document.createElement('button');
   del.className = 'mc-del'; del.textContent = '×';
-  del.title = 'remove rule';
+  del.setAttribute('aria-label', 'Remove');
   del.onclick = () => { rules.splice(i, 1); render(); };
   row.querySelector('.mc-rule-top').append(sel, del);
   row.querySelector('.mc-rule-act').append(act);
@@ -227,11 +219,11 @@ done.onclick = () => {
     const tier2 = steps.some(s => s._k === 'argv');
     finish({ kind: 'macro', tool: 'macro',
              args: { steps: out },
-             label: steps.length + '-step macro', tier: tier2 ? 2 : 1 });
+             label: steps.length + ' steps', tier: tier2 ? 2 : 1 });
   } else {
     const by = {};
     for (const r of rules) if (r.app && r.action) by[r.app] = r.action;
-    const a = { kind: 'context', by_wm_class: by, label: 'per-app rules', tier: 1 };
+    const a = { kind: 'context', by_wm_class: by, label: 'By app', tier: 1 };
     if (defAction) a.default = defAction;
     finish(a);
   }
@@ -246,7 +238,7 @@ export const Macro = {
                   (Array.isArray(s.argv) ? s.argv.join(' ') : ''),
                   tool: s.tool }));
     if (!steps.length) steps = [{ _k: 'open_app', _v: '' }];
-    titleEl.textContent = 'macro — chain steps';
+    titleEl.textContent = 'Steps';
     sheet.hidden = false;
     App.raise(sheet);
     render();
@@ -258,7 +250,7 @@ export const Macro = {
     rules = Object.keys(by).map(k => ({ app: k, action: by[k] }));
     if (!rules.length) rules = [{ app: '', action: null }];
     defAction = (action && action.default) || null;
-    titleEl.textContent = 'context — per-app rules';
+    titleEl.textContent = 'By app';
     sheet.hidden = false;
     App.raise(sheet);
     render();
@@ -266,8 +258,8 @@ export const Macro = {
   },
   describe(a) {
     if (!a) return '';
-    if (a.kind === 'context') return 'per-app rules';
+    if (a.kind === 'context') return 'By app';
     const n = (a.steps || (a.args || {}).steps || []).length;
-    return n ? n + '-step macro' : (a.label || 'macro');
+    return n ? n + ' steps' : (a.label || 'Steps');
   },
 };

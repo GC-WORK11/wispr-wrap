@@ -256,7 +256,7 @@ const toastEl = document.getElementById('toast');
 let toastT;
 function toast(msg, isErr) {
   toastEl.textContent = msg;
-  toastEl.className = 'toast show' + (isErr ? ' err' : '');
+  toastEl.className = isErr ? 'toast show err' : 'toast quiet';   // success/progress: announced to assistive tech, not drawn (the lotus + progress line carry it)
   clearTimeout(toastT);
   toastT = setTimeout(() => toastEl.classList.remove('show'), 2000);
 }
@@ -303,17 +303,17 @@ function renderConfirms(rows) {
     row.className = 'confirm-row';
     const txt = document.createElement('span');
     txt.className = 'confirm-txt';
-    txt.textContent = (p.label || p.gloss || 'action') + ' — held for confirm';
+    txt.textContent = p.label || p.gloss || 'Action';
     const yes = document.createElement('button');
-    yes.className = 'confirm-yes'; yes.textContent = 'run it';
+    yes.className = 'confirm-yes'; yes.textContent = 'Run it';
     const no = document.createElement('button');
-    no.className = 'confirm-no'; no.textContent = 'cancel';
+    no.className = 'confirm-no'; no.textContent = 'Cancel';
     yes.onclick = async () => {
       yes.disabled = no.disabled = true;
       const r = await req('POST', '/act/confirm', { id: p.id }).catch(() => null);
-      if (r && r.ok && r.json && r.json.fired) toast('fired ' + (p.label || p.gloss));
-      else if (r && r.ok) toast('done');
-      else toast('confirm failed' + (r ? ' (' + r.status + ')' : ''), true);
+      if (r && r.ok && r.json && r.json.fired) toast('Done');
+      else if (r && r.ok) toast('Done');
+      else toast('Couldn’t run it', true);
       pollState();
     };
     no.onclick = async () => {
@@ -335,6 +335,7 @@ export const App = {
   on, off, emit,
   state, renderStatus, pollState, pollEngine, pollStatus, connected, canAct,
   connect: () => { showOnboarding(''); onbSkip.hidden = false; },
+  pair,
   route, nav, back, routes, parseHash,
   toast, buzz, sleep, raise,
   kpFrame,
@@ -381,24 +382,30 @@ async function autoPair() {
     return true;
   } catch (e) { return false; }
 }
-async function pairWithCode() {
-  const code = onbCode.value.trim();
-  if (code.length < 4) { onbErr.textContent = 'Type the code your laptop is showing.'; return; }
-  onbGo.disabled = true; onbGo.textContent = 'Connecting…'; onbErr.textContent = '';
+// one pairing call for the first-run screen and the Laptop page -> { ok } or { err }
+async function pair(code) {
+  code = String(code || '').trim();
+  if (code.length < 4) return { err: 'Enter the code.' };
   try {
     const r = await fetch('/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code }) });
     const j = await r.json().catch(() => ({}));
-    if (r.ok && j.key) {
-      store.setItem('wfk', j.key);
-      onbGo.textContent = 'Connected ✓';
-      setTimeout(() => location.replace(location.pathname + location.hash), 350);
-      return;
-    }
-    onbErr.textContent = r.status === 429 ? 'One try per second — give it a moment.'
-      : r.status === 403 ? 'That code isn’t right. Check your laptop screen.'
-      : 'Couldn’t pair (' + r.status + ').';
-  } catch (e) { onbErr.textContent = 'Can’t reach your laptop from here.'; }
+    if (r.ok && j.key) { store.setItem('wfk', j.key); return { ok: true }; }
+    return { err: r.status === 429 ? 'Wait a second, then try again.'
+      : r.status === 403 ? 'That code isn’t right.'
+      : 'Couldn’t connect.' };
+  } catch (e) { return { err: 'Can’t reach your laptop.' }; }
+}
+async function pairWithCode() {
+  if (onbCode.value.trim().length < 4) { onbErr.textContent = 'Enter the code.'; return; }
+  onbGo.disabled = true; onbGo.textContent = 'Connecting…'; onbErr.textContent = '';
+  const r = await pair(onbCode.value);
+  if (r.ok) {
+    onbGo.textContent = 'Connected ✓';
+    setTimeout(() => location.reload(), 350);
+    return;
+  }
+  onbErr.textContent = r.err;
   onbGo.disabled = false; onbGo.textContent = 'Connect';
 }
 onbGo.onclick = pairWithCode;
@@ -407,7 +414,7 @@ onbCode.addEventListener('input', () => { onbCode.value = onbCode.value.toUpperC
 const onbSkip = document.getElementById('onb-skip');
 onbSkip.onclick = () => { onb.hidden = true; };
 async function firstRun() {
-  if (await autoPair()) { location.replace(location.pathname + location.hash); return; }
+  if (await autoPair()) { location.reload(); return; }
   showOnboarding('');
 }
 if (!K) firstRun();

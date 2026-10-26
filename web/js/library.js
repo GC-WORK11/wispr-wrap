@@ -26,11 +26,10 @@ sheet.innerHTML = `
     <section id="lib-list"></section>
     <div class="lib-empty" id="lib-empty" hidden>
       <span class="lib-empty-g" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <path d="M12 5v14M5 12h14"/>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8.5 11.5V6a1.5 1.5 0 0 1 3 0v5m0-1.5a1.5 1.5 0 0 1 3 0V11m0-.5a1.5 1.5 0 0 1 3 0v1m0-.5a1.5 1.5 0 0 1 3 0v4.5c0 3-2.5 5.5-6 5.5s-5-1.5-6.5-4l-2-3.6c-.6-1 .8-2.1 1.7-1.3l1.3 1.1"/>
         </svg>
       </span>
-      No signs yet
     </div>
   </div>
   <div class="sheet-foot">
@@ -88,8 +87,8 @@ function render() {
         const r = await App.api.del('/bank?gloss=' + encodeURIComponent(s.gloss)).catch(() => null);
         if (r && r.ok) { rows = rows.filter(x => x.gloss !== s.gloss); render(); App.toast('Deleted'); }
         else if (r && r.status === 404) bannerShow('no such sign — refreshed', true);
-        else if (r && r.status === 403) App.toast('unpaired — rescan QR', true);
-        else { App.toast('Couldn’t delete', true); del.disabled = false; del.textContent = 'Delete'; }
+        else if (r && r.status === 403) App.toast('Not connected — scan the code again.', true);
+        else { App.toast('Couldn’t delete.', true); del.disabled = false; del.textContent = 'Delete'; }
         delete del.dataset.armed;
       } else {
         del.dataset.armed = '1'; del.textContent = 'Sure?';
@@ -117,7 +116,7 @@ async function rebind(card, s) {
   if (Array.isArray(a.argv) && a.argv.length) body.argv = a.argv;
   const r = await App.api.put('/bank', body).catch(() => null);
   if (r && r.ok) { App.toast('rebound ' + s.gloss); refresh(); }
-  else if (r && r.status === 403) App.toast('unpaired — rescan QR', true);
+  else if (r && r.status === 403) App.toast('Not connected — scan the code again.', true);
   else App.toast(App.daemonErr(r, 'Couldn’t save that — try again.'), true);
 }
 
@@ -144,7 +143,7 @@ function startRename(card, s, row) {
       s.label = label;
       render(); App.toast('renamed');
     }
-    else if (r && r.status === 403) { App.toast('unpaired — rescan QR', true); cleanup(); }
+    else if (r && r.status === 403) { App.toast('Not connected — scan the code again.', true); cleanup(); }
     else { App.toast('rename failed', true); ok.disabled = false; ok.textContent = 'save'; }
   };
   inp.onkeydown = e => { if (e.key === 'Enter') ok.click(); if (e.key === 'Escape') cleanup(); };
@@ -157,14 +156,14 @@ async function refresh() {
     rows = Array.isArray(r.json.signs) ? r.json.signs : (Array.isArray(r.json) ? r.json : []);
     teachBtn.disabled = false;
   } else if (r && r.status === 404) {
-    bannerShow('the laptop runs an older wrap — update it to manage signs (git pull && npm run wrap)');
+    bannerShow('This laptop runs an older version — update it to manage signs.');
     teachBtn.disabled = true;
   } else if (r && r.status === 403) {
-    bannerShow('unpaired — rescan the QR shown by wrap start');
+    bannerShow('Not connected — scan the code again.');
     rows = [];
     teachBtn.disabled = true;
   } else {
-    bannerShow('laptop unreachable — run: wrap start', true);
+    bannerShow('Can’t reach your laptop.', true);
     teachBtn.disabled = true;
   }
   render();

@@ -80,14 +80,20 @@ play_until() { # play_until <clip> <state-expr> <desc> [tries]
 scene "boot"
 note "realrun daemon $BASE · display $D · replay :8877 · evidence: REPLAYED KEYPOINTS"
 
-# evidence terminal pane (right side of the recorded frame)
-DISPLAY="$D" setsid xfce4-terminal --title wf-demo-evidence \
-    --geometry 46x60 -x bash "$HERE/evidence_terminal.sh" \
-    "$RUNLOG" "$MARKERS" "$SINK" </dev/null >/dev/null 2>&1 &
-EVID_PID=$!
-sleep 1.2
-layout
-sleep 0.5
+# evidence terminal pane (right side of the recorded frame) — dev surface;
+# skipped in clean mode (DEMO_CLEAN=1) where terminals are banned on camera.
+if [ "${DEMO_CLEAN:-0}" != "1" ]; then
+    DISPLAY="$D" setsid xfce4-terminal --title wf-demo-evidence \
+        --geometry 46x60 -x bash "$HERE/evidence_terminal.sh" \
+        "$RUNLOG" "$MARKERS" "$SINK" </dev/null >/dev/null 2>&1 &
+    EVID_PID=$!
+    sleep 1.2
+    layout
+    sleep 0.5
+else
+    EVID_PID=""
+    CW=$(chrome_wid); [ -n "$CW" ] && DISPLAY="$D" wmctrl -ir "$CW" -e 0,0,0,1280,800 2>/dev/null
+fi
 
 # go live: hash nav to the live sheet. (?k= was already moved into
 # localStorage by app.js on first load — a reload would still be paired.)
