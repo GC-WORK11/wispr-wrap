@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Wispr Wrap">
+  <rect width="512" height="512" rx="0" fill="#C2185B"/>
+  <g transform="translate(66 62) scale(5.6)">
+    <path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" transform="rotate(-58 32 46) translate(32 46) scale(.82) translate(-32 -46)" fill="#F6CFDD"/>
+    <path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" transform="rotate(58 32 46) translate(32 46) scale(.82) translate(-32 -46)" fill="#F6CFDD"/>
+    <path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" transform="rotate(-30 32 46)" fill="#FBE7EE"/>
+    <path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" transform="rotate(30 32 46)" fill="#FBE7EE"/>
+    <path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" fill="#FFFFFF"/>
+    <path d="M15 51.5C22 58.5 42 58.5 49 51.5" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+  </g>
+</svg>

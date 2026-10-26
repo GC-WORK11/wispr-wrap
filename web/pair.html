@@ -16,7 +16,7 @@
     display:flex; align-items:center; justify-content:center; min-height:100dvh; padding:28px;
   }
   .card { width:100%; max-width:380px; display:flex; flex-direction:column; align-items:stretch; gap:14px; text-align:center; }
-  .mark { width:44px; height:44px; color:#c2185b; margin:0 auto 14px; }
+  .mark { width:64px; height:64px; margin:0 auto 14px; }
   h1 { font-size:30px; line-height:1.12; font-weight:600; letter-spacing:-.03em; color:#111; }
   h1 span { color:#6b6b6b; font-weight:500; }
   .sub { font-size:16px; color:#6b6b6b; line-height:1.5; margin:-4px 0 12px; }
@@ -39,7 +39,7 @@
 </head>
 <body>
   <div class="card">
-    <svg class="mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9"/></svg>
+    <svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" transform="rotate(-58 32 46) translate(32 46) scale(.82) translate(-32 -46)" fill="#E91E63"/><path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" transform="rotate(58 32 46) translate(32 46) scale(.82) translate(-32 -46)" fill="#E91E63"/><path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" transform="rotate(-30 32 46)" fill="#D81B60"/><path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" transform="rotate(30 32 46)" fill="#D81B60"/><path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" fill="#C2185B"/><path d="M15 51.5C22 58.5 42 58.5 49 51.5" fill="none" stroke="#C2185B" stroke-width="3" stroke-linecap="round"/></svg>
     <h1>Connect your laptop</h1>
     <div class="sub">Enter the address and code your laptop is showing.</div>
     <input id="addr" placeholder="Laptop address, e.g. 10.0.0.2:8741" inputmode="url" autocapitalize="none" autocorrect="off" autocomplete="off">
