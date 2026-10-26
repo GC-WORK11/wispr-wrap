@@ -142,3 +142,109 @@ class TestQuickRealX11(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMediaFallback(unittest.TestCase):
+    """Volume/mute/media fall back to XF86 media keys via xdotool when
+    pactl/amixer/playerctl/MPRIS are absent; they refuse honestly only
+    when NO backend exists at all."""
+
+    def setUp(self):
+        import system_ctl as sc
+        self.sc = sc
+        self._w, self._r = sc._which, sc._run
+        self._xd = os.environ.get("DISPLAY")
+
+    def tearDown(self):
+        self.sc._which, self.sc._run = self._w, self._r
+        if self._xd is None:
+            os.environ.pop("DISPLAY", None)
+        else:
+            os.environ["DISPLAY"] = self._xd
+
+    def _fake(self, have_xdotool=True):
+        tools = {"xdotool": "/usr/bin/xdotool"} if have_xdotool else {}
+        self.sc._which = lambda n: tools.get(n)
+        self.sc._run = lambda argv, **kw: (True, "ok")
+        os.environ.setdefault("DISPLAY", ":99")
+
+    def test_volume_falls_back_to_xf86(self):
+        self._fake()
+        ok, det = self.sc._volume("up")
+        self.assertTrue(ok)
+        self.assertIn("XF86AudioRaiseVolume", det)
+        ok, det = self.sc._volume("down")
+        self.assertTrue(ok)
+        self.assertIn("XF86AudioLowerVolume", det)
+
+    def test_mute_falls_back_to_xf86(self):
+        self._fake()
+        ok, det = self.sc._mute()
+        self.assertTrue(ok)
+        self.assertIn("XF86AudioMute", det)
+
+    def test_media_falls_back_to_xf86(self):
+        self._fake()
+        ok, det = self.sc._media("playpause")
+        self.assertTrue(ok)
+        self.assertIn("XF86AudioPlay", det)
+        ok, det = self.sc._media("next")
+        self.assertTrue(ok)
+        self.assertIn("XF86AudioNext", det)
+
+    def test_honest_refusal_with_no_backend(self):
+        self._fake(have_xdotool=False)
+        self.assertFalse(self.sc._volume("up")[0])
+        self.assertFalse(self.sc._mute()[0])
+        self.assertFalse(self.sc._media("playpause")[0])
+
+
+class _FocusStub(ai.ActionProvider):
+    """A provider whose focused window is whatever the test sets."""
+
+    def __init__(self, wm_class="Xfce4-terminal", instance="xfce4-terminal",
+                 title="kiro — agent terminal"):
+        self._f = ai.FocusInfo(wid=1, wm_class=wm_class,
+                               instance=instance, title=title, pid=1)
+
+    def focused_app(self):
+        return self._f
+
+
+class TestTypeAllowGuard(unittest.TestCase):
+    """WF_TYPE_ALLOW pins guarded actions to a scratch window: stray
+    type/key ops can never land in a real terminal (chalk 19:19)."""
+
+    def setUp(self):
+        self._old = os.environ.get("WF_TYPE_ALLOW")
+
+    def tearDown(self):
+        if self._old is None:
+            os.environ.pop("WF_TYPE_ALLOW", None)
+        else:
+            os.environ["WF_TYPE_ALLOW"] = self._old
+
+    def test_allowlist_refuses_agent_terminal(self):
+        os.environ["WF_TYPE_ALLOW"] = r"wispr-wrap-merge-(sink|term)"
+        p = _FocusStub(title="kiro — agent terminal")
+        self.assertFalse(p.verify_focus())
+
+    def test_allowlist_passes_scratch_sink_title(self):
+        os.environ["WF_TYPE_ALLOW"] = r"wispr-wrap-merge-(sink|term)"
+        p = _FocusStub(title="wispr-wrap-merge-sink")
+        self.assertTrue(p.verify_focus())
+
+    def test_allowlist_matches_class_or_instance_too(self):
+        os.environ["WF_TYPE_ALLOW"] = r"sink-app"
+        p = _FocusStub(wm_class="Sink-app", title="untitled")
+        self.assertTrue(p.verify_focus())
+
+    def test_unset_allow_behaves_as_before(self):
+        os.environ.pop("WF_TYPE_ALLOW", None)
+        p = _FocusStub(title="kiro — agent terminal")
+        self.assertTrue(p.verify_focus())
+
+    def test_bad_pattern_refuses_safe(self):
+        os.environ["WF_TYPE_ALLOW"] = r"(["
+        p = _FocusStub(title="wispr-wrap-merge-sink")
+        self.assertFalse(p.verify_focus())
