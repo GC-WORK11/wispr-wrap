@@ -90,3 +90,69 @@ class TestTeachTrain(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPackTeachChain(unittest.TestCase):
+    """The pack install -> user-takes -> bound-sign chain: install writes
+    the argv into commands.tsv; teach_begin must pick that binding up so
+    the user's recorded takes attach to it."""
+
+    def test_teach_begin_picks_up_pack_binding(self):
+        import wfd
+        rows = {"HELLO": {"label": "Hello",
+                          "argv": ["xdotool", "type", "--", "hello"],
+                          "raw": "xdotool type -- hello", "tier": 1}}
+        old = wfd.commands
+        try:
+            wfd.commands = lambda: rows
+            code, obj = wfd.teach_begin({"name": "hello", "takes": 3})
+            self.assertEqual(code, 200, obj)
+            act = wfd.TEACH["action"]
+            self.assertIsNotNone(act)
+            self.assertEqual(act["argv"], ["xdotool", "type", "--", "hello"])
+            self.assertEqual(act["tier"], 1)
+        finally:
+            wfd.commands = old
+            wfd.TEACH.update(active=False, name="", takes=0, got=0,
+                             label="", action=None, session=None,
+                             frames=[])
+
+
+class TestDictActionChain(unittest.TestCase):
+    """SITE's quick-grid binds signs to {kind:"builtin", tool:"win.alt-tab"}
+    style actions. The daemon must (a) store the dict verbatim through
+    teach_begin -> add_exemplar and (b) resolve it to a real backend
+    action at fire time via act_iface.normalize_action."""
+
+    def test_dict_action_normalizes_to_backend_tool(self):
+        import act_iface
+        for tool, want in (("win.alt-tab", "alt_tab"),
+                           ("win.maximize", "maximize"),
+                           ("desktop.show", "show_desktop"),
+                           ("nav.scroll-up", "scroll"),
+                           ("media.playpause", "media")):
+            a = act_iface.normalize_action(
+                {"kind": "builtin", "tool": tool, "label": tool})
+            self.assertIsNotNone(a, tool)
+            self.assertEqual(a["type"], want, tool)
+
+    def test_teach_begin_stores_dict_action(self):
+        import wfd
+        act = {"kind": "builtin", "tool": "win.alt-tab",
+               "label": "Switch app"}
+        try:
+            code, obj = wfd.teach_begin({"name": "MY-SWITCH",
+                                         "action": act, "takes": 3})
+            self.assertEqual(code, 200, obj)
+            self.assertEqual(wfd.TEACH["action"], act)
+        finally:
+            wfd.TEACH.update(active=False, name="", takes=0, got=0,
+                             label="", action=None, session=None,
+                             frames=[])
+
+    def test_reserved_signs_refuse_teach(self):
+        import wfd
+        for name in ("PALM-OPEN", "NAMASTE", "palm open"):
+            code, obj = wfd.teach_begin({"name": name})
+            self.assertEqual(code, 400, (name, obj))
+            self.assertIn("reserved", obj.get("error", ""))

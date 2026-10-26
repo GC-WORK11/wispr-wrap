@@ -30,9 +30,7 @@ sheet.innerHTML = `
           <path d="M12 5v14M5 12h14"/>
         </svg>
       </span>
-      no signs yet — <b>teach your first one</b>.<br>
-      a sign is a gesture <i>you</i> choose, bound to an action on your laptop.<br>
-      three takes, ~90 seconds, runs offline.
+      No signs yet
     </div>
   </div>
   <div class="sheet-foot">
@@ -81,24 +79,25 @@ function render() {
       b.className = 'btn-ghost lib-b' + (cls ? ' ' + cls : '');
       b.textContent = txt; b.onclick = fn; row.appendChild(b); return b;
     };
-    if (s.taught !== false) mk('+ take', '', () => { App.nav('teach'); setTimeout(() => Teach.openAdd(s.gloss), 80); });
-    mk('rebind @', '', () => rebind(card, s));
-    mk('rename', '', () => startRename(card, s, row));
-    const del = mk('delete', 'danger', async () => {
+    if (s.taught !== false) mk('Add a take', '', () => { App.nav('teach'); setTimeout(() => Teach.openAdd(s.gloss), 80); });
+    mk('Change action', '', () => rebind(card, s));
+    mk('Rename', '', () => startRename(card, s, row));
+    const del = mk('Delete', 'danger', async () => {
       if (del.dataset.armed) {
         del.textContent = '…'; del.disabled = true;
         const r = await App.api.del('/bank?gloss=' + encodeURIComponent(s.gloss)).catch(() => null);
-        if (r && r.ok) { rows = rows.filter(x => x.gloss !== s.gloss); render(); App.toast('deleted ' + s.gloss); }
+        if (r && r.ok) { rows = rows.filter(x => x.gloss !== s.gloss); render(); App.toast('Deleted'); }
         else if (r && r.status === 404) bannerShow('no such sign — refreshed', true);
         else if (r && r.status === 403) App.toast('unpaired — rescan QR', true);
-        else { App.toast('delete failed', true); del.disabled = false; del.textContent = 'delete'; }
+        else { App.toast('Couldn’t delete', true); del.disabled = false; del.textContent = 'Delete'; }
         delete del.dataset.armed;
       } else {
-        del.dataset.armed = '1'; del.textContent = 'sure?';
-        setTimeout(() => { if (del.isConnected) { delete del.dataset.armed; del.textContent = 'delete'; } }, 2600);
+        del.dataset.armed = '1'; del.textContent = 'Sure?';
+        setTimeout(() => { if (del.isConnected) { delete del.dataset.armed; del.textContent = 'Delete'; } }, 2600);
       }
     });
     card.appendChild(row);
+    card.querySelector('.lib-top').onclick = () => card.classList.toggle('open');
     listEl.appendChild(card);
   }
 }
@@ -162,6 +161,7 @@ async function refresh() {
     teachBtn.disabled = true;
   } else if (r && r.status === 403) {
     bannerShow('unpaired — rescan the QR shown by wrap start');
+    rows = [];
     teachBtn.disabled = true;
   } else {
     bannerShow('laptop unreachable — run: wrap start', true);

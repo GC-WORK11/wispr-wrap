@@ -124,16 +124,10 @@ const canAct = () => connected() && (!state.laptop || state.laptop.canAct);
 function renderStatus() {
   const ok = connected();
   if (linkDot) linkDot.className = 'dr-dot' + (ok ? ' on' : '');
-  let sub;
-  if (!state.online) sub = 'Not connected';
-  else if (!state.paired) sub = 'Needs its code';
-  else {
-    const nm = (state.laptop && state.laptop.name) || store.getItem('wfname') || 'Your laptop';
-    sub = nm + (state.focus ? ' · typing into ' + state.focus : '');
-  }
+  const sub = ok ? 'Connected' : '';
   if (lapSub) lapSub.textContent = sub;
   // spec: laptop features exist only while a laptop is connected; otherwise one "Connect your laptop" row
-  for (const id of ['tray-teach', 'tray-signs']) { const el = document.getElementById(id); if (el) el.hidden = !ok; }
+  for (const id of ['tray-teach', 'tray-signs', 'tray-live', 'dr-laptop']) { const el = document.getElementById(id); if (el) el.hidden = !ok; }
   const dc = document.getElementById('dr-connect'); if (dc) dc.hidden = ok;
   if (connHint) connHint.hidden = ok || !state.checked || !K;
   emit('statusbar', state);
@@ -234,6 +228,11 @@ function parseHash() {
 async function applyRoute() {
   const name = parseHash();
   if (name === current) return;
+  // laptop-only surfaces: a stale or hand-typed deep-link bounces to the
+  // connect page until pairing says connected.
+  if (!connected() && ['live', 'teach', 'signs'].includes(name)) {
+    if (location.hash !== '#/laptop') { location.hash = '#/laptop'; return; }
+  }
   const prev = routes[current];
   if (prev && prev.close) await prev.close();
   current = name;

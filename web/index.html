@@ -132,7 +132,7 @@ background:#c2185b;transform:scaleX(var(--boot-p,.06));transform-origin:left cen
     <nav class="dr-nav" id="drawer-nav">
       <button class="dr-item" id="dr-connect" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
-        <span class="dr-t">Connect your laptop<span class="dr-sub">Signs and the @ picker need it</span></span>
+        <span class="dr-t">Connect your laptop</span>
       </button>
       <button class="dr-item" id="tray-teach">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 11.5V6a1.5 1.5 0 0 1 3 0v5m0-1.5a1.5 1.5 0 0 1 3 0V11m0-.5a1.5 1.5 0 0 1 3 0v1m0-.5a1.5 1.5 0 0 1 3 0v4.5c0 3-2.5 5.5-6 5.5s-5-1.5-6.5-4l-2-3.6c-.6-1 .8-2.1 1.7-1.3l1.3 1.1"/></svg>
@@ -145,7 +145,7 @@ background:#c2185b;transform:scaleX(var(--boot-p,.06));transform-origin:left cen
       </button>
       <button class="dr-item" id="dr-laptop">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="2"/><path d="M2 19h20"/></svg>
-        <span class="dr-t">Connected laptop<span class="dr-sub" id="dr-laptop-s">Checking…</span></span>
+        <span class="dr-t">Laptop<span class="dr-sub" id="dr-laptop-s">Checking…</span></span>
         <i class="dr-dot" id="link-dot"></i>
       </button>
       <button class="dr-item" id="dr-settings">
@@ -153,10 +153,6 @@ background:#c2185b;transform:scaleX(var(--boot-p,.06));transform-origin:left cen
         <span class="dr-t">Settings</span>
       </button>
     </nav>
-    <div class="dr-foot">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
-      <span>Private. Camera video never leaves your phone.</span>
-    </div>
   </aside>
 
   <!-- first run: connect to the laptop (shown only when there is no valid key) -->
@@ -164,13 +160,12 @@ background:#c2185b;transform:scaleX(var(--boot-p,.06));transform-origin:left cen
     <div class="onb-in">
       <svg class="onb-mark" viewBox="0 0 64 64" aria-hidden="true"><use href="#wl-mark"/></svg>
       <h1>Connect your laptop</h1>
-      <p>Type the 8-character code your laptop is showing. That is the only setup.</p>
+      <p>Enter the code your laptop shows.</p>
       <input class="onb-code" id="onb-code" maxlength="8" placeholder="········" inputmode="text"
              autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" aria-label="Pairing code">
       <button class="btn btn-primary" id="onb-go">Connect</button>
       <div class="onb-err" id="onb-err" role="alert"></div>
       <button class="onb-skip" id="onb-skip" hidden>Not now</button>
-      <div class="onb-help">No code on screen? Run <code>wrap pair</code> on your laptop,<br>or scan its QR code with this phone’s camera.</div>
     </div>
   </div>
 

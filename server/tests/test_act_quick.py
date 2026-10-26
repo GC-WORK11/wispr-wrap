@@ -142,3 +142,58 @@ class TestQuickRealX11(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMediaFallback(unittest.TestCase):
+    """Volume/mute/media fall back to XF86 media keys via xdotool when
+    pactl/amixer/playerctl/MPRIS are absent; they refuse honestly only
+    when NO backend exists at all."""
+
+    def setUp(self):
+        import system_ctl as sc
+        self.sc = sc
+        self._w, self._r = sc._which, sc._run
+        self._xd = os.environ.get("DISPLAY")
+
+    def tearDown(self):
+        self.sc._which, self.sc._run = self._w, self._r
+        if self._xd is None:
+            os.environ.pop("DISPLAY", None)
+        else:
+            os.environ["DISPLAY"] = self._xd
+
+    def _fake(self, have_xdotool=True):
+        tools = {"xdotool": "/usr/bin/xdotool"} if have_xdotool else {}
+        self.sc._which = lambda n: tools.get(n)
+        self.sc._run = lambda argv, **kw: (True, "ok")
+        os.environ.setdefault("DISPLAY", ":99")
+
+    def test_volume_falls_back_to_xf86(self):
+        self._fake()
+        ok, det = self.sc._volume("up")
+        self.assertTrue(ok)
+        self.assertIn("XF86AudioRaiseVolume", det)
+        ok, det = self.sc._volume("down")
+        self.assertTrue(ok)
+        self.assertIn("XF86AudioLowerVolume", det)
+
+    def test_mute_falls_back_to_xf86(self):
+        self._fake()
+        ok, det = self.sc._mute()
+        self.assertTrue(ok)
+        self.assertIn("XF86AudioMute", det)
+
+    def test_media_falls_back_to_xf86(self):
+        self._fake()
+        ok, det = self.sc._media("playpause")
+        self.assertTrue(ok)
+        self.assertIn("XF86AudioPlay", det)
+        ok, det = self.sc._media("next")
+        self.assertTrue(ok)
+        self.assertIn("XF86AudioNext", det)
+
+    def test_honest_refusal_with_no_backend(self):
+        self._fake(have_xdotool=False)
+        self.assertFalse(self.sc._volume("up")[0])
+        self.assertFalse(self.sc._mute()[0])
+        self.assertFalse(self.sc._media("playpause")[0])
