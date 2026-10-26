@@ -1,4 +1,4 @@
-/* sw.js — offline shell for the Wispr Wrap composer.
+/* sw.js — offline shell for the Sign-Flow composer.
  *
  * Bump VERSION on every shell/vendor change: it busts the old cache on
  * activate, so phones get fresh code without a manual clear.

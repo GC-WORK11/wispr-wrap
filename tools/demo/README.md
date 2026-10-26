@@ -1,4 +1,4 @@
-# tools/demo — the recorded Wispr Wrap demo (replayed keypoints)
+# tools/demo — the recorded Sign-Flow demo (replayed keypoints)
 
 This lane produces the honest, reproducible screen-capture demo: the **real
 shipped live-sign pipeline** running on a private X display, driven by

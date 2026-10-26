@@ -101,7 +101,7 @@ done
 # wait for the composer page to paint (window title carries the app name)
 for _ in $(seq 1 75); do
     TITLE=$(DISPLAY="$D" xdotool getwindowname "$WID" 2>/dev/null)
-    case "$TITLE" in *"Wispr Wrap"*|*"Flow Composer"*) break;; esac
+    case "$TITLE" in *"Sign-Flow"*|*"Wispr Wrap"*|*"Flow Composer"*) break;; esac
     sleep 0.2
 done
 log "chrome up: wid=$WID title='$TITLE'"

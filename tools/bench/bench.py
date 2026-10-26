@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""bench.py — measure the merged Wispr Wrap app against a LIVE wfd.py.
+"""bench.py — measure the merged Sign-Flow app against a LIVE wfd.py.
 
 Five measured numbers, all on THIS box, all stated with the method used:
 
