@@ -3,65 +3,52 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#f6f8fb">
-<title>wispr wrap — pair</title>
+<meta name="theme-color" content="#fafaf9">
+<title>Wispr Wrap</title>
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { height:100%; }
   body {
-    font-family:Inter,ui-sans-serif,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
-    -webkit-font-smoothing:antialiased;
-    background:#f6f8fb; color:#0f172a;
-    display:flex; align-items:center; justify-content:center;
-    min-height:100dvh; padding:28px;
+    font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+    -webkit-font-smoothing:antialiased; background:#fafaf9; color:#111;
+    display:flex; align-items:center; justify-content:center; min-height:100dvh; padding:28px;
   }
-  .card {
-    width:100%; max-width:340px; display:flex; flex-direction:column; gap:22px;
-    background:#fff; border:1px solid #e7ecf3; border-radius:22px;
-    padding:34px 26px 28px;
-    box-shadow:0 1px 2px rgba(35,45,80,.05), 0 10px 28px rgba(35,45,80,.10);
-  }
-  h1 {
-    font-size:17px; font-weight:700; letter-spacing:-.01em;
-    color:#0f172a; text-align:center;
-  }
-  h1 span { color:#94a3b8; font-weight:500; }
-  .sub { font-size:12px; color:#94a3b8; text-align:center; margin-top:-14px; letter-spacing:.02em; }
+  .card { width:100%; max-width:380px; display:flex; flex-direction:column; align-items:stretch; gap:14px; text-align:center; }
+  .mark { width:44px; height:44px; color:#c2185b; margin:0 auto 14px; }
+  h1 { font-size:30px; line-height:1.12; font-weight:600; letter-spacing:-.03em; color:#111; }
+  h1 span { color:#6b6b6b; font-weight:500; }
+  .sub { font-size:16px; color:#6b6b6b; line-height:1.5; margin:-4px 0 12px; }
   input {
-    width:100%; background:#fff; color:#0f172a; font:inherit; font-size:14.5px;
-    border:1px solid #e7ecf3; border-radius:12px; padding:12px 13px; outline:none;
-    letter-spacing:.02em; transition:border-color .15s, box-shadow .15s;
+    width:100%; background:#fff; color:#111; font:inherit; font-size:17px; border:1px solid #e7e5e4; border-radius:16px;
+    padding:16px 18px; outline:none; transition:border-color .15s, box-shadow .15s;
   }
-  input:focus { border-color:#4a7dff; box-shadow:0 0 0 3px rgba(74,125,255,.14); }
-  input::placeholder { color:#94a3b8; }
-  input.code { letter-spacing:.4em; font-size:16px; text-align:center; font-weight:600; }
+  input:focus { border-color:#111; box-shadow:0 0 0 4px rgba(0,0,0,.06); }
+  input::placeholder { color:#a3a3a3; }
+  input.code { letter-spacing:.4em; font-size:20px; text-align:center; font-weight:600; }
   button {
-    margin-top:2px; padding:13px; cursor:pointer; font:inherit; font-size:14px; font-weight:600;
-    letter-spacing:.01em;
-    background:#4a7dff; color:#fff; border:none; border-radius:12px;
-    box-shadow:0 4px 14px rgba(74,125,255,.3);
-    transition:transform .12s, opacity .15s;
+    margin-top:4px; height:54px; cursor:pointer; font:inherit; font-size:16px; font-weight:600; background:#111; color:#fff;
+    border:none; border-radius:27px; transition:transform .12s, opacity .15s;
   }
   button:active { transform:scale(.97); opacity:.9; }
-  .err { min-height:15px; font-size:12px; color:#cd4b47; text-align:center; letter-spacing:.01em; }
-  .hint { font-size:11.5px; color:#94a3b8; text-align:center; line-height:1.8; letter-spacing:.01em; }
-  .hint code { color:#64748b; font-family:ui-monospace,'SF Mono',Menlo,monospace; font-size:11px;
-    background:#f0f4fe; padding:1px 5px; border-radius:5px; }
+  .err { min-height:20px; font-size:14px; color:#c2301f; }
+  .hint { font-size:13px; color:#a3a3a3; line-height:1.8; margin-top:6px; }
+  .hint code { color:#3a3a3a; font-family:ui-monospace,'SF Mono',Menlo,monospace; font-size:12px; background:#f1f0ef; padding:2px 7px; border-radius:6px; }
 </style>
 </head>
 <body>
   <div class="card">
-    <h1>wispr<span>wrap</span></h1>
-    <div class="sub">pair with your laptop</div>
-    <input id="addr" placeholder="laptop address — 10.0.0.2:8741" inputmode="url" autocapitalize="none" autocorrect="off" autocomplete="off">
-    <input id="code" class="code" placeholder="CODE" maxlength="8" autocapitalize="characters" autocorrect="off" autocomplete="off">
-    <button id="go">connect</button>
+    <svg class="mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9"/></svg>
+    <h1>Connect your laptop</h1>
+    <div class="sub">Enter the address and code your laptop is showing.</div>
+    <input id="addr" placeholder="Laptop address, e.g. 10.0.0.2:8741" inputmode="url" autocapitalize="none" autocorrect="off" autocomplete="off">
+    <input id="code" class="code" placeholder="Code" maxlength="8" autocapitalize="characters" autocorrect="off" autocomplete="off">
+    <button id="go">Connect</button>
     <div class="err" id="err"></div>
-    <div class="hint">address + code are printed by <code>wrap start</code><br>
-      usb cable? run <code>wrap bridge</code> — the app then pairs itself<br>
-      or scan the qr with your camera app instead</div>
+    <div class="hint">The address and code are printed by <code>wrap start</code>.<br>
+      On a USB cable? Run <code>wrap bridge</code> and the app pairs itself.<br>
+      Or scan the QR code with your camera.</div>
   </div>
 <script>
 const err=document.getElementById('err'), addr=document.getElementById('addr'),

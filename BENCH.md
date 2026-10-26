@@ -161,6 +161,42 @@ on the touch icon.
 
 ---
 
+## 0 — Learned encoder vs DTW baseline (ASL Citizen, held-out signers)
+
+Trained on Kaggle GPU (`signflow-fewshot-aslc`); 300-gloss pool,
+signer-disjoint splits, n=600 closed-set draws per k. Full details:
+`signflow-devin/kaggle-jobs/sf-fewshot-aslc/RESULTS.md`.
+
+| shots | encoder top-1 | DTW-1NN top-1 | ratio |
+|------:|--------------:|--------------:|------:|
+| k=1 | .637 | .230 | 2.8x |
+| k=2 | .743 | .277 | 2.7x |
+| k=3 | .770 | .310 | 2.5x |
+| k=4 | **.788** | .337 | 2.3x |
+
+Reproduced across seeds (2026 seed run: k4 .780 vs .337; 150-gloss v3:
+k4 .795 vs .351). Capacity is data-bound: d192 400ep .788 ≈ d128 200ep
+.795. Open-set (episodic, taught+negatives): tau_margin FAR **0** at
+k4 with recall .688 — honest abstain, not free acceptance.
+Same-signer control shows DTW's gains are signer memorization
+(same .487 vs diff .326 @k4); the encoder generalizes (.765/.790).
+
+The kp42 (browser wire-format) variant (`signflow-fewshot-mp`,
+held-out signers 7–10): k=1 enc **.923–.960** vs DTW .813–.941;
+k=3 enc .959–.992. Exported `enc42_kp42.onnx` (+int8, ~1.08 MB).
+
+### CTC sign-to-text lane (`signflow-ctc-v2`, 29.2M params)
+
+Warm-start resume chain (v8: steps 6937→10063, +.02 WER gain):
+held-out main_s1.5 **.734**, open_s1.5 **.739** WER; val .45.
+fp32 ONNX exported (117 MB); int8 written (30.6 MB) but ORT
+ConvInteger runtime verify is a known limitation, not a training
+failure. Detail: `signflow-devin/kaggle-jobs/sf-ctc-v2/RESULTS.md`.
+
+These are OFFLINE-EVAL numbers on real public datasets — not yet wired
+into the live hot path (DTW stays the shipping matcher until the
+encoder lands on-device).
+
 ## The honest summary vs the bars
 
 | bar | result |

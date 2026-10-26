@@ -184,11 +184,12 @@ public class MainActivity extends Activity {
     }
 
     private void showOffline() {
-        web.loadData("<html><body style='background:#1a1218;color:#ffd9b8;font-family:"
-                + "sans-serif;text-align:center;padding-top:36vh'>"
-                + "<h2>laptop unreachable</h2>"
-                + "<p>run <b>wrap start</b> on the laptop and re-pair<br>"
-                + "(same WiFi, or USB + <b>wrap bridge</b>)</p>"
+        web.loadData("<html><head><meta name='viewport' content='width=device-width,initial-scale=1'></head>"
+                + "<body style='background:#fafaf9;color:#111;font-family:"
+                + "sans-serif;text-align:center;padding:36vh 24px 0'>"
+                + "<h2 style='font-weight:600'>Can&rsquo;t reach your laptop</h2>"
+                + "<p style='color:#6b6b6b;line-height:1.6'>Run <b>wrap start</b> on the laptop and connect again<br>"
+                + "(same Wi-Fi, or USB + <b>wrap bridge</b>)</p>"
                 + "</body></html>", "text/html", "utf-8");
         new AlertDialog.Builder(this)
                 .setTitle("Connection failed")

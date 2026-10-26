@@ -12,7 +12,7 @@
  *   API/auth  network-only, never cached (keypoint/bank data must not persist)
  *   everything else same-origin: stale-while-revalidate
  */
-const VERSION = "wf-shell-v5";
+const VERSION = "wf-shell-v7-ui2";
 const CACHE = `wispr-wrap-${VERSION}`;
 
 const SHELL = [
@@ -21,10 +21,10 @@ const SHELL = [
   "/apple-touch-icon.png",
   // merged module app — every lane lives under js/ + css/
   "/css/app.css", "/css/compose.css", "/css/live.css", "/css/teach.css",
-  "/css/actions.css", "/css/macro.css", "/css/library.css",
-  "/js/app.js", "/js/compose.js", "/js/pose.js", "/js/skeleton.js",
+  "/css/actions.css", "/css/macro.css", "/css/library.css", "/css/panes.css",
+  "/js/app.js", "/js/flower.js", "/js/compose.js", "/js/pose.js", "/js/skeleton.js",
   "/js/live.js", "/js/actions.js", "/js/macro.js", "/js/teach.js",
-  "/js/library.js"
+  "/js/library.js", "/js/panes.js"
 ];
 const VENDOR = [
   "/vendor/mediapipe/vision_bundle.mjs",

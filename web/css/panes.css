@@ -1,0 +1,25 @@
+/* panes.css — the default "Connected laptop" and "Settings" pages. Flat rows
+   on paper with hairline separators: no boxes, no cards. */
+.pn-body { display: flex; flex-direction: column; padding-top: 8px; }
+.pn-hero { display: flex; align-items: center; gap: 16px; padding: 10px 0 22px; }
+.pn-dot { flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--muted); }
+.pn-dot.on { background: var(--ok); box-shadow: 0 0 0 5px rgba(31, 143, 85, .14); }
+.pn-name { font-size: 24px; font-weight: 600; letter-spacing: -.025em; }
+.pn-sub { font-size: 15px; color: var(--muted-2); }
+.pn-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 56px; padding: 0 2px; border-top: 1px solid var(--hairline-2); font-size: 16px; }
+.pn-row:last-of-type { border-bottom: 1px solid var(--hairline-2); }
+.pn-k { color: var(--ink); }
+.pn-v { color: var(--muted-2); text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pn-tap { appearance: none; background: none; border-left: 0; border-right: 0; border-bottom: 0; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.pn-sw { position: relative; flex: none; width: 50px; height: 30px; border-radius: 15px; background: #d6d3d1; transition: background var(--t-2) var(--ease-out); }
+.pn-sw::after { content: ""; position: absolute; left: 3px; top: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); transition: transform var(--t-2) var(--ease-spring); }
+[aria-checked="true"] > .pn-sw { background: var(--ink); }
+[aria-checked="true"] > .pn-sw::after { transform: translateX(20px); }
+.pn-group { font-size: 13px; font-weight: 600; color: var(--muted); margin: 26px 2px 6px; }
+.pn-seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--hairline-2); }
+.pn-seg button { appearance: none; border: none; background: transparent; cursor: pointer; font: inherit; font-size: 14.5px; font-weight: 500; color: var(--muted-2); padding: 7px 16px; border-radius: 999px; transition: background var(--t-2), color var(--t-2); }
+.pn-seg button[aria-selected="true"] { background: var(--ink); color: #fff; }
+.pn-p { padding: 4px 2px 10px; }
+.pn-p code { font-family: var(--mono); font-size: 12.5px; background: var(--hairline-2); padding: 2px 7px; border-radius: 6px; color: var(--ink-2); }
+.pn-btn { margin-top: 18px; width: 100%; }
+.pn-foot { margin-top: 28px; text-align: center; font-size: 13px; color: var(--muted); }
