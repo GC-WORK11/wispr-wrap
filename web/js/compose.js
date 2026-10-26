@@ -200,10 +200,10 @@ async function send() {
         if (r.aborted) { sending = false; go.disabled = false; return; }  // cancelUpload already spoke
         imgOk = r.ok; into = r.json && r.json.into; ms = performance.now() - t0;
         if (imgOk) { clearStaged(); await App.sleep(450); }
-        else if (r.status === 0) App.toast(sizeMB > 15 ? 'That file is too big to send right now.' : 'Can’t reach your laptop', true);
+        else if (r.status === 0) App.toast(sizeMB > 15 ? 'That file is too big to send right now.' : 'Can’t reach your laptop.', true);
         else if (r.status === 413) App.toast('That file is too big to send.', true);
         else App.toast(App.daemonErr(r, 'Couldn’t send. Try again.'), true);
-      } catch (e) { uploadAbort = null; setProgress(null); App.toast('Can’t reach your laptop', true); }
+      } catch (e) { uploadAbort = null; setProgress(null); App.toast('Can’t reach your laptop.', true); }
     }
     if (text.trim()) {
       const t0 = performance.now();
@@ -212,7 +212,7 @@ async function send() {
         txtOk = r.ok;
         if (r.ok) { box.value = ''; grow(); into = into || (r.json && r.json.into); ms = performance.now() - t0; }
         else App.toast(App.daemonErr(r, 'Couldn’t send. Try again.'), true);
-      } catch (e) { App.toast('Can’t reach your laptop', true); }
+      } catch (e) { App.toast('Can’t reach your laptop.', true); }
     }
     App.emit('sent', { ok: imgOk || txtOk, into });
     if (imgOk || txtOk) {

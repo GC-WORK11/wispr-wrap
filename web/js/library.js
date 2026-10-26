@@ -88,8 +88,8 @@ function render() {
         const r = await App.api.del('/bank?gloss=' + encodeURIComponent(s.gloss)).catch(() => null);
         if (r && r.ok) { rows = rows.filter(x => x.gloss !== s.gloss); render(); App.toast('Deleted'); }
         else if (r && r.status === 404) bannerShow('no such sign — refreshed', true);
-        else if (r && r.status === 403) App.toast('unpaired — rescan QR', true);
-        else { App.toast('Couldn’t delete', true); del.disabled = false; del.textContent = 'Delete'; }
+        else if (r && r.status === 403) App.toast('Not connected — scan the code again.', true);
+        else { App.toast('Couldn’t delete.', true); del.disabled = false; del.textContent = 'Delete'; }
         delete del.dataset.armed;
       } else {
         del.dataset.armed = '1'; del.textContent = 'Sure?';
@@ -117,7 +117,7 @@ async function rebind(card, s) {
   if (Array.isArray(a.argv) && a.argv.length) body.argv = a.argv;
   const r = await App.api.put('/bank', body).catch(() => null);
   if (r && r.ok) { App.toast('rebound ' + s.gloss); refresh(); }
-  else if (r && r.status === 403) App.toast('unpaired — rescan QR', true);
+  else if (r && r.status === 403) App.toast('Not connected — scan the code again.', true);
   else App.toast(App.daemonErr(r, 'Couldn’t save that — try again.'), true);
 }
 
@@ -144,7 +144,7 @@ function startRename(card, s, row) {
       s.label = label;
       render(); App.toast('renamed');
     }
-    else if (r && r.status === 403) { App.toast('unpaired — rescan QR', true); cleanup(); }
+    else if (r && r.status === 403) { App.toast('Not connected — scan the code again.', true); cleanup(); }
     else { App.toast('rename failed', true); ok.disabled = false; ok.textContent = 'save'; }
   };
   inp.onkeydown = e => { if (e.key === 'Enter') ok.click(); if (e.key === 'Escape') cleanup(); };
@@ -157,14 +157,14 @@ async function refresh() {
     rows = Array.isArray(r.json.signs) ? r.json.signs : (Array.isArray(r.json) ? r.json : []);
     teachBtn.disabled = false;
   } else if (r && r.status === 404) {
-    bannerShow('the laptop runs an older wrap — update it to manage signs (git pull && npm run wrap)');
+    bannerShow('This laptop runs an older version — update it to manage signs.');
     teachBtn.disabled = true;
   } else if (r && r.status === 403) {
-    bannerShow('unpaired — rescan the QR shown by wrap start');
+    bannerShow('Not connected — scan the code again.');
     rows = [];
     teachBtn.disabled = true;
   } else {
-    bannerShow('laptop unreachable — run: wrap start', true);
+    bannerShow('Can’t reach your laptop.', true);
     teachBtn.disabled = true;
   }
   render();

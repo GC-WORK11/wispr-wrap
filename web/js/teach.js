@@ -406,7 +406,7 @@ nameNext.onclick = async () => {
   if (W.library.some(s => s.gloss === W.gloss)) { nameErr.textContent = 'You already have a sign with that name.'; return; }
   const r = await App.api.post('/teach/begin',
     { name: W.gloss, takes: NEED, label: W.label, action: W.action || undefined }).catch(() => null);
-  if (!r) { nameErr.textContent = 'Your laptop is not reachable right now.'; return; }
+  if (!r) { nameErr.textContent = 'Can’t reach your laptop.'; return; }
   if (r.status === 403) { nameErr.textContent = 'Not connected — scan the code again.'; return; }
   if (r.status === 404 || r.status === 405) {
     nameErr.textContent = 'This laptop runs an older version — update it to teach signs.';
@@ -622,7 +622,7 @@ async function saveBank() {
                  tier: a.tier == null ? 1 : a.tier, action: a };
   if (Array.isArray(a.argv) && a.argv.length) body.argv = a.argv;
   const r = await App.api.put('/bank', body).catch(() => null);
-  if (!r) { bindErr.textContent = 'Your laptop is not reachable right now.'; return false; }
+  if (!r) { bindErr.textContent = 'Can’t reach your laptop.'; return false; }
   if (r.status === 403) { bindErr.textContent = 'Not connected — scan the code again.'; return false; }
   if (!r.ok) {
     bindErr.textContent = App.daemonErr(r, 'Your laptop refused it — try again.');
