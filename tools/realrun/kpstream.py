@@ -29,6 +29,7 @@ Exit 0 always — assertions live in the calling verify script.
 """
 import argparse
 import json
+import math
 import sys
 import time
 import urllib.error
@@ -40,7 +41,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
 import synth  # noqa: E402
 
 FRAME_MS = 1000.0 / 15.0    # synthetic stream time runs at 15 Hz
-BASE_MS = [0.0]
+# Seed clip-time from wall-clock, not 0: each kpstream invocation must send
+# t_ms AHEAD of whatever the daemon's session endpointer last saw (previous
+# runs, the demo page, etc). Starting at 0 sends frames into the past —
+# negative dt breaks the speed/quiet math and segments never close.
+BASE_MS = [time.time() * 1000.0]
 
 # The gate's sign grammar — every bound gloss gets its OWN motion-distinct
 # path so the DTW bank never confuses two bound glosses (it is direction
@@ -116,21 +121,27 @@ def emit(frames, base, key, fps, quiet=False):
     return True
 
 
-def palm_hold(n=12):
+def palm_hold(n=None, fps=40):
     """Held open palm on the active hand (parked hand also open — the
     endpointer fires on whichever hand qualifies)."""
     path = [(0.50, 0.55)]
     # jitter must stay well under the endpointer's hold_v (0.6 pw/s):
     # 0.001/frame at ~66ms already produced 0.27-0.92 pw/s wrist speeds
     # and PALM-OPEN never fired. 0.0001 keeps a whisper of sensor noise.
-    return synth.render_clip(path, n_motion=n, lead=0, tail=0, absent=0,
+    # Duration must also clear hold_s (0.45s) at the ACTUAL fps —
+    # n=12 at 40fps is only 0.3s and the hold never committed.
+    if n is None: n = max(12, math.ceil(fps * 0.7))
+    # absent tail: an open palm leaves the segment open, and the NEXT clip's
+    # sign merges into it and never matches (found by verify_live_sign).
+    return synth.render_clip(path, n_motion=n, lead=0, tail=0, absent=8,
                              jitter=0.0001)
 
 
-def namaste_hold(n=12):
+def namaste_hold(n=None, fps=40):
     """Two open palms held together at center -> NAMASTE mode event.
     Palm centroids must sit within namaste_gap (1.4 x avg palm size
     ~ 0.048 in normalized units) of each other."""
+    if n is None: n = max(12, math.ceil(fps * 0.7))
     frames = []
     for i in range(n):
         pa = [{"x": 0.478 + ox, "y": 0.55 + oy, "score": 0.9}
@@ -138,6 +149,9 @@ def namaste_hold(n=12):
         pb = [{"x": 0.522 + ox, "y": 0.55 + oy, "score": 0.9}
               for ox, oy in synth.PALM]
         frames.append({"t_ms": 0.0, "points": pa + pb})
+    # same absent-tail close as palm_hold so the next segment starts clean
+    away = [{"x": 0.5, "y": 0.5, "score": 0.0} for _ in range(21)]
+    frames += [{"t_ms": 0.0, "points": away + away} for _ in range(8)]
     return frames
 
 
@@ -153,9 +167,9 @@ def main():
     for c in a.clips:
         kind, _, name = c.partition(":")
         if kind == "palm":
-            ok &= emit(palm_hold(), a.base, a.key, a.fps, a.quiet)
+            ok &= emit(palm_hold(fps=a.fps), a.base, a.key, a.fps, a.quiet)
         elif kind == "namaste":
-            ok &= emit(namaste_hold(), a.base, a.key, a.fps, a.quiet)
+            ok &= emit(namaste_hold(fps=a.fps), a.base, a.key, a.fps, a.quiet)
         elif kind == "wait":
             ok &= emit(synth.render_clip(None, absent=max(
                 1, int(int(name or "300") / FRAME_MS))),
@@ -167,8 +181,12 @@ def main():
                 path = synth.sign_paths()[name]
             else:
                 path = synth.unknown_path(7)
+            # absent tail must clear the endpointer's quiet_s (0.35s clip
+            # time = 6+ frames at FRAME_MS 66.7) or the segment never closes
+            # and the match never emits — kpstream has no background stream
+            # to flush it, unlike the composer page's replay pump.
             ok &= emit(synth.render_clip(path, n_motion=18, lead=4,
-                                         tail=8, absent=3),
+                                         tail=8, absent=8),
                        a.base, a.key, a.fps, a.quiet)
         else:
             print(f"unknown clip {c!r}", file=sys.stderr)

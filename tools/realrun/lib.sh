@@ -157,12 +157,20 @@ focus_term() { # focus the sink terminal; die if it won't take focus
 #   endpoints themselves -> rc 3 = route pending).
 teach_bind_fire() {
     local g="$1" label="$2" argv="$3" tier="${4:-0}"
-    local code
-    code=$(call POST /teach/begin "{\"name\":\"$g\",\"takes\":1,\"label\":\"$label\"}")
-    [ "$code" = 200 ] || return 3
-    python3 "$HERE/kpstream.py" --base "$BASE" --key "$KEY" --fps 40 "teach:$g" >/dev/null
-    sleep 0.25
-    code=$(call POST /teach/end '{}')
+    local code try exemplars
+    for try in 1 2; do
+        code=$(call POST /teach/begin "{\"name\":\"$g\",\"takes\":1,\"label\":\"$label\"}")
+        [ "$code" = 200 ] || return 3
+        python3 "$HERE/kpstream.py" --base "$BASE" --key "$KEY" --fps 40 "teach:$g" >/dev/null
+        sleep 0.25
+        code=$(call POST /teach/end '{}')
+        # a rotated session (another client posting /live/kp) cancels the
+        # teach mid-capture -> /teach/end 409 or exemplars 0. One honest
+        # retry rides out a single foreign rotation.
+        exemplars=$(call_body | python3 -c "import json,sys;print(json.load(sys.stdin).get('exemplars',0))" 2>/dev/null || echo 0)
+        [ "$code" = 200 ] && [ "${exemplars:-0}" -ge 1 ] && break
+        note "teach $g try $try: exemplars=$exemplars (session rotated?)"
+    done
     code=$(call PUT /bank "{\"gloss\":\"$g\",\"label\":\"$label\",\"argv\":\"$argv\",\"tier\":$tier}")
     [ "$code" = 200 ] || return 3
     python3 "$HERE/kpstream.py" --base "$BASE" --key "$KEY" --fps 40 palm >/dev/null 2>&1
