@@ -307,12 +307,12 @@ export function createHand(opts = {}) {
     // =====================================================================
     // WRITE MODE
     // =====================================================================
+    // V hold (any mode: after C opened Chrome, a V still opens YouTube)
+    if (stablePose === 'v' && !vHeldFired && tMs - stableSince >= 600) {
+      vHeldFired = true;
+      events.push({ type: 'vsign' });
+    }
     if (engine.mode === 'write') {
-      // V hold
-      if (stablePose === 'v' && !vHeldFired && tMs - stableSince >= 600) {
-        vHeldFired = true;
-        events.push({ type: 'vsign' });
-      }
 
       // stroke lifecycle
       if (!writing) {

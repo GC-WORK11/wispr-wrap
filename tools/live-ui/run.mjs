@@ -485,7 +485,8 @@ async function flowHands() {
     await sleep(380);
     await shot(page, 'live-21-air-C-ignites');
     await until(() => windows().filter(l => /google-chrome/i.test(l)).length > before, 20000, 'a Chrome window on the laptop');
-    await page.waitFor(`/opened google chrome/i.test(document.querySelector('#lv-act-t').textContent)`, 8000, 'Opened Google Chrome');
+    // "Opened Google Chrome" is a 3 s caption; after it the browse hint shows
+    await page.waitFor(`/opened google chrome|point to move/i.test(document.querySelector('#lv-act-t').textContent)`, 8000, 'Opened Google Chrome');
     await sleep(4500);
     let phone = await shot(page, 'live-22-air-C-chrome-opened');
     compose(phone, xshot(path.join(RAW, 'hands-chrome.png')), 'live-22b-air-C-phone-and-laptop', 'air-written C opened Google Chrome');
@@ -493,7 +494,7 @@ async function flowHands() {
     // 3) V sign -> YouTube
     await sleep(1800);
     await page.eval(`window.__play('vsign')`);
-    await page.waitFor(`/opened youtube/i.test(document.querySelector('#lv-act-t').textContent)`, 15000, 'Opened YouTube');
+    await page.waitFor(`/opened youtube/i.test(document.querySelector('#lv-act-t').textContent) || /youtube/i.test(document.querySelector('#lv-guess').textContent)`, 15000, 'Opened YouTube');
     const yt = await until(async () => { try { return await lapEval(`location.host.endsWith('youtube.com') && document.readyState === 'complete' && location.href`); } catch (e) { return null; } }, 30000, 'YouTube loaded on the laptop');
     await sleep(5000);
     phone = await shot(page, 'live-23-V-youtube-opened');
