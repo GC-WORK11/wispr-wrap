@@ -63,6 +63,7 @@ sheet.innerHTML = `
 
     <section class="tw-step" data-step="record">
       <p class="tw-lead sr-only" id="tw-rec-lead" role="status"></p>
+      <div class="qa-done qa-rec" id="qa-rec"></div>
       <div class="tw-stage" id="tw-stage">
         <video id="tw-vid" muted playsinline autoplay></video>
         <canvas id="tw-skel"></canvas>
@@ -139,7 +140,7 @@ const nameIn = $('tw-name'), nameErr = $('tw-name-err'),
       pickIc = $('tw-pick-ic'), pickBtn2 = $('tw-pick2'), pickTx2 = $('tw-pick2-tx'),
       actionEl = $('tw-action'), bindErr = $('tw-bind-err'), saveBtn = $('tw-save'),
       doneT = $('tw-done-t'), doneM = $('tw-done-m'),
-      qaDone = $('qa-done'), progBar = $('tw-prog-bar'), trainList = $('tw-train'), trailsEl = $('tw-trails'),
+      qaDone = $('qa-done'), qaRec = $('qa-rec'), progBar = $('tw-prog-bar'), trainList = $('tw-train'), trailsEl = $('tw-trails'),
       retakeEl = $('tw-retake'), retakeM = $('tw-retake-m');
 
 /* the Recording chip mirrors the daemon's capture session, nothing else */
@@ -442,6 +443,8 @@ nameNext.onclick = async () => {
   setTeaching(true);
   recLead.textContent = 'Take 1 of ' + NEED;
   recDone.hidden = true; recBack.textContent = 'Back';
+  { const sum = Quick.summary();
+    qaRec.innerHTML = sum ? `<span class="qa-ic">${sum.ic}</span><span class="qa-l">${esc(sum.label)}</span>` : `<span class="qa-l">${esc(W.label)}</span>`; }
   renderTakebar();
   showStep('record');
   startCapture();
@@ -742,6 +745,7 @@ const Teach = {
     }
     setTeaching(true);
     recLead.textContent = 'Take 1 of 1';
+    qaRec.innerHTML = `<span class="qa-l">${esc(W.label || gloss)}</span>`;
     recDone.hidden = true; recBack.textContent = 'Cancel';
     renderTakebar();
     showStep('record');

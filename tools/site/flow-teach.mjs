@@ -76,7 +76,7 @@ try {
     if (n === 2) {
       await shotTo(page, OUT, '04-take-2');
       const vt = await visibleText(page, '#sheet-teach');
-      check('recording screen: the only text is the Back button', vt.length <= 1 && vt.every(t => t === 'Back'), vt.join(' | ') || 'no text');
+      check('recording screen: the sign name and the Back button, nothing else', vt.length <= 2 && vt.includes('Back') && vt.every(isLabel), vt.join(' | '));
     }
   }
   check('3 takes stored by the daemon\'s own endpointer', true);
