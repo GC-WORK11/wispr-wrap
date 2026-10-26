@@ -167,3 +167,31 @@
 .tw-trail-ok.on { transform: none; }
 .tw-prev .tkv canvas { background: var(--hairline-2); }
 @media (prefers-reduced-motion: reduce) { .tw-trail { animation: none; } .tw-trail-ok { transition: none; } }
+
+/* --- quick-actions grid (FOUNDER-SIMPLIFY-1433): one tap, one primary button --- */
+.tw-step[data-step="name"] { gap: 16px; }
+.qa-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.qa-tile {
+  appearance: none; border: 0; cursor: pointer; font-family: inherit;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px;
+  min-height: 92px; padding: 12px 6px; border-radius: 18px;
+  background: var(--hairline-2); color: var(--ink);
+  transition: transform var(--t-1) var(--ease-out), background var(--t-1), box-shadow var(--t-1), color var(--t-1);
+}
+.qa-tile:active { transform: scale(.97); }
+.qa-ic { display: grid; place-items: center; width: 30px; height: 30px; }
+.qa-ic svg { width: 28px; height: 28px; }
+.qa-ic img { width: 30px; height: 30px; object-fit: contain; }
+.qa-l { font-size: 14px; font-weight: 500; line-height: 1.2; letter-spacing: -.005em; text-align: center; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qa-tile[aria-pressed="true"] { background: var(--surface); color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
+.qa-text { animation: msg-in var(--t-3) var(--ease-out); }
+.qa-link { align-self: flex-start; background: none; border: 0; padding: 12px 2px; min-height: 44px; font: inherit; font-size: 15px; font-weight: 550; color: var(--muted-2); cursor: pointer; }
+.qa-link:hover { color: var(--ink); }
+.tw-step[data-step="name"] .tw-foot {
+  position: sticky; bottom: 0; z-index: 2; margin: 4px -20px 0; padding: 12px 20px calc(var(--safe-b) + 14px);
+  background: var(--bg); border-top: 1px solid var(--hairline-2);
+}
+.tw-step[data-step="name"] .tw-foot .btn { width: 100%; height: 54px; border-radius: 27px; font-size: 16px; }
+@media (min-width: 721px) { .qa-grid { grid-template-columns: repeat(4, 1fr); } }
+@media (prefers-reduced-motion: reduce) { .qa-tile, .qa-text { transition: none; animation: none; } }
+#sheet-teach .sheet-body { scroll-padding-bottom: 104px; }
