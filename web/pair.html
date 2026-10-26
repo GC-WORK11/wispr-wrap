@@ -73,8 +73,8 @@ document.getElementById('go').onclick=async()=>{
       body:JSON.stringify({code:code.value.trim()})});
     const j=await r.json().catch(()=>({}));
     if(r.ok&&j.key) return finish(a,j.key);
-    bad(r.status===429?'slow down — one try a second':
-        r.status===403?'wrong code — see wrap start output':'not a wrap daemon ('+r.status+')');
+    bad(r.status===429?'One try per second — give it a moment.':
+        r.status===403?'That code isn’t right. Check your laptop screen.':'Couldn’t pair ('+r.status+').');
   }catch(e){ bad('cannot reach '+a.replace(/\/$/,'')); }
 };
 code.addEventListener('keydown',e=>{ if(e.key==='Enter')document.getElementById('go').click(); });

@@ -12,7 +12,7 @@
  *   API/auth  network-only, never cached (keypoint/bank data must not persist)
  *   everything else same-origin: stale-while-revalidate
  */
-const VERSION = "wf-shell-v8-live1";
+const VERSION = "wf-shell-v9-merged2";
 const CACHE = `wispr-wrap-${VERSION}`;
 
 const SHELL = [
@@ -24,7 +24,8 @@ const SHELL = [
   "/css/actions.css", "/css/macro.css", "/css/library.css", "/css/panes.css",
   "/js/app.js", "/js/flower.js", "/js/compose.js", "/js/pose.js", "/js/skeleton.js",
   "/js/live.js", "/js/actions.js", "/js/macro.js", "/js/teach.js",
-  "/js/library.js", "/js/panes.js"
+  "/js/library.js", "/js/panes.js",
+  "/js/laptop.js", "/js/settings.js", "/js/drawer.js", "/css/drawer.css"
 ];
 const VENDOR = [
   "/vendor/mediapipe/vision_bundle.mjs",

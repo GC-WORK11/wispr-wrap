@@ -68,7 +68,7 @@ function clearStaged() {
   thumb.removeAttribute('src'); vthumb.removeAttribute('src'); vthumb.load && vthumb.load();
   grow();
 }
-unattach.onclick = () => { clearStaged(); box.focus(); };
+unattach.onclick = () => { if (sending && uploadAbort) cancelUpload('Upload cancelled'); clearStaged(); box.focus(); };
 
 /* + opens a small picker: photo/video vs any file (two real inputs exist) */
 let menu = null;
@@ -144,8 +144,27 @@ async function squeeze(blob) {
 
 /* ---------- send ---------- */
 let sending = false;
+let uploadAbort = null;          // active upload's AbortController (null when idle)
+/* thin 2px deep-pink progress line along the bottom edge of the pill */
+function setProgress(frac) {
+  if (frac == null) { pill.classList.remove('uploading'); pill.style.removeProperty('--up'); return; }
+  pill.classList.add('uploading');
+  pill.style.setProperty('--up', Math.max(0, Math.min(1, frac)));
+}
+function cancelUpload(reason) {
+  if (!uploadAbort) return false;
+  const a = uploadAbort; uploadAbort = null;
+  try { a.abort(); } catch (e) {}
+  setProgress(null);
+  App.toast(reason || 'Upload cancelled');
+  return true;
+}
 async function send() {
-  if (sending) return;
+  if (sending) {
+    // a second tap while uploading means "stop sending this"
+    if (cancelUpload('Upload cancelled')) return;
+    return;
+  }
   const text = box.value;
   if (!text.trim() && !staged) return;
   sending = true; go.disabled = true;
@@ -154,23 +173,37 @@ async function send() {
     if (staged) {
       const st = staged;
       const isImg = (st.blob.type || '').startsWith('image/');
-      App.toast(st.isVideo ? 'Sending video…' : isImg ? 'Sending image…' : 'Sending file…');
+      const noun = st.isVideo ? 'video' : isImg ? 'image' : 'file';
       const t0 = performance.now();
       try {
         let r;
+        uploadAbort = new AbortController();
+        go.disabled = false;         // keep the arrow live so a second tap cancels the upload
+        const sizeMB = st.blob.size / 1048576;
+        const onProg = (frac) => {
+          const pct = Math.round(frac * 100);
+          setProgress(frac);
+          App.toast('Sending ' + noun + '… ' + pct + '%');
+        };
+        App.toast('Sending ' + noun + '… 0%');
+        setProgress(0);
         if (st.isVideo || !isImg) {
-          r = await App.api.post('/send-file', st.blob,
+          r = await App.api.upload('/send-file', st.blob,
             { 'Content-Type': st.blob.type || 'application/octet-stream',
-              'X-File-Name': encodeURIComponent(st.name) });
+              'X-File-Name': encodeURIComponent(st.name) }, onProg, uploadAbort.signal);
         } else {
           const b = await squeeze(st.blob);
-          r = await App.api.post('/send-image', b,
-            { 'Content-Type': b.type || 'application/octet-stream' });
+          r = await App.api.upload('/send-image', b,
+            { 'Content-Type': b.type || 'application/octet-stream' }, onProg, uploadAbort.signal);
         }
+        uploadAbort = null; setProgress(null);
+        if (r.aborted) { sending = false; go.disabled = false; return; }  // cancelUpload already spoke
         imgOk = r.ok; into = r.json && r.json.into; ms = performance.now() - t0;
         if (imgOk) { clearStaged(); await App.sleep(450); }
+        else if (r.status === 0) App.toast(sizeMB > 15 ? 'That ' + noun + ' is too big to send right now.' : 'Can’t reach your laptop. Run: wrap start', true);
+        else if (r.status === 413) App.toast('That ' + noun + ' is too big to send.', true);
         else App.toast('The laptop said no (' + r.status + ')' + (r.json && r.json.error ? ': ' + r.json.error : ''), true);
-      } catch (e) { App.toast('Can’t reach your laptop. Run: wrap start', true); }
+      } catch (e) { uploadAbort = null; setProgress(null); App.toast('Can’t reach your laptop. Run: wrap start', true); }
     }
     if (text.trim()) {
       const t0 = performance.now();
