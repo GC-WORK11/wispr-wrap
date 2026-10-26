@@ -90,3 +90,29 @@ class TestTeachTrain(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPackTeachChain(unittest.TestCase):
+    """The pack install -> user-takes -> bound-sign chain: install writes
+    the argv into commands.tsv; teach_begin must pick that binding up so
+    the user's recorded takes attach to it."""
+
+    def test_teach_begin_picks_up_pack_binding(self):
+        import wfd
+        rows = {"HELLO": {"label": "Hello",
+                          "argv": ["xdotool", "type", "--", "hello"],
+                          "raw": "xdotool type -- hello", "tier": 1}}
+        old = wfd.commands
+        try:
+            wfd.commands = lambda: rows
+            code, obj = wfd.teach_begin({"name": "hello", "takes": 3})
+            self.assertEqual(code, 200, obj)
+            act = wfd.TEACH["action"]
+            self.assertIsNotNone(act)
+            self.assertEqual(act["argv"], ["xdotool", "type", "--", "hello"])
+            self.assertEqual(act["tier"], 1)
+        finally:
+            wfd.commands = old
+            wfd.TEACH.update(active=False, name="", takes=0, got=0,
+                             label="", action=None, session=None,
+                             frames=[])

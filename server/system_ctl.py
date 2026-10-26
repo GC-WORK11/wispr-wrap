@@ -133,6 +133,24 @@ def _wayland_suffix():
 # volume / mute — pactl, amixer fallback
 # ------------------------------------------------------------------
 
+# X11 media keysyms — the fallback backend when no mixer/MPRIS channel
+# exists. These are the same events the keyboard's media keys produce.
+_XF86_VOLUME = {"up": "XF86AudioRaiseVolume",
+                "down": "XF86AudioLowerVolume"}
+_XF86_MEDIA = {"playpause": "XF86AudioPlay", "play": "XF86AudioPlay",
+               "pause": "XF86AudioPause", "next": "XF86AudioNext",
+               "prev": "XF86AudioPrev", "stop": "XF86AudioStop"}
+
+
+def _media_key(keysym):
+    """Dispatch an XF86 media key via xdotool. Requires DISPLAY."""
+    xd = _which("xdotool")
+    if not xd or not os.environ.get("DISPLAY"):
+        return False, ""
+    ok, det = _run([xd, "key", "--clearmodifiers", keysym])
+    return (ok, "XF86 %s sent" % keysym) if ok else (False, det)
+
+
 def _volume(direction, step=VOLUME_STEP_PCT):
     pactl = _which("pactl")
     if pactl:
@@ -144,7 +162,10 @@ def _volume(direction, step=VOLUME_STEP_PCT):
         delta = "%d%%+" % step if direction == "up" else "%d%%-" % step
         ok, det = _run([amixer, "-q", "set", "Master", delta])
         return (ok, "amixer Master %s" % delta) if ok else (False, det)
-    return False, "not available: need pactl (PipeWire/PulseAudio) or amixer (ALSA)"
+    ok, det = _media_key(_XF86_VOLUME[direction])
+    return (ok, det) if ok else \
+        (False, "not available: need pactl (PipeWire/PulseAudio), "
+                "amixer (ALSA) or xdotool (XF86 key)")
 
 
 def _mute():
@@ -156,7 +177,9 @@ def _mute():
     if amixer:
         ok, det = _run([amixer, "-q", "set", "Master", "toggle"])
         return (ok, "amixer Master toggle") if ok else (False, det)
-    return False, "not available: need pactl or amixer"
+    ok, det = _media_key("XF86AudioMute")
+    return (ok, det) if ok else \
+        (False, "not available: need pactl, amixer or xdotool (XF86 key)")
 
 
 # ------------------------------------------------------------------
@@ -227,16 +250,28 @@ def _media(sub):
         ok, det = _run([pc, _PLAYERCTL_ARG[sub]])
         return (ok, "playerctl %s" % _PLAYERCTL_ARG[sub]) if ok else (False, det)
     dbus = _which("dbus-send")
-    if not dbus:
-        return False, "not available: need playerctl or dbus-send (MPRIS)"
-    name = _mpris_bus_name(dbus)
-    if not name:
+    no_player = False
+    if dbus:
+        name = _mpris_bus_name(dbus)
+        if name:
+            ok, det = _run([dbus, "--session", "--print-reply",
+                            "--dest=" + name,
+                            "/org/mpris/MediaPlayer2",
+                            "org.mpris.MediaPlayer2.Player." + _MPRIS[sub]])
+            return (ok, "mpris %s -> %s" % (_MPRIS[sub], name)) \
+                if ok else (False, det)
+        no_player = True
+    # last resort: the X11 media keys a DE handles like hardware keys.
+    # The key event is real; whether a player/mixer consumed it isn't
+    # observable from here, so the detail says exactly what happened.
+    ok, det = _media_key(_XF86_MEDIA[sub])
+    if ok:
+        return ok, det
+    if no_player:
         return False, ("dbus-send present but no org.mpris.MediaPlayer2.* "
                        "player on the session bus")
-    ok, det = _run([dbus, "--session", "--print-reply", "--dest=" + name,
-                    "/org/mpris/MediaPlayer2",
-                    "org.mpris.MediaPlayer2.Player." + _MPRIS[sub]])
-    return (ok, "mpris %s -> %s" % (_MPRIS[sub], name)) if ok else (False, det)
+    return False, ("not available: need playerctl, a MPRIS player on "
+                   "dbus, or xdotool (XF86 key)")
 
 
 # ------------------------------------------------------------------
@@ -543,16 +578,16 @@ DISPATCH.update({
 
 # which backends each action could use, for the `available:[...]` report
 _PROBES = {
-    "sys.volume-up":      ("pactl", "amixer"),
-    "sys.volume-down":    ("pactl", "amixer"),
-    "sys.mute":           ("pactl", "amixer"),
+    "sys.volume-up":      ("pactl", "amixer", "xdotool"),
+    "sys.volume-down":    ("pactl", "amixer", "xdotool"),
+    "sys.mute":           ("pactl", "amixer", "xdotool"),
     "sys.brightness-up":  ("brightnessctl", "/sys/class/backlight"),
     "sys.brightness-down": ("brightnessctl", "/sys/class/backlight"),
-    "media.playpause":    ("playerctl", "dbus-send"),
-    "media.play":         ("playerctl", "dbus-send"),
-    "media.pause":        ("playerctl", "dbus-send"),
-    "media.next":         ("playerctl", "dbus-send"),
-    "media.prev":         ("playerctl", "dbus-send"),
+    "media.playpause":    ("playerctl", "dbus-send", "xdotool"),
+    "media.play":         ("playerctl", "dbus-send", "xdotool"),
+    "media.pause":        ("playerctl", "dbus-send", "xdotool"),
+    "media.next":         ("playerctl", "dbus-send", "xdotool"),
+    "media.prev":         ("playerctl", "dbus-send", "xdotool"),
     "sys.screenshot":     ("import", "gnome-screenshot", "spectacle", "scrot", "ffmpeg"),
     "sys.screenshot-region": ("import", "gnome-screenshot", "spectacle", "scrot"),
     "sys.lock":           ("loginctl", "xdg-screensaver"),
