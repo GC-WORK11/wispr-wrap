@@ -133,7 +133,7 @@
 .lib-b.danger { color: var(--danger); }
 .lib-b.btn-primary { background: var(--ink); color: #fff; margin-left: 0; }
 .lib-b.btn-primary:hover { background: #2b2b2b; }
-.lib-empty-g { background: var(--accent-soft); }
+.lib-empty-g { background: var(--surface); color: var(--ink); box-shadow: var(--sh-1); width: 104px; height: 104px; }   /* same family as the Laptop page glyph */
 
 /* v2.1 (simplify): a sign is one calm row; tap it for its actions */
 .lib-card .lib-row { display: none; }
@@ -143,7 +143,8 @@
 .lib-card.open .lib-top::after { transform: rotate(-135deg) translateY(-2px); }
 .lib-b { min-height: 48px; padding: 12px 14px; }
 .lib-empty { font-size: 17px; color: var(--muted); padding: 0; }
-.lib-empty-g { margin-bottom: 14px; }
+.lib-empty-g { margin-bottom: 0; }
+.lib-empty-g svg { width: 46px; height: 46px; }
 .lib-act .chip.accent { display: none; }
 
 /* FOUNDER-RULE-1652: a sign is its name. Counts, summaries and sub-labels are not drawn. */

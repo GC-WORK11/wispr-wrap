@@ -43,9 +43,6 @@ try {
     await page.type('Hey, can you send me the build when it is ready?');
     await sleep(600);
     await shot('03-composer-with-text');
-    await page.click('#plus'); await sleep(450);
-    await shot('04-attach-menu');
-    await page.esc(); await sleep(200);
   }
   if (sets.includes('drawer')) {
     await phone();

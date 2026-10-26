@@ -6,7 +6,8 @@
 
 .stage { padding: 0 20px calc(var(--safe-b) + clamp(14px, 2.4dvh, 22px)); }
 
-.conn-hint {
+.conn-hint {   /* founder 1652: no caption under the lotus — the wilted lotus and the drawer row carry it */
+  display: none !important;
   appearance: none; border: none; background: none; cursor: pointer;
   display: flex; align-items: center; gap: 8px; margin: 0 0 14px; padding: 6px 10px;
   font: inherit; font-size: 14px; color: var(--muted-2); border-radius: 10px; background: var(--bg);
