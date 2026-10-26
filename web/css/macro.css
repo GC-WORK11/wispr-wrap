@@ -11,7 +11,7 @@
 
 @media (min-width: 721px) {
   #sheet-macro.sheet {
-    background: rgba(15, 23, 42, .28);
+    background: rgba(28, 27, 24, .34);
     justify-content: center;
     align-items: center;
     padding: 28px;
@@ -35,10 +35,10 @@
 
 #sheet-macro .sheet-body::-webkit-scrollbar { width: 10px; }
 #sheet-macro .sheet-body::-webkit-scrollbar-thumb {
-  background: #cfd7e4; border: 3px solid transparent;
+  background: #ddd7ca; border: 3px solid transparent;
   border-radius: 8px; background-clip: padding-box;
 }
-#sheet-macro .sheet-body { scrollbar-width: thin; scrollbar-color: #cfd7e4 transparent; }
+#sheet-macro .sheet-body { scrollbar-width: thin; scrollbar-color: #ddd7ca transparent; }
 
 /* ---------- step rows: clean cards — index, type chip, value ---------- */
 .mc-step {
@@ -82,7 +82,7 @@
 .mc-add {
   display: flex; flex-wrap: wrap; gap: 4px;
   margin-top: 10px; padding: 6px 8px;
-  border: 1.5px dashed #d9e1ee; border-radius: 14px;
+  border: 1.5px dashed #ddd7ca; border-radius: 14px;
 }
 .mc-chip {
   appearance: none; cursor: pointer; font-family: inherit;
@@ -100,7 +100,7 @@
 .mc-addone {
   appearance: none; display: block; width: 100%;
   margin-top: 2px; padding: 11px; cursor: pointer;
-  border: 1.5px dashed #d9e1ee; border-radius: 14px;
+  border: 1.5px dashed #ddd7ca; border-radius: 14px;
   background: transparent; color: var(--muted-2);
   font-family: inherit; font-size: 12.5px; font-weight: 600;
   transition: color .15s, border-color .15s;
@@ -124,7 +124,7 @@
 /* 'default' — the else row; dashed, lighter than a matched rule */
 .mc-def {
   display: flex; align-items: center; gap: 9px;
-  background: var(--surface); border: 1.5px dashed #d9e1ee;
+  background: var(--surface); border: 1.5px dashed #ddd7ca;
   border-radius: 16px; padding: 10px 12px; margin-top: 10px;
 }
 
@@ -140,4 +140,4 @@
   background: var(--surface); border: 1px solid var(--hairline);
   border-radius: 999px; padding: 9px 13px;
 }
-.mc-tool:hover { border-color: #d8e0ee; box-shadow: var(--sh-1); }
+.mc-tool:hover { border-color: #ddd7ca; box-shadow: var(--sh-1); }

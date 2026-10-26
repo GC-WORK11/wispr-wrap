@@ -1,183 +1,148 @@
-/* live.css — the LIVE sheet: viewfinder + skeleton + reading strip.
-   The sheet covers .view (over the composer stage, under the rail's z).
-   Wide screens: one centered column (~620px). Under 720px the stage goes
-   full-bleed above the bottom bar. Shares tokens from app.css. */
+/* live.css — the LIVE sheet: viewfinder, what the engine reads, what it did.
+   The lens stays dark (it is a camera); everything around it is paper.
+   Listening is shown by a quiet pine ring around the lens, not by color noise.
+   Tokens from app.css. */
 
-/* the sheet's own head aligns with the centered column below */
-#sheet-live .sheet-head {
-  width: 100%; max-width: 656px; margin-inline: auto;
-}
+#sheet-live .sheet-head { width: 100%; max-width: 680px; margin-inline: auto; padding-top: 22px; }
+.lv-body { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+.lv-body > * { width: 100%; max-width: 640px; }
 
-.lv-body { display: flex; flex-direction: column; gap: 12px; }
-.lv-body > * { width: 100%; max-width: 620px; margin-inline: auto; }
+/* engine names are developer detail: visible only with ?dev */
+.lv-eng { display: none; font-size: 11px; font-weight: 500; color: var(--muted); }
+body.dev .lv-eng:not(:empty) { display: inline; margin-left: 6px; }
 
-.lv-eng { font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
-.lv-eng:empty { display: none; }
-
-/* listen badge — a soft pill; state is reported, never implied */
+/* state chip */
 .lv-badge {
-  display: inline-flex; align-items: center; gap: 6px; flex: none;
-  height: 25px; padding: 0 11px; border-radius: 999px;
-  background: var(--surface); border: 1px solid var(--hairline);
-  font-size: 11px; font-weight: 600; color: var(--muted-2); letter-spacing: .05em;
+  display: inline-flex; align-items: center; gap: 8px; flex: none;
+  height: 28px; padding: 0 12px 0 10px; border-radius: 999px;
+  background: transparent; border: 1px solid var(--hairline);
+  font-size: 12.5px; font-weight: 550; color: var(--muted-2); letter-spacing: -.003em;
+  transition: background var(--t-2), border-color var(--t-2), color var(--t-2);
 }
-.lv-badge i {
-  width: 6px; height: 6px; border-radius: 50%; flex: none;
-  background: transparent; border: 1.4px solid var(--muted);
-}
-.lv-badge.listen { color: var(--accent); border-color: #cfddfd; background: var(--accent-soft); }
-.lv-badge.listen i {
-  background: var(--accent); border-color: var(--accent);
-  animation: pulse 1.5s ease-in-out infinite;
-}
-.lv-badge.err { color: var(--danger); border-color: #f0cfcc; background: var(--danger-soft); }
-.lv-badge.err i { background: var(--danger); border-color: var(--danger); }
+.lv-badge i { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--hairline); transition: background var(--t-2); }
+.lv-badge.listen { color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft); }
+.lv-badge.listen i { background: var(--live); animation: pulse 1.4s ease-in-out infinite; }
+.lv-badge.err { color: var(--danger); border-color: #efcfc7; background: var(--danger-soft); }
+.lv-badge.err i { background: var(--danger); }
 
-/* viewfinder — a rounded card; the video inside is intrinsically dark,
-   the chrome around it stays light */
+/* the lens */
 .lv-view {
-  position: relative; flex: none; width: 100%;
+  position: relative; flex: none;
   aspect-ratio: 4 / 3; max-height: 54dvh;
-  border-radius: var(--r-card); overflow: hidden;
-  background: #0e1522; border: 1px solid var(--hairline);
-  box-shadow: var(--sh-1);
+  border-radius: 28px; overflow: hidden;
+  background: #1c1b18;
+  box-shadow: var(--sh-2);
+  transition: box-shadow var(--t-3) var(--ease-out);
 }
-#lv-cam {
-  position: absolute; inset: 0; width: 100%; height: 100%;
-  object-fit: cover; transform: scaleX(-1);   /* selfie-mirror */
+.lv-view::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07); }
+#sheet-live:has(.lv-badge.listen) .lv-view {
+  box-shadow: 0 0 0 3px var(--accent-line), 0 0 0 9px rgba(21, 73, 63, .08), var(--sh-2);
 }
+#lv-cam { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
 #lv-cam.rear { transform: none; }
 #lv-skel { position: absolute; inset: 0; width: 100%; height: 100%; }
 
-/* overlay card for permission / no-model / remote states */
+/* camera not ready / permission / model: a frosted paper card over the lens */
 .lv-cover {
-  position: absolute; inset: 0; display: flex; padding: 24px;
-  overflow: auto;
-  background: rgba(12, 18, 30, .42);
-  backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px);
+  position: absolute; inset: 0; display: flex; padding: 24px; overflow: auto;
+  background: rgba(250, 248, 244, .8);
+  backdrop-filter: blur(16px) saturate(1.1); -webkit-backdrop-filter: blur(16px) saturate(1.1);
 }
 .lv-cover[hidden] { display: none; }
 .lv-card {
-  margin: auto;                       /* centers both axes, overflow-safe */
-  width: 100%; max-width: 332px; text-align: center;
-  background: var(--surface); border: 1px solid var(--hairline);
-  border-radius: 18px; padding: 20px 20px 18px;
-  box-shadow: var(--sh-2);
-  animation: sheet-in .24s var(--ease-out);
+  margin: auto; width: 100%; max-width: 360px; text-align: center;
+  background: var(--surface); border-radius: 24px; padding: 26px 24px 22px;
+  box-shadow: var(--sh-pop);
+  animation: sheet-in var(--t-3) var(--ease-out);
 }
-.lv-card-t { font-size: 14px; font-weight: 650; letter-spacing: .005em; margin-bottom: 6px; }
-.lv-card-m { font-size: 12.5px; color: var(--muted-2); line-height: 1.6; }
-.lv-card-b { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+.lv-card.busy::before {
+  content: ""; display: block; width: 22px; height: 22px; margin: 0 auto 14px; border-radius: 50%;
+  border: 2px solid var(--hairline); border-top-color: var(--accent); animation: spin .8s linear infinite;
+}
+.lv-card-t { font-size: 17px; font-weight: 600; letter-spacing: -.015em; margin-bottom: 8px; }
+.lv-card-m { font-size: 14px; color: var(--muted-2); line-height: 1.55; }
+.lv-card-b { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 18px; }
 .lv-card-b:empty { display: none; }
 
-/* card buttons — same register as .btn-ghost / .btn-primary in app.css,
-   sized down for the overlay card and pending rows */
 .lv-btn {
-  appearance: none; height: 34px; padding: 0 16px; border-radius: 11px;
-  cursor: pointer; border: 1px solid var(--hairline);
-  background: var(--surface); color: var(--ink-2);
-  font-size: 12.5px; font-weight: 600; letter-spacing: .01em; font-family: inherit;
-  transition: transform .12s, border-color .2s, box-shadow .2s;
+  appearance: none; height: 38px; padding: 0 18px; border-radius: 11px; cursor: pointer;
+  border: 1px solid var(--hairline); background: var(--surface); color: var(--ink-2);
+  font-size: 13.5px; font-weight: 600; font-family: inherit;
+  transition: transform var(--t-1) var(--ease-out), border-color var(--t-1), background var(--t-1);
 }
-.lv-btn:hover { border-color: #d5deeb; }
+.lv-btn:hover { border-color: var(--muted); }
 .lv-btn:active { transform: scale(.96); }
-.lv-btn.pri {
-  background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
-  box-shadow: 0 4px 12px rgba(74, 125, 255, .3);
-}
+.lv-btn.pri { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.lv-btn.pri:hover { background: var(--accent-hi); }
 
-/* reading strip — the engine's current top guess + distance + reason */
+/* what it reads */
 .lv-read {
-  display: flex; align-items: baseline; gap: 10px; flex: none;
-  min-height: 22px; margin-top: 2px;
+  display: grid; grid-template-columns: 1fr auto; grid-template-areas: "lab lab" "guess dist";
+  align-items: baseline; column-gap: 12px; row-gap: 4px; flex: none; margin-top: 2px;
 }
-.lv-rlab {
-  flex: none; font-size: 10.5px; font-weight: 650;
-  letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
-}
+.lv-rlab { grid-area: lab; font-size: 12.5px; font-weight: 600; letter-spacing: .01em; color: var(--muted); }
 .lv-rguess {
-  flex: 1; min-width: 0; font-size: 15px; font-weight: 650;
-  letter-spacing: .01em; color: var(--ink);
+  grid-area: guess; min-width: 0; font-size: clamp(26px, 4.2vw, 34px); font-weight: 600; line-height: 1.12;
+  letter-spacing: -.028em; color: var(--ink);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  animation: read-in .45s var(--ease-out);
 }
-.lv-rguess.dim { color: var(--muted); font-weight: 500; }
-.lv-rdist {
-  flex: none; font-family: var(--mono); font-size: 11px;
-  color: var(--muted-2); font-variant-numeric: tabular-nums;
-}
-.lv-why {
-  flex: none; min-height: 15px; margin-top: -7px;
-  font-size: 11.5px; color: var(--muted); letter-spacing: .01em;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
+@keyframes read-in { from { opacity: 0; transform: translateY(8px); } }
+.lv-rguess.dim { color: var(--hairline); font-weight: 500; animation: none; }
+.lv-rdist { grid-area: dist; font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.lv-why { flex: none; min-height: 18px; margin-top: -10px; font-size: 13px; color: var(--muted); }
 .lv-why:empty { display: none; }
 
-/* last-fired-action flash — an accent pill that appears briefly */
+/* the action that just ran */
 .lv-act {
-  width: auto; display: flex; align-items: center; gap: 7px; flex: none;
-  min-height: 26px; padding: 3px 13px; border-radius: 999px;
-  background: var(--accent-soft); border: 1px solid #d7e2fd;
-  font-size: 12px; font-weight: 600; color: var(--accent); letter-spacing: .01em;
-  opacity: 0; transform: translateY(-3px) scale(.97);
-  transition: opacity .25s, transform .3s var(--ease-spring);
+  width: fit-content; max-width: 100%; display: flex; align-items: center; gap: 9px; flex: none;
+  min-height: 34px; padding: 0 16px 0 13px; border-radius: 999px;
+  background: var(--accent-soft); border: 1px solid var(--accent-line);
+  font-size: 14px; font-weight: 550; color: var(--accent);
+  opacity: 0; transform: translateY(6px) scale(.98);
+  transition: opacity var(--t-2), transform var(--t-3) var(--ease-spring);
 }
 .lv-act.show { opacity: 1; transform: none; }
-.lv-act i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.lv-act i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
 .lv-act span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* pending confirms inside the sheet — clean card rows, run/cancel */
+/* held for your OK on the laptop */
 .lv-pend { display: flex; flex-direction: column; gap: 8px; flex: none; }
 .lv-pend[hidden] { display: none; }
 .lv-pend-row {
   display: flex; align-items: center; gap: 8px;
-  background: var(--surface); border: 1px solid var(--hairline);
-  border-radius: 16px; padding: 8px 9px 8px 14px;
-  box-shadow: var(--sh-1);
+  background: var(--warn-soft); border: 1px solid rgba(143, 95, 16, .16);
+  border-radius: 18px; padding: 8px 9px 8px 16px;
 }
-.lv-pend-t {
-  flex: 1; min-width: 0; font-size: 12.5px; color: var(--warn);
-  font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.lv-pend-row .lv-btn { height: 30px; padding: 0 12px; border-radius: 9px; font-size: 12px; }
+.lv-pend-t { flex: 1; min-width: 0; font-size: 13.5px; color: var(--ink-2); font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lv-pend-row .lv-btn { height: 34px; padding: 0 14px; border-radius: 999px; font-size: 13px; }
 
-/* hold-to-listen progress + hint — honest local feedback */
-.lv-hold { display: flex; flex-direction: column; gap: 8px; flex: none; }
-.lv-hold-bar { height: 4px; border-radius: 99px; background: var(--hairline); overflow: hidden; }
-.lv-hold-bar i {
-  display: block; height: 100%; width: 0;
-  background: var(--accent); border-radius: 99px;
-}
-.lv-hint {
-  font-size: 12px; color: var(--muted); letter-spacing: .01em;
-  text-align: center; padding-bottom: 2px;
-}
+/* hold-to-listen progress + hint */
+.lv-hold { display: flex; flex-direction: column; gap: 10px; flex: none; margin-top: auto; }
+.lv-hold-bar { height: 3px; border-radius: 99px; background: var(--hairline); overflow: hidden; }
+.lv-hold-bar i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 99px; transition: width .08s linear; }
+.lv-hint { font-size: 13px; color: var(--muted-2); text-align: center; padding-bottom: 4px; }
 
-/* replayed-keypoints source (devtools: tools/demo-rec feeds kp42) */
-.lv-view.replay { background:
-  radial-gradient(120% 90% at 50% 0%, #17213c 0%, #0d1426 60%, #080d1a 100%); }
+/* demo input (recorded hand motion instead of a camera) */
+.lv-view.replay { background: radial-gradient(120% 90% at 50% 0%, #2a2924 0%, #1c1b18 62%, #14130f 100%); }
 .lv-view.replay #lv-cam { display: none; }
 .lv-replay {
-  position: absolute; left: 10px; top: 10px; z-index: 3;
-  font: 600 10.5px/1 var(--mono); letter-spacing: .04em;
-  color: #9db4ff; background: rgba(20, 32, 62, .72);
-  border: 1px solid rgba(120, 150, 240, .35); border-radius: 8px;
-  padding: 4px 7px; pointer-events: none;
+  position: absolute; left: 14px; top: 14px; z-index: 3;
+  font-size: 11.5px; font-weight: 550; letter-spacing: .005em;
+  color: rgba(255, 255, 255, .78); background: rgba(255, 255, 255, .1);
+  border: 1px solid rgba(255, 255, 255, .16); border-radius: 999px;
+  padding: 5px 11px; pointer-events: none;
 }
 
-/* ---------- narrow screens: full-bleed stage above the bottom bar ---- */
 @media (max-width: 720px) {
-  #sheet-live .sheet-head { padding: 12px 16px 10px; }
-  .lv-body { gap: 0; padding: 0 0 calc(env(safe-area-inset-bottom) + 14px); }
-
-  .lv-view {
-    max-width: none; border-radius: 0; border: none; box-shadow: none;
-    aspect-ratio: auto; max-height: none;
-    flex: 1 1 auto; min-height: 240px;
-  }
-
-  .lv-read { width: auto; margin: 14px 18px 0; }
-  .lv-why  { width: auto; margin: 3px 18px 0; }
-  .lv-act  { margin: 10px auto 0; }
-  .lv-pend { width: auto; margin: 10px 18px 0; }
-  .lv-hold { width: auto; margin: 12px 18px 0; }
+  #sheet-live .sheet-head { padding: 14px 16px 10px; }
+  .lv-body { gap: 0; padding: 0 0 14px; align-items: stretch; }
+  .lv-body > * { max-width: none; }
+  .lv-view { border-radius: 0; box-shadow: none; aspect-ratio: auto; max-height: none; flex: 1 1 auto; min-height: 240px; }
+  #sheet-live:has(.lv-badge.listen) .lv-view { box-shadow: inset 0 0 0 4px var(--accent-line); }
+  .lv-read { margin: 16px 20px 0; }
+  .lv-why { margin: 2px 20px 0; }
+  .lv-act { margin: 12px 20px 0; }
+  .lv-pend { margin: 12px 20px 0; }
+  .lv-hold { margin: 14px 20px 0; }
 }

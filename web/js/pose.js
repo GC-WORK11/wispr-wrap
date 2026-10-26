@@ -147,9 +147,17 @@ export const Pose = {
       prog('fetch', 'checking the vendored model files');
       // silent probes first — a 404 fetch is console-quiet, a failed module
       // import is not. keep judge consoles clean.
+      // NB: wfd.py (stdlib http.server) answers HEAD with 501, which used to
+      // read as "model missing" and blocked every real camera. Probe with a
+      // GET and hang up as soon as the headers arrive (no 8 MB for a check).
+      const probe = async (u) => {
+        const c = new AbortController();
+        try { const r = await fetch(u, { cache: 'no-store', signal: c.signal }); c.abort(); return r; }
+        catch (e) { return null; }
+      };
       const [bun, mod] = await Promise.all([
         fetch(DIR + ENTRY, { cache: 'no-store' }),
-        fetch(DIR + MODEL, { method: 'HEAD', cache: 'no-store' }).catch(() => null),
+        probe(DIR + MODEL),
       ]);
       if (!bun.ok) throw new Error('mediapipe bundle missing (run tools/fetch-vendor.sh on the laptop)');
       if (mod && !mod.ok) throw new Error('hand_landmarker.task missing (run tools/fetch-vendor.sh on the laptop)');

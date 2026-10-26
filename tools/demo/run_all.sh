@@ -198,6 +198,10 @@ perform_expect "$CLIPS/perform-OPEN-NOTES.json" "$MARKERS/open-notes" \
 "${CURL[@]}" -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -c "import json,sys;print('  last_match:',json.load(sys.stdin)['last_match'])"
 
 note "TYPE-HELLO -> xdotool types into the real SinkEdit editor"
+# wake the Tk sink — an occluded editor's event loop can lag far behind
+# the 20s probe on a loaded box (observed: text lands but flushes late)
+xdotool search --class SinkEdit 2>/dev/null | tail -1 | xargs -r xdotool windowactivate 2>/dev/null || true
+sleep 0.3; chrome_wid | xargs -r xdotool windowactivate 2>/dev/null || true
 # probe = sink.txt containing the typed string (not just mtime)
 sink_probe() { grep -q "hello-from-the-demo-sign" "$SINK" 2>/dev/null; }
 for i in 1 2 3; do
@@ -207,6 +211,9 @@ for i in 1 2 3; do
     sink_probe && break
     note "  TYPE-HELLO attempt $i: sink unchanged"
 done
+# last grace — the Tk mirror can lag the X events under load; give the
+# flushed buffer one more window before we declare it absent
+for _ in $(seq 1 40); do sink_probe && break; sleep 0.5; done
 if sink_probe; then
     ok "TYPE-HELLO fired -> text in sink.txt: $(cat "$SINK")"
 else

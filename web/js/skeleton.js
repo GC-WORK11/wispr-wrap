@@ -52,8 +52,8 @@ export const Skel = {
     const { x, W, H } = f;
     const o = opts || {};
     const minS = o.minScore == null ? 0.28 : o.minScore;
-    const accent = o.accent || 'rgba(74,125,255,.95)';
-    const dim = o.dim || 'rgba(100,116,139,.55)';
+    const accent = o.accent || 'rgba(142, 238, 200, .96)';
+    const dim = o.dim || 'rgba(255, 255, 255, .72)';
     const mirror = !!o.mirror;
     x.clearRect(0, 0, W, H);
     // object-fit:cover mapping so points land exactly on the video image;
@@ -70,7 +70,8 @@ export const Skel = {
     for (const off of [0, 21]) {
       if (Skel.present(pts, off, minS) < 4) continue;
       const col = off === 0 ? accent : dim;
-      x.lineWidth = 2.2; x.lineCap = 'round'; x.strokeStyle = col;
+      x.lineWidth = 2.4; x.lineCap = 'round'; x.strokeStyle = col;
+      x.shadowColor = 'rgba(0, 0, 0, .38)'; x.shadowBlur = 5;
       x.beginPath();
       for (const [a, b] of CONN) {
         const A = pts[off + a], B = pts[off + b];
@@ -82,8 +83,9 @@ export const Skel = {
       for (let i = 0; i < 21; i++) {
         const p = pts[off + i];
         if (!p || p.score <= minS) continue;
-        x.beginPath(); x.arc(px(p), py(p), i === 0 ? 3.4 : 2.2, 0, 6.2832); x.fill();
+        x.beginPath(); x.arc(px(p), py(p), i === 0 ? 3.6 : 2.4, 0, 6.2832); x.fill();
       }
+      x.shadowBlur = 0;
     }
   },
 
@@ -97,7 +99,7 @@ export const Skel = {
     const x = canvas.getContext('2d');
     if (!x) return;
     x.setTransform(dpr, 0, 0, dpr, 0, 0);
-    x.fillStyle = o.bg || '#f8fafc';
+    x.fillStyle = o.bg || '#f4f1ea';
     x.fillRect(0, 0, S, S);
     const fr = (frames || []).map(f => f.points || f);
     if (!fr.length) return;
@@ -105,7 +107,7 @@ export const Skel = {
     for (const off of [0, 21]) {
       const path = fr.map(p => p[off]).filter(p => p && p.score > minS);
       if (path.length < 2) continue;
-      const col = off ? 'rgba(100,116,139,.75)' : 'rgba(74,125,255,.9)';
+      const col = off ? 'rgba(108,103,94,.75)' : 'rgba(21,73,63,.92)';
       x.strokeStyle = col; x.lineWidth = 1.8; x.lineCap = 'round';
       x.beginPath();
       path.forEach((p, i) => i ? x.lineTo(p.x * S, p.y * S) : x.moveTo(p.x * S, p.y * S));
@@ -118,7 +120,7 @@ export const Skel = {
     const mid = fr[fr.length >> 1];
     if (mid) {
       x.save(); x.scale(.62, .62); x.translate(S * .31, S * .31);
-      x.strokeStyle = 'rgba(15,23,42,.45)'; x.lineWidth = 1.4;
+      x.strokeStyle = 'rgba(28,27,24,.4)'; x.lineWidth = 1.4;
       for (const off of [0, 21]) {
         if (Skel.present(mid, off, minS) < 4) continue;
         x.beginPath();

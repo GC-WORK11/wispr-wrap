@@ -56,19 +56,22 @@ const state = {
 
 const linkDot = document.getElementById('link-dot');
 const statusText = document.getElementById('status-text');
+const statusSub = document.getElementById('status-sub');
 const statusLive = document.getElementById('status-live');
 
 function renderStatus() {
   linkDot.className = 'dot ' + (state.online ? 'on' : 'off');
-  const bits = [];
-  if (!state.online) bits.push('laptop offline — run: wrap start');
-  else if (!state.paired) bits.push('laptop connected — not paired');
+  let head, sub = '';
+  if (!state.online) { head = 'Laptop offline'; sub = 'run: wrap start'; }
+  else if (!state.paired) { head = 'Laptop found'; sub = 'needs its code'; }
   else {
-    bits.push('laptop connected');
-    if (state.focus) bits.push('→ ' + state.focus);
-    else if (state.lastSend && state.lastSend.into) bits.push('last into ' + state.lastSend.into);
+    head = 'Laptop connected';
+    if (state.focus) sub = 'typing into ' + state.focus;
+    else if (state.lastSend && state.lastSend.into) sub = 'last into ' + state.lastSend.into;
   }
-  statusText.textContent = bits.join('  ·  ');
+  statusText.textContent = head;
+  if (statusSub) statusSub.textContent = sub;
+  statusText.title = head + (sub ? ' · ' + sub : '');
   statusLive.hidden = !(state.live.listening);
   emit('statusbar', state);
 }
@@ -265,11 +268,69 @@ export const App = {
   },
 };
 
+// ---------- first run: connect to the laptop ----------
+// Laptop-local browser: /pair-info (loopback-only, refuses proxied requests)
+// hands over the key — zero typing. A phone enters the 8-char code instead.
+const onb = document.getElementById('onb'), onbCode = document.getElementById('onb-code'),
+      onbGo = document.getElementById('onb-go'), onbErr = document.getElementById('onb-err');
+function showOnboarding(msg) {
+  onb.hidden = false;
+  onbErr.textContent = msg || '';
+  setTimeout(() => onbCode.focus(), 250);
+}
+async function autoPair() {
+  try {
+    const r = await fetch('/pair-info', { cache: 'no-store' });
+    if (!r.ok) return false;
+    const j = await r.json();
+    if (!j || !j.key) return false;
+    store.setItem('wfk', j.key);
+    if (j.name) store.setItem('wfname', j.name);
+    return true;
+  } catch (e) { return false; }
+}
+async function pairWithCode() {
+  const code = onbCode.value.trim();
+  if (code.length < 4) { onbErr.textContent = 'Type the code your laptop is showing.'; return; }
+  onbGo.disabled = true; onbGo.textContent = 'Connecting…'; onbErr.textContent = '';
+  try {
+    const r = await fetch('/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }) });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.key) {
+      store.setItem('wfk', j.key);
+      onbGo.textContent = 'Connected ✓';
+      setTimeout(() => location.replace(location.pathname + location.hash), 350);
+      return;
+    }
+    onbErr.textContent = r.status === 429 ? 'One try per second — give it a moment.'
+      : r.status === 403 ? 'That code isn’t right. Check your laptop screen.'
+      : 'Couldn’t pair (' + r.status + ').';
+  } catch (e) { onbErr.textContent = 'Can’t reach your laptop from here.'; }
+  onbGo.disabled = false; onbGo.textContent = 'Connect';
+}
+onbGo.onclick = pairWithCode;
+onbCode.addEventListener('keydown', e => { if (e.key === 'Enter') pairWithCode(); });
+onbCode.addEventListener('input', () => { onbCode.value = onbCode.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); onbErr.textContent = ''; });
+const onbSkip = document.getElementById('onb-skip');
+onbSkip.onclick = () => { onb.hidden = true; };
+async function firstRun() {
+  if (await autoPair()) { location.replace(location.pathname + location.hash); return; }
+  showOnboarding('');
+}
+if (!K) firstRun();
+
+// a 403 can also mean "this route is LAN/USB-only", so a rejected key never
+// wipes the stored pairing — it offers the code screen once, dismissibly.
+let offered403 = false;
 on('unpaired', () => {
   App.wispr.unpair();
   state.paired = false;
   renderStatus();
-  toast('unpaired — rescan QR', true);
+  if (offered403 || !K) return;
+  offered403 = true;
+  showOnboarding('This laptop doesn’t recognise this phone any more. Enter its new code to reconnect.');
+  onbSkip.hidden = false;
 });
 
 // rail: Go Live toggles the live view; compose/teach/signs are nav items.
@@ -278,8 +339,12 @@ document.getElementById('tray-live').onclick = () => nav(current === 'live' ? ''
 document.getElementById('tray-compose').onclick = () => nav('');
 document.getElementById('tray-teach').onclick = () => nav('teach');
 document.getElementById('tray-signs').onclick = () => nav('signs');
+const goSub = document.getElementById('golive-sub');
 on('route', name => {
-  document.getElementById('tray-live').classList.toggle('on', name === 'live');
+  const live = document.getElementById('tray-live');
+  live.classList.toggle('on', name === 'live');
+  live.setAttribute('aria-pressed', name === 'live' ? 'true' : 'false');
+  if (goSub) goSub.textContent = name === 'live' ? 'live now · tap to end' : 'sign → laptop acts';
   document.getElementById('tray-compose').classList.toggle('on', name === '');
   document.getElementById('tray-teach').classList.toggle('on', name === 'teach');
   document.getElementById('tray-signs').classList.toggle('on', name === 'signs');
@@ -297,12 +362,14 @@ function raise(el) {
 
 // rail foot: honest engine + bank info once the daemon reports it
 const railEng = document.getElementById('rail-eng');
+const railCount = document.getElementById('rail-count');
+const DEV = /[?&]dev\b/.test(location.search) || store.getItem('wfdev') === '1';
+if (DEV) document.body.classList.add('dev');
 on('statusbar', s => {
+  if (railCount) railCount.textContent = s.online && s.paired && s.bankSize ? String(s.bankSize) : '';
   if (!railEng) return;
-  const bits = [];
-  if (s.engine && s.engine !== 'none') bits.push(s.engine);
-  if (typeof s.bankSize === 'number') bits.push(s.bankSize + ' sign' + (s.bankSize === 1 ? '' : 's'));
-  railEng.textContent = s.online && s.paired ? bits.join(' · ') : '';
+  // engine names are developer detail — only with ?dev or localStorage.wfdev=1
+  railEng.textContent = DEV && s.online && s.paired && s.engine && s.engine !== 'none' ? s.engine : '';
 });
 
 // service worker: vendored-shell offline + near-instant warm load

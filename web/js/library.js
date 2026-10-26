@@ -52,7 +52,7 @@ function actSummary(s) {
   const a = s.action;
   if (a && typeof a === 'object') return Actions.describe(a);
   if (typeof a === 'string' && a) return a;
-  if (s.argv) return s.argv;
+  if (s.argv) return Array.isArray(s.argv) ? s.argv.join(' ') : s.argv;
   return 'no action bound';
 }
 
