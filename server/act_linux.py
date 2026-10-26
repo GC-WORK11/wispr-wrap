@@ -30,6 +30,7 @@ honest semantic of "the session's apps".
 """
 
 import configparser
+import errno
 import json
 import os
 import re
@@ -85,7 +86,9 @@ def _sh(*args, timeout=SUBPROC_TIMEOUT, input_text=None):
     try:
         return subprocess.run([str(a) for a in args], capture_output=True,
                               text=True, timeout=timeout, input=input_text)
-    except FileNotFoundError:
+    except OSError as e:
+        if e.errno != errno.ENOENT:
+            raise
         return subprocess.CompletedProcess(args, 127, "", f"{args[0]}: not found")
     except subprocess.TimeoutExpired:
         return subprocess.CompletedProcess(args, 124, "", "timed out")
@@ -626,7 +629,7 @@ class LinuxX11Provider(ActionProvider):
              "label": "Next workspace", "tier": 1},
             {"id": "win.to-workspace", "kind": "win",
              "label": "Move window to workspace", "tier": 1, "arg": "index"},
-            # quick actions (FOUNDER-SIMPLIFY-1433)
+            # quick actions (the spec)
             {"id": "win.alt-tab", "icon": "window-switch", "kind": "win", "label": "Switch window",
              "tier": 1},
             {"id": "win.minimize", "icon": "window-minimize", "kind": "win", "label": "Minimize window",
@@ -671,7 +674,9 @@ class LinuxX11Provider(ActionProvider):
             return subprocess.run([str(a) for a in args], env=env,
                                   capture_output=True, text=True,
                                   timeout=timeout, input=input_text)
-        except FileNotFoundError:
+        except OSError as e:
+            if e.errno != errno.ENOENT:
+                raise
             return subprocess.CompletedProcess(args, 127, "",
                                                f"{args[0]}: not found")
         except subprocess.TimeoutExpired:
@@ -1267,7 +1272,7 @@ class LinuxX11Provider(ActionProvider):
             return ActionResult.done(f"keys: {keys}")
         return ActionPlan(fn, describe=f"press keys {keys}", guarded=True)
 
-    # -- quick actions (FOUNDER-SIMPLIFY-1433) ------------------------------
+    # -- quick actions (the spec) ------------------------------------------
     # Non-destructive by design: alt-tab cycles focus, minimize hides a
     # window, show-desktop toggles the WM desktop view, scroll is wheel
     # clicks. Close is deliberately absent here — the existing

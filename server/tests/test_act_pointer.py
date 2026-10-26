@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phone -> laptop action/pointer surface (FOUNDER-SPEC-1229 §A).
+"""Phone -> laptop action/pointer surface (the spec §A).
 
 Spawns a real wfd.py against a throwaway HOME on an ephemeral port, with
 NO DISPLAY in the child env so the pointer path must degrade to ok:false

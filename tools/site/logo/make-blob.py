@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""make-blob.py — the Sign-Flow mark: a glossy soft lotus-blob (FOUNDER-COLOR-1658).
+"""make-blob.py — the Sign-Flow mark: a glossy soft lotus-blob.
 
 The outline is the union of five lobe circles (centre, two mid, two outer) on a round base, softened by a small
 radial smoothing so the valleys melt into one calm blob. It is written as ONE closed path (Catmull-Rom to cubic
@@ -46,7 +46,7 @@ xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
 BBOX = (min(xs), min(ys), max(xs), max(ys))
 # two glints (rounded strokes), upper-left of the centre petal: light comes from the top-left
 GL = [((22.6, 30.6 + DY), (26.4, 22.4 + DY), 4.0), ((32.2, 19.0 + DY), (34.0, 15.0 + DY), 3.3)]
-PALETTES = {   # FOUNDER-COLOR-1658: pink #FF309C, purple #9259FE, black #000000 (near-flat; the glints do the 3D)
+PALETTES = {   # palette: pink #FF309C, purple #9259FE, black #000000 (near-flat; the glints do the 3D)
     'pink':   ('#FF4CA8', '#FF309C', '#E02085'),
     'purple': ('#A678FF', '#9259FE', '#7B47EA'),
     'black':  ('#2E2E33', '#0A0A0A', '#000000'),

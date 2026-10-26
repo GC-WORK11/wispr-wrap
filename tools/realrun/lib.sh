@@ -17,7 +17,7 @@
 #    fake a result.
 
 # State dir is namespaced PER WORKTREE: several agents share this box
-# (/workspace/wispr-wrap, wispr-wrap-pro, wispr-wrap-kiro all run the same
+# (/workspace/wispr-wrap and its sibling worktrees all run the same
 # gate) and a shared /tmp/wf-realrun meant one agent's env/pids/windows
 # stomped another's — verifiers sourced a FOREIGN env and ran another
 # tree's helpers. Never again: the suffix comes from the repo dir name.

@@ -1,4 +1,4 @@
-// flow-offline.mjs — laptop actions disappear when no laptop is connected (FOUNDER-UI-SPEC §3), real run.
+// flow-offline.mjs — laptop actions disappear when no laptop is connected (the UI spec §3), real run.
 // Teach is open with the one-tap grid; the laptop's daemon is then stopped for real. Within a few seconds the
 // grid is replaced by one line and one button ("Connect"), the Record button is gone, and the drawer no longer
 // offers Teach a sign / My signs. usage: SITE_ENV=/tmp/wf-site-overlay/env node --experimental-websocket tools/site/flow-offline.mjs

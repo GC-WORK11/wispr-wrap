@@ -74,7 +74,7 @@ line-like: `HOOK->SWIPE-R` x3, `ZIGZAG->SWIPE-R` x2, `V-DRAW->CIRCLE-CCW`
 x2, plus `TRIANGLE->SQUARE/CIRCLE-CW`, `SWIPE-R->ZIGZAG/U-DRAW` at N=20 —
 see `sb_teach.json` per_eval rows.)
 
-**Founder bar: near-100% answer @ <1% wrong — NOT MET** (synthetic
+**The bar: near-100% answer @ <1% wrong — NOT MET** (synthetic
 motion). No measured operating point clears it: at the default 0.6 the
 bank answers ~92–95% but **guesses wrong 15–22.5%**; the calibrated
 threshold and consensus rule reach 0% wrong only by dropping the answer
@@ -161,11 +161,11 @@ on the touch icon.
 
 ---
 
-## 0 — Learned encoder vs DTW baseline (ASL Citizen, held-out signers)
+## 0 — Learned encoder vs DTW baseline (held-out signer benchmark)
 
-Trained on Kaggle GPU (`signflow-fewshot-aslc`); 300-gloss pool,
+Trained on Kaggle GPU (`signflow-fewshot-bench`); 300-gloss pool,
 signer-disjoint splits, n=600 closed-set draws per k. Full details:
-`signflow-devin/kaggle-jobs/sf-fewshot-aslc/RESULTS.md`.
+`signflow-devin/kaggle-jobs/sf-fewshot-bench/RESULTS.md`.
 
 | shots | encoder top-1 | DTW-1NN top-1 | ratio |
 |------:|--------------:|--------------:|------:|

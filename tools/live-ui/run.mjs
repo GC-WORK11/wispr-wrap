@@ -1,4 +1,4 @@
-// run.mjs — real-run proofs of the Go Live view (Kiro LIVE lane).
+// run.mjs — real-run proofs of the Go Live view (live-ui lane).
 //
 // What is real: the page in a real Chrome; the camera permission and stream
 // (Chrome's fake camera device fed by a file: an abstract soft-focus scene, no
@@ -23,7 +23,7 @@ import * as HS from './handsynth.mjs';
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const ROOT = path.resolve(HERE, '../..');
-const STATE = process.env.LIVE_STATE || '/tmp/kiro-live';
+const STATE = process.env.LIVE_STATE || '/tmp/wf-live';
 const E = Object.fromEntries(fs.readFileSync(path.join(STATE, 'env'), 'utf8').split('\n')
   .filter(l => l.includes('=')).map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
 const OUT = path.resolve(process.argv[2] || path.join(ROOT, 'proofs/ui-v2'));

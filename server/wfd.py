@@ -745,7 +745,7 @@ def _route_provider(gloss, action, label, tier):
     return {"routed": False, "refused": d.get("detail"), "tier": res.tier}
 
 # ---------------------------------------------------------------------
-# Phone -> laptop direct action/pointer surface (FOUNDER-SPEC-1229 §A).
+# Phone -> laptop direct action/pointer surface (the spec §A).
 # The composer's Go Live view drives these: a traced 'C'/'V' posts an
 # action dict to /act/run (same shape the @ picker binds to signs), and
 # browse-mode cursor/scroll/click posts to /act/pointer. Both carry the

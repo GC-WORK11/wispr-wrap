@@ -1,4 +1,4 @@
-// uiv2.mjs — 390x844 proof shots of the founder-spec UI (original wispr-wrap
+// uiv2.mjs — 390x844 proof shots of the spec UI (original wispr-wrap
 // lotus home, composer, drawer, Go Live Text/Control, Teach), in a real
 // headless Chrome against the real daemon. Real camera device (Chrome fake
 // device), real MediaPipe; hand points from the app's own test seam.

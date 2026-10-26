@@ -109,7 +109,7 @@ def verify(clips):
 
 
 def main():
-    out = sys.argv[1] if len(sys.argv) > 1 else "/tmp/kiro-live/clips"
+    out = sys.argv[1] if len(sys.argv) > 1 else "/tmp/wf-live/clips"
     clips = build()
     os.makedirs(out, exist_ok=True)
     for name, frames in clips.items():

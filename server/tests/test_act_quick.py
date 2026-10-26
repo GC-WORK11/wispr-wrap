@@ -49,7 +49,7 @@ class TestQuickCatalog(unittest.TestCase):
             with self.subTest(aid=aid):
                 self.assertIn(aid, ids)
 
-    def test_founder_list_has_icon_label_tier(self):
+    def test_quick_list_has_icon_label_tier(self):
         rows = {r["id"]: r for r in
                 al.LinuxX11Provider(config_dir="/nonexistent")._tool_rows}
         for aid in QUICK:
@@ -203,7 +203,7 @@ class _FocusStub(ai.ActionProvider):
     """A provider whose focused window is whatever the test sets."""
 
     def __init__(self, wm_class="Xfce4-terminal", instance="xfce4-terminal",
-                 title="kiro — agent terminal"):
+                 title="agent terminal"):
         self._f = ai.FocusInfo(wid=1, wm_class=wm_class,
                                instance=instance, title=title, pid=1)
 
@@ -213,7 +213,7 @@ class _FocusStub(ai.ActionProvider):
 
 class TestTypeAllowGuard(unittest.TestCase):
     """WF_TYPE_ALLOW pins guarded actions to a scratch window: stray
-    type/key ops can never land in a real terminal (chalk 19:19)."""
+    type/key ops can never land in a real terminal."""
 
     def setUp(self):
         self._old = os.environ.get("WF_TYPE_ALLOW")
@@ -226,7 +226,7 @@ class TestTypeAllowGuard(unittest.TestCase):
 
     def test_allowlist_refuses_agent_terminal(self):
         os.environ["WF_TYPE_ALLOW"] = r"wispr-wrap-merge-(sink|term)"
-        p = _FocusStub(title="kiro — agent terminal")
+        p = _FocusStub(title="agent terminal")
         self.assertFalse(p.verify_focus())
 
     def test_allowlist_passes_scratch_sink_title(self):
@@ -241,7 +241,7 @@ class TestTypeAllowGuard(unittest.TestCase):
 
     def test_unset_allow_behaves_as_before(self):
         os.environ.pop("WF_TYPE_ALLOW", None)
-        p = _FocusStub(title="kiro — agent terminal")
+        p = _FocusStub(title="agent terminal")
         self.assertTrue(p.verify_focus())
 
     def test_bad_pattern_refuses_safe(self):

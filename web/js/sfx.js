@@ -35,7 +35,7 @@ function ensureCtx() {
 }
 
 // create the context on the first user gesture only (browsers require it, and
-// the founder wants nothing to sound before the person touches anything)
+// nothing may sound before the person touches anything)
 let armed = false;
 function arm() {
   if (armed) return;

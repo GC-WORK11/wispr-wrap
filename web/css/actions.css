@@ -153,7 +153,7 @@
   .act-app, .act-use, .act-open-this, .act-own-prev { transition: none !important; }
 }
 
-/* ===== FOUNDER-RULE-1652: no headings or helper lines; space separates, icons explain ===== */
+/* ===== spec rule: no headings or helper lines; space separates, icons explain ===== */
 .act-sect { height: 14px; margin: 0; padding: 0; font-size: 0; }
 .act-sect:first-child { height: 4px; }
 .act-lock { flex: none; width: 17px; height: 17px; margin-left: auto; color: var(--muted-2); }

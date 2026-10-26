@@ -62,6 +62,7 @@ Confirm UX (notify-send / pill) is the daemon's lane; this file only
 produces pending results + the pending() list that GET /status exposes.
 """
 
+import errno
 import hashlib
 import hmac
 import json
@@ -113,7 +114,7 @@ TOOL_MAP = {
     "net.wifi": ("wifi", {}),
     "net.bluetooth": ("bluetooth", {}),
     "clipboard.history": ("clipboard_history", {}),
-    # quick actions (FOUNDER-SIMPLIFY-1433): one-tap laptop controls.
+    # quick actions (the spec): one-tap laptop controls.
     # close window parks for confirm via its tier; the rest are
     # non-destructive and fire immediately.
     "win.alt-tab": ("alt_tab", {}),
@@ -466,16 +467,17 @@ class ConfirmLedger:
                 d = json.load(f)
             if isinstance(d, dict) and isinstance(d.get("argv"), dict):
                 self.rows = d["argv"]
-        except FileNotFoundError:
-            pass
-        except (OSError, ValueError):
-            # fail closed: nothing is approved; keep the evidence
-            try:
-                os.replace(self.path, self.path + ".corrupt-%d" %
-                           int(time.time()))
-            except OSError:
-                pass
-            self.rows = {}
+        except (OSError, ValueError) as e:
+            if isinstance(e, OSError) and e.errno == errno.ENOENT:
+                pass  # no file yet: nothing to load
+            else:
+                # fail closed: nothing is approved; keep the evidence
+                try:
+                    os.replace(self.path, self.path + ".corrupt-%d" %
+                               int(time.time()))
+                except OSError:
+                    pass
+                self.rows = {}
 
     def approved(self, argv):
         with self._lock:

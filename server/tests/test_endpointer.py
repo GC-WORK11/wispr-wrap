@@ -2,7 +2,7 @@
 """Endpointer regression tests — palm listen-mode must not fire on a
 resting open hand that was already in view when the stream started.
 
-Measured on real LSA64 keypoints (signer 6, 320 clips): the old gate fired
+Measured on real held-out benchmark keypoints (one signer, 320 clips): the old gate fired
 PALM-OPEN on 155/320 clips, 125 of them in the leading rest pad before the
 sign. A palm now has to be PRESENTED: the hand enters view after the
 stream began, or closes past rearm and opens again while idle (see

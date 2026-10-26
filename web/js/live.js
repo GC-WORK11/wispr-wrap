@@ -273,7 +273,7 @@ function askText(a, fallback) {
    On screen: only the content (your words, or the action you signed with a
    state icon) and primary buttons. Every status sentence goes to a hidden live
    region (#lv-act-t) for screen readers and tools; motion and icons carry the
-   meaning visually (FOUNDER-RULE-1652: no helper text, no captions). */
+   meaning visually (the spec rule: no helper text, no captions). */
 const T = { text: '', until: 0, timer: 0 };
 function say(text, kind = '', ms = 3200) {
   T.text = text; T.until = performance.now() + ms;
@@ -938,7 +938,7 @@ function camFail(e) {
     card('lock', 'Camera needs a secure connection',
       'Browsers only open the camera on a secure link. Connect this phone with USB, or run “wrap tunnel” on your laptop and scan the new code.',
       [S.lapCam ? mkBtn('Use the laptop camera', useLaptop, true) : null]);
-  else if (name === 'NotFoundError' || name === 'OverconstrainedError' || name === 'DevicesNotFoundError')
+  else if (name.includes('NotFound') || name === 'OverconstrainedError')
     card('camOff', 'No camera found', 'This device has no camera Go Live can use.',
       [S.lapCam ? mkBtn('Use the laptop camera', useLaptop, true) : null]);
   else if (name === 'NotReadableError' || name === 'TrackStartError')

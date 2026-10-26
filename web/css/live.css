@@ -1,9 +1,9 @@
 /* live.css — Go Live: a full-screen front camera with a few controls on top.
    Top right: flip camera. Bottom: what you signed, then one row:
-   listen | Text · Control | close. No helper text (FOUNDER-RULE-1652): icons,
+   listen | Text · Control | close. No helper text (the spec rule): icons,
    motion and layout carry the meaning; status sentences live in a hidden
    live region for screen readers and tools.
-   Palette + shape language: FOUNDER-COLOR-1658 (white round buttons with a soft
+   Palette + shape language: the palette spec (white round buttons with a soft
    shadow, white pill, ink, one lotus pink). App tokens win when the shell
    defines them. Motion is transform/opacity only (compositor, 60 fps). */
 

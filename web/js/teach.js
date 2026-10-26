@@ -1,6 +1,6 @@
 // teach.js — teach-a-sign wizard, mounted in #sheet-teach (route 'teach').
 //
-// Teach v3 (FOUNDER-SPEC-1229 B): one calm flow —
+// Teach v3 (the spec, part B): one calm flow —
 //   what should it do?  ->  perform it three times  ->  it learns you  ->  ready.
 //
 // The capture is server-side and real. The UI previews locally-buffered frames,
@@ -14,7 +14,7 @@
 //                       checked,ok,worst_dist}}  — close + run the held-out check
 //   PUT  /bank {gloss,label,argv|action,tier}       — bind the action
 //   DELETE /bank?gloss=                             — remove a sign
-//   GET  /packs                                     — Hello / I am Govinda become tiles (quick.js)
+//   GET  /packs                                     — Hello / Introduce yourself become tiles (quick.js)
 // Reserved glosses (daemon refuses them): PALM-OPEN, NAMASTE.
 //
 // Compat: keeps .tw-step[data-step="name|record|bind|done"] in that DOM order
@@ -319,7 +319,7 @@ let pickerQuery = '';
 pickBtn.onclick = openPicker;
 pickBtn2.onclick = openPicker;
 
-/* ---------- the one-tap quick-actions grid (FOUNDER-SIMPLIFY-1433) ----------
+/* ---------- the one-tap quick-actions grid (the spec) ----------
    Tap a tile -> selected -> the one primary button ("Record"). The sign's name follows
    the tile ("Switch window") unless you typed your own; duplicates get a number. */
 const qaGrid = $('qa-grid'), qaText = $('qa-text'), qaTextIn = $('qa-text-in');

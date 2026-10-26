@@ -14,20 +14,20 @@ ONLY="tiles quick" bash tools/site/run-all.sh
 | `flow-tiles.mjs` | each of the 20 one-tap tiles end to end: tap, Record, 3 takes, Ready, perform the sign, then the **real effect** on the laptop (window state, a real Chrome's tabs/scroll/clipboard/undo, a file on disk, a real editor). Audio tiles are reported `NEVER-ON-BOX` with what the laptop answered. |
 | `flow-quick.mjs` | the Teach start screen (tiles only, one button), Type text, Open app, immediate use of a new sign, no horizontal scroll at 360/768/1280 |
 | `flow-teach.mjs` | the full Teach path incl. the training screen, plus the old name, record, bind, done path that PRO's selftest and the demo driver still use |
-| `flow-packs.mjs` | Hello / I am Govinda as tiles, taught from the grid and recognised; Namaste (palms together) pauses listening |
+| `flow-packs.mjs` | Hello / Introduce yourself as tiles, taught from the grid and recognised; Namaste (palms together) pauses listening |
 | `flow-picker.mjs` | the @ picker: real app icons, no headings, apps-only mode, Write your own |
 | `flow-boot.mjs` | loading screen (real readiness, no layout shift) and the four sound cues (no toggle exists) |
 | `flow-offline.mjs` | the laptop is stopped for real: the grid is replaced by a laptop icon and one Connect button |
 | `logo/checks-logo.py` | the logo: one blob path + two glints + one gradient, crisp at 16/64/512, all PNG sizes, favicon.ico |
 
-## Rules these flows enforce (FOUNDER-RULE-1652)
+## Rules these flows enforce (the spec)
 Screens carry tile names and button names, never sentences. `lib.mjs` has `visibleText(page, selector)` (every string
 a person can actually see) and `isLabel(s)` (at most four words, no sentence punctuation). Assistive-tech text lives in
 `.sr-only` elements (`role="status"` / `aria-label`) and is deliberately not visible.
 
 ## For agents (stable hooks)
 - Tiles: `.qa-tile[data-id="<tool id>"]` (`win.alt-tab`, `win.maximize`, `win.minimize`, `win.close`, `sys.volume-up`, ...,
-  `app.open`, `type.text`, `pack.hello`, `pack.i-am-govinda`), `aria-pressed` marks the selection.
+  `app.open`, `type.text`, `pack.hello`, `pack.intro`), `aria-pressed` marks the selection.
 - Teach steps: `.tw-step[data-step="name|record|bind|done|train"]`; ids `tw-name-next` (Record), `tw-done-live` (Try it now),
   `qa-text-in` (Type text field), `qa-connect` (Connect). Take progress: `#tw-takebar .tk.got`.
 - The grid is driven by `GET /act` tool rows `{id,label,icon,tier}`; icons come from the laptop's own theme at

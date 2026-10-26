@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """system_ctl — deep-OS Linux system actions for the merged product.
 
-Founder addendum 17:04 ("go deep into the OS"): the @ picker's system set,
+Spec addendum ("go deep into the OS"): the @ picker's system set,
 each with a REAL implementation plus honest capability detection — the box
 may not have the tool, in which case we say `not available` and name what
 would provide it, instead of faking a failure later at fire time.
@@ -33,6 +33,7 @@ guarded so this module works standalone and in tests):
 
 Run `python3 system_ctl.py` to print this box's real capability table.
 """
+import errno
 import json
 import os
 import re
@@ -97,11 +98,11 @@ def _run(argv, input_text=None):
     try:
         p = subprocess.run(argv, capture_output=True, text=True,
                            input=input_text, timeout=SPAWN_TIMEOUT)
-    except FileNotFoundError:
-        return False, "%s: not installed" % argv[0]
     except subprocess.TimeoutExpired:
         return False, "%s: timed out after %ds" % (argv[0], SPAWN_TIMEOUT)
     except OSError as e:
+        if e.errno == errno.ENOENT:
+            return False, "%s: not installed" % argv[0]
         return False, "%s: spawn failed: %s" % (argv[0], e)
     detail = (p.stderr.strip() or p.stdout.strip() or "ok")[:400]
     return p.returncode == 0, detail
@@ -112,7 +113,7 @@ def _out(argv):
     try:
         p = subprocess.run(argv, capture_output=True, text=True,
                            timeout=SPAWN_TIMEOUT)
-    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as e:
+    except (subprocess.TimeoutExpired, OSError) as e:
         return False, "", str(e)[:200]
     return p.returncode == 0, p.stdout, (p.stderr.strip() or "")[:200]
 

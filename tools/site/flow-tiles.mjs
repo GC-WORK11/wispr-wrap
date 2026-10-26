@@ -1,4 +1,4 @@
-// flow-tiles.mjs — every one-tap tile, end to end, on a real daemon + real X11 (FOUNDER-SIMPLIFY-1433).
+// flow-tiles.mjs — every one-tap tile, end to end, on a real daemon + real X11 (the spec).
 //
 // For EACH of the 20 tiles: open Teach in a real phone-size Chrome (390x844), tap the tile, Record, give the
 // daemon 3 takes through its own endpointer, see Ready, go live, perform the new sign, then check the REAL

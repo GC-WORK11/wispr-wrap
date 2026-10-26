@@ -30,7 +30,7 @@ tools/replay/out/
 # recorded demo output — videos stay local (DEMO.md documents repro)
 /demo/
 
-# founder reference images — NEVER commit (live under ops/ref/, box only)
+# reference images — NEVER commit (live under ops/ref/, box only)
 *-ref-*.jpg
 *-ref-*.png
 ops/ref/

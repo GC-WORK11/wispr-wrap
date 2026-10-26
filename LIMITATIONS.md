@@ -42,8 +42,8 @@ Read this before judging. Everything here is a real, current limit — not a hed
 
 - The CTC sign-to-text engine works but needs **~30 min of GPU enrollment per
   user** — it is an advanced lane, not part of the self-serve judge path.
-- **No research weights ship in this repo.** Models trained on LSA64 / ASL
-  Citizen / WLASL stay private (license gate); the public build is code +
+- **No research weights ship in this repo.** Models trained on the held-out
+  signer research datasets stay private (license gate); the public build is code +
   DTW matcher + the training recipe. Nothing dataset-derived is committed.
 
 ## transport & security

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""record_action — teach a sign by DEMONSTRATING the action (founder 17:06).
+"""record_action — teach a sign by DEMONSTRATING the action (spec addendum).
 
 The user presses Record, does the thing on the laptop (types a command,
 hits shortcuts, clicks, waits for a window), presses Stop, and gets a

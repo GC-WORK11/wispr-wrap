@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """palm_false_eval — count accidental PALM-OPEN listen events on REAL
-LSA64 keypoints through the shipped server/endpointer.py.
+held-out benchmark keypoints through the shipped server/endpointer.py.
 
-This is the repro for the resting-hand false trigger: LSA64 signer 6 has
-320 clips (64 signs x 5 reps); each clip is padded with 8 still rows
-before/after, exactly like the wire-eval harness, and the open palm that
-is already in view at stream start used to fire PALM-OPEN after hold_s
-(0.45 s) without the signer presenting anything.
+This is the repro for the resting-hand false trigger: the benchmark
+signer has 320 clips (64 signs x 5 reps); each clip is padded with 8
+still rows before/after, exactly like the wire-eval harness, and the
+open palm that is already in view at stream start used to fire PALM-OPEN
+after hold_s (0.45 s) without the signer presenting anything.
 
   python3 tools/live-eval/palm_false_eval.py \
-      --kp /path/to/lsa64-kp --signer 6 [--continuous]
+      --kp /path/to/benchmark-kp --signer 6 [--continuous]
 
-LSA64 keypoints are CC BY-NC-SA 4.0 and stay outside this repo; only the
-counts are printed. `--continuous` feeds one Endpointer across all clips
+The benchmark keypoints are CC BY-NC-SA 4.0 and stay outside this repo;
+only the counts are printed. `--continuous` feeds one Endpointer across all clips
 (the daemon's LIVE['ep']), the default resets per clip.
 
 Expected after the fix: 0/320 per-clip (2/320 continuous), 0 early

@@ -27,7 +27,7 @@ class TestPacks(unittest.TestCase):
         lst = {p["id"]: p for p in packs.list_packs(rows)}
         self.assertEqual(lst["hello"]["state"], "ready")
         self.assertEqual(lst["namaste"]["state"], "built-in")
-        self.assertEqual(lst["i-am-govinda"]["state"], "needs_takes")
+        self.assertEqual(lst["intro"]["state"], "needs_takes")
 
     def test_install_binds_and_refuses(self):
         bound = {}
@@ -49,10 +49,10 @@ class TestPacks(unittest.TestCase):
         self.assertIn(obj["state"], ("ready", "needs_takes"))
 
     def test_install_keeps_existing_binding(self):
-        rows = [{"gloss": "I-AM-GOVINDA", "n_exemplars": 5,
+        rows = [{"gloss": "INTRO", "n_exemplars": 5,
                  "action": {"kind": "builtin", "tool": "type.text"}}]
         code, obj = packs.install_pack(
-            "i-am-govinda", rows, lambda d: (200, d), lambda *a: True)
+            "intro", rows, lambda d: (200, d), lambda *a: True)
         self.assertEqual(code, 200)
         self.assertEqual(obj["source"], "existing")
         self.assertEqual(obj["state"], "ready")

@@ -1,4 +1,4 @@
-// quick.js — one-tap laptop actions for the Teach screen (FOUNDER-SIMPLIFY-1433).
+// quick.js — one-tap laptop actions for the Teach screen (the spec).
 //
 // The grid is driven by the laptop itself: GET /act returns tool rows {id,label,icon,tier} for the
 // 20 one-tap actions (Devin PRO's contract). A tile shows only if the laptop reports its tool, takes its
@@ -37,7 +37,7 @@ const G = {
 };
 const glyph = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${G[name] || G.app}</svg>`;
 
-/* The 20 tiles, in the founder's order. id = the laptop's tool id (GET /act), label = 1-2 words,
+/* The 20 tiles, in the spec's order. id = the laptop's tool id (GET /act), label = 1-2 words,
    alt = extra icon names to try when the theme lacks the row's own, say = "Your laptop will <say>". */
 const T = (id, label, g, say, o) => Object.assign({ id, label, g, say }, o || {});
 export const TILES = [
@@ -63,12 +63,12 @@ export const TILES = [
   T('type.text', 'Type text', 'text', '', { special: 'text', alt: ['input-keyboard-symbolic'] }),
 ];
 
-/* Ready-made signs are plain tiles: tap, Record, done. The name ("Hello", "I am Govinda") is what the laptop
-   already calls the pack, so GET /packs flips it to ready once it has three takes. Namaste is built into the
-   engine (palms together) and has no tile. */
+/* Ready-made signs are plain tiles: tap, Record, done. The name ("Hello", "Introduce yourself") is what the
+   laptop already calls the pack, so GET /packs flips it to ready once it has three takes. Namaste is built
+   into the engine (palms together) and has no tile. */
 const PACK_TILES = {
   'hello': { label: 'Hello', g: 'wave', text: 'hello' },
-  'i-am-govinda': { label: 'I am Govinda', g: 'person', text: 'I am Govinda' },
+  'intro': { label: 'Introduce yourself', g: 'person', text: 'Hello, my name is' },
 };
 const packAction = (pk) => Object.assign(typeAction(pk.text), { label: pk.label, say: 'type \u201c' + pk.text + '\u201d' });
 
