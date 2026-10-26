@@ -17,7 +17,9 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { launchChrome, sleep } from './cdp.mjs';
+import { spawn } from 'node:child_process';
+import { launchChrome, sleep, Page } from './cdp.mjs';
+import * as HS from './handsynth.mjs';
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const ROOT = path.resolve(HERE, '../..');
@@ -25,7 +27,7 @@ const STATE = process.env.LIVE_STATE || '/tmp/kiro-live';
 const E = Object.fromEntries(fs.readFileSync(path.join(STATE, 'env'), 'utf8').split('\n')
   .filter(l => l.includes('=')).map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
 const OUT = path.resolve(process.argv[2] || path.join(ROOT, 'proofs/ui-v2'));
-const FLOWS = (process.argv[3] || 'seed,open,text,control,states,perms,responsive,perf,empty').split(',');
+const FLOWS = (process.argv[3] || 'seed,open,text,control,states,hands,perms,responsive,perf,empty').split(',');
 const CLIPS = path.join(STATE, 'clips');
 const RAW = path.join(STATE, 'raw');
 fs.mkdirSync(OUT, { recursive: true });
@@ -94,7 +96,7 @@ const TRACKER = `(() => {
       const iv = setInterval(() => {
         const f = window.__q.shift();
         cb({ t_ms: performance.now(), points: f ? f.points : ABSENT });
-      }, 66);
+      }, window.__tick || 66);
       return { stop() { clearInterval(iv); } };
     },
   };
@@ -112,7 +114,7 @@ function freePort() {
   for (const p of [8965, 8966, 8967, 8968, 8969]) if (!new RegExp('[:.]' + p + '\\b').test(used)) return p;
   throw new Error('no free CDP port in 8965-8969');
 }
-async function newPage({ viewport = [390, 844, true, 2], tracker = true, fakeUi = true, origin = E.BASE, cams = 1, file = true } = {}) {
+async function newPage({ viewport = [390, 844, true, 2], tracker = true, fakeUi = true, origin = E.BASE, cams = 1, file = true, tick = 0 } = {}) {
   const port = freePort();
   const page = await launchChrome({
     port, profile: path.join(STATE, 'chrome-' + port), origin,
@@ -121,6 +123,7 @@ async function newPage({ viewport = [390, 844, true, 2], tracker = true, fakeUi 
   });
   await page.send('Network.setBlockedURLs', { urls: ['http://127.0.0.1:8877/*'] });   // never touch a sibling's replay service
   await page.send('Network.setBypassServiceWorker', { bypass: true });
+  if (tick) await page.send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__tick = ${tick};` });
   if (tracker) await page.send('Page.addScriptToEvaluateOnNewDocument', { source: TRACKER });
   await page.send('Page.addScriptToEvaluateOnNewDocument', { source: FPS });
   await page.viewport(viewport[0], viewport[1], { mobile: viewport[2], dpr: viewport[3] });
@@ -404,6 +407,148 @@ async function flowStates() {
 }
 
 /* ======================================================================
+   hands: one hand controls the laptop. Air-write C -> Chrome, V -> YouTube,
+   point + pinch selects a video, a finger slide scrolls the real page.
+   Recorded: phone (CDP screencast) and laptop (x11grab).
+   ====================================================================== */
+const ZERO = Array.from({ length: 42 }, () => ({ x: 0, y: 0, z: 0, score: 0 }));
+const raw = frames => frames.map(f => ({ points: f.lm ? HS.toKp42(f.lm) : ZERO }));
+function palmMove({ x0 = .42, y0 = .5, x1 = .58, y1 = .44, ms = 1600 } = {}) {
+  const n = Math.round(ms / 33), out = [];
+  for (let i = 0; i < n; i++) {
+    const u = i / (n - 1), e = u * u * (3 - 2 * u);
+    out.push({ t_ms: i * 33, lm: HS.handPose('palm', { x: x0 + (x1 - x0) * e, y: y0 + (y1 - y0) * e + .04 * Math.sin(u * 6.28) }) });
+  }
+  return out;
+}
+async function laptopChrome() {                       // the laptop Chrome's DevTools (test targeting only)
+  const list = await (await fetch('http://127.0.0.1:8962/json/list')).json();
+  const t = list.find(x => x.type === 'page' && /youtube\.com/.test(x.url)) || list.find(x => x.type === 'page');
+  if (!t) return null;
+  const pg = new Page(t.webSocketDebuggerUrl, 'https://www.youtube.com');
+  await pg.ready;
+  return pg;
+}
+async function lapEval(expr) {
+  const pg = await laptopChrome(); if (!pg) return null;
+  try { return await pg.eval(expr); } finally { try { pg.ws.close(); } catch (e) { /* closed */ } }
+}
+function startLaptopRec(file) {
+  const p = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'x11grab', '-framerate', '8', '-video_size', '1280x800', '-i', E.D,
+    '-vf', 'scale=960:600', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '31', '-pix_fmt', 'yuv420p', file], { stdio: ['pipe', 'ignore', 'ignore'] });
+  return () => new Promise(r => { p.on('exit', r); try { p.stdin.write('q'); p.stdin.end(); } catch (e) { p.kill('SIGINT'); } setTimeout(() => { try { p.kill('SIGKILL'); } catch (e) { /* gone */ } r(); }, 6000); });
+}
+async function startPhoneRec(page, dir) {
+  fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
+  const frames = [];
+  page.on('Page.screencastFrame', async p => {
+    const f = path.join(dir, String(frames.length).padStart(5, '0') + '.jpg');
+    fs.writeFileSync(f, Buffer.from(p.data, 'base64'));
+    frames.push({ f, t: p.metadata.timestamp });
+    try { await page.send('Page.screencastFrameAck', { sessionId: p.sessionId }); } catch (e) { /* closing */ }
+  });
+  await page.send('Page.startScreencast', { format: 'jpeg', quality: 70, maxWidth: 780, maxHeight: 1688, everyNthFrame: 1 });
+  return async out => {
+    try { await page.send('Page.stopScreencast'); } catch (e) { /* gone */ }
+    if (frames.length < 2) return null;
+    const list = frames.map((x, i) => `file '${x.f}'\nduration ${Math.max(.02, ((frames[i + 1] || x).t - x.t) || .1).toFixed(3)}`).join('\n') + `\nfile '${frames[frames.length - 1].f}'\n`;
+    fs.writeFileSync(path.join(dir, 'list.txt'), list);
+    execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', path.join(dir, 'list.txt'),
+      '-vf', 'fps=15,scale=390:-2', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '30', '-pix_fmt', 'yuv420p', out]);
+    return out;
+  };
+}
+async function flowHands() {
+  const F = 'hands';
+  const page = await newPage({ tick: 33 });
+  const stopLap = startLaptopRec(path.join(RAW, 'hands-laptop.mp4'));
+  let stopPhone = null;
+  try {
+    await home(page);
+    stopPhone = await startPhoneRec(page, path.join(RAW, 'hands-phone'));
+    await goLive(page);
+    const clips = {
+      palm: raw(palmMove()), airC: raw(HS.airC({ cx: .5, cy: .42, r: .15 })), vsign: raw(HS.vSign(1000)),
+      idle: raw(HS.idle(600)), slideUp: raw(HS.slide({ x: .5, y0: .72, y1: .3, ms: 330 })),
+    };
+    for (const [k, v] of Object.entries(clips)) await page.eval(`window.__clips[${JSON.stringify(k)}] = ${JSON.stringify(v)}`);
+    // 1) the hand lines follow the hand
+    await page.eval(`window.__play('palm')`);
+    await sleep(900);
+    await shot(page, 'live-20-hand-lines');
+    await page.waitFor('window.__idle()', 8000, 'palm clip');
+    check(F, 'hand lines follow the hand (60 fps canvas, springs between frames)', await page.eval(`(() => { const c = document.querySelector('#lv-lines'); return c.width > 0 && c.height > 0; })()`), 'lines canvas live');
+    // 2) air-write C -> Chrome
+    const before = windows().filter(l => /google-chrome/i.test(l)).length;
+    await page.eval(`window.__play('airC')`);
+    await page.waitFor(`/opening chrome|opened google chrome/i.test(document.querySelector('#lv-act-t').textContent)`, 15000, 'C recognised');
+    await sleep(380);
+    await shot(page, 'live-21-air-C-ignites');
+    await until(() => windows().filter(l => /google-chrome/i.test(l)).length > before, 20000, 'a Chrome window on the laptop');
+    // "Opened Google Chrome" is a 3 s caption; after it the browse hint shows
+    await page.waitFor(`/opened google chrome|point to move/i.test(document.querySelector('#lv-act-t').textContent)`, 8000, 'Opened Google Chrome');
+    await sleep(4500);
+    let phone = await shot(page, 'live-22-air-C-chrome-opened');
+    compose(phone, xshot(path.join(RAW, 'hands-chrome.png')), 'live-22b-air-C-phone-and-laptop', 'air-written C opened Google Chrome');
+    check(F, 'air "C" -> the stroke ignites into a C and Google Chrome opens on the laptop', true, `"${await text(page, '#lv-guess')}" · "${await text(page, '#lv-act-t')}" · chrome windows ${before} -> ${windows().filter(l => /google-chrome/i.test(l)).length}`);
+    // 3) V sign -> YouTube
+    await sleep(1800);
+    await page.eval(`window.__play('vsign')`);
+    await page.waitFor(`/opened youtube/i.test(document.querySelector('#lv-act-t').textContent) || /youtube/i.test(document.querySelector('#lv-guess').textContent)`, 15000, 'Opened YouTube');
+    const yt = await until(async () => { try { return await lapEval(`location.host.endsWith('youtube.com') && document.readyState === 'complete' && location.href`); } catch (e) { return null; } }, 30000, 'YouTube loaded on the laptop');
+    await sleep(5000);
+    phone = await shot(page, 'live-23-V-youtube-opened');
+    compose(phone, xshot(path.join(RAW, 'hands-youtube.png')), 'live-23b-V-phone-and-laptop', 'V sign opened YouTube');
+    check(F, 'V sign -> YouTube opens on the laptop', !!yt, String(yt));
+    // a search, typed through the phone's own text path (/send): "/" focuses YouTube search
+    await api('POST', '/send', { text: '/', mode: 'type' }); await sleep(600);
+    await api('POST', '/send', { text: 'lofi hip hop\n', mode: 'type' });
+    const thumb = await until(() => lapEval(`(() => { if (location.pathname !== '/results') return null;
+      const a = [...document.querySelectorAll('ytd-video-renderer a#thumbnail')].find(e => { const r = e.getBoundingClientRect(); return r.width > 100 && r.top > 120 && r.bottom < innerHeight; });
+      if (!a) return null; const r = a.getBoundingClientRect(); const top = window.screenY + (outerHeight - innerHeight);
+      return { x: Math.round(window.screenX + r.left + r.width / 2), y: Math.round(top + r.top + r.height / 2), href: a.href.split('&')[0] }; })()`), 30000, 'search results with a thumbnail');
+    await sleep(1500);
+    // 4) select: point at that thumbnail, pinch
+    const tx = .12 + .76 * thumb.x / 1280, ty = .10 + .62 * thumb.y / 800;
+    await page.eval(`window.__clips.hover = ${JSON.stringify(raw(HS.hover({ x0: .5, y0: .5, x1: tx, y1: ty, ms: 1100 })))}`);
+    await page.eval(`window.__clips.hold = ${JSON.stringify(raw(HS.dwellAt({ x: tx, y: ty, ms: 700 })))}`);
+    await page.eval(`window.__clips.pinch = ${JSON.stringify(raw(HS.pinchAt({ x: tx, y: ty })))}`);
+    await page.eval(`window.__play('hover'); window.__play('hold')`);
+    await sleep(1500);
+    phone = await shot(page, 'live-24-point-to-select');
+    compose(phone, xshot(path.join(RAW, 'hands-hover.png')), 'live-24b-point-phone-and-laptop', 'the finger moves the laptop cursor onto a video');
+    await page.waitFor('window.__idle()', 8000, 'hover');
+    await page.eval(`window.__play('pinch')`);
+    const watch = await until(() => lapEval(`location.pathname === '/watch' && location.href.split('&')[0]`), 20000, 'the video page opened');
+    await sleep(4000);
+    phone = await shot(page, 'live-25-pinch-selected-video');
+    compose(phone, xshot(path.join(RAW, 'hands-watch.png')), 'live-25b-select-phone-and-laptop', 'pinch clicked: the video opened');
+    check(F, 'point + pinch selects a video on the laptop', watch && watch === thumb.href, `${thumb.href} -> ${watch}`);
+    // 5) finger slide scrolls the real page
+    const y0 = await lapEval('Math.round(scrollY)');
+    for (let i = 0; i < 3; i++) { await page.eval(`window.__play('slideUp'); window.__play('idle')`); await sleep(900); }
+    await sleep(1200);
+    const y1 = await lapEval('Math.round(scrollY)');
+    phone = await shot(page, 'live-26-finger-scroll');
+    compose(phone, xshot(path.join(RAW, 'hands-scrolled.png')), 'live-26b-scroll-phone-and-laptop', `finger slides scrolled the page (scrollY ${y0} -> ${y1})`);
+    check(F, 'one finger sliding up scrolls the real laptop page', y1 > y0 + 100, `scrollY ${y0} -> ${y1}`);
+    check(F, 'no page errors', page.errors.length === 0, page.errors.slice(0, 2).join(' | '));
+    await page.tap('#lv-x');
+    await sleep(900);
+  } finally {
+    if (stopPhone) { const f = await stopPhone(path.join(RAW, 'hands-phone.mp4')).catch(() => null); if (f) note('phone recording ' + f); }
+    await stopLap();
+    await page.close();
+    try {
+      execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', path.join(RAW, 'hands-phone.mp4'), '-i', path.join(RAW, 'hands-laptop.mp4'),
+        '-filter_complex', '[0:v]scale=-2:600,setsar=1[a];[1:v]scale=960:600,setsar=1[b];[a][b]hstack=inputs=2,format=yuv420p[v]', '-map', '[v]',
+        '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '30', '-shortest', path.join(OUT, 'live-hands-demo.mp4')]);
+      note('recording: proofs/ui-v2/live-hands-demo.mp4 (phone | laptop)');
+    } catch (e) { note('recording merge failed: ' + e.message.slice(0, 120)); }
+  }
+}
+
+/* ======================================================================
    perms: blocked camera, the browser asking, an insecure link
    ====================================================================== */
 async function flowPerms() {
@@ -550,7 +695,7 @@ async function flowEmpty() {
 }
 
 /* ---------- main ---------- */
-const FN = { seed: flowSeed, open: flowOpen, text: flowText, control: flowControl, states: flowStates, perms: flowPerms, responsive: flowResponsive, perf: flowPerf, empty: flowEmpty };
+const FN = { seed: flowSeed, open: flowOpen, text: flowText, control: flowControl, states: flowStates, hands: flowHands, perms: flowPerms, responsive: flowResponsive, perf: flowPerf, empty: flowEmpty };
 const t0 = Date.now();
 for (const f of FLOWS) {
   if (!FN[f]) { console.log('unknown flow ' + f); continue; }

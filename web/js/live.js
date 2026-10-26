@@ -24,6 +24,8 @@
 import { App } from './app.js';
 import { Pose } from './pose.js';
 import { Skel } from './skeleton.js';
+import { createHand } from './hand.js';
+import { createHandLines } from './handlines.js';
 
 const sheet = App.el.sheetLive;
 if (!sheet) throw new Error('live: #sheet-live missing');
@@ -45,8 +47,9 @@ sheet.innerHTML = `
   <div class="lv-morph" id="lv-morph" aria-hidden="true" hidden></div>
   <div class="lv mode-control is-paused" id="lv-view">
     <video id="lv-cam" playsinline muted autoplay></video>
-    <canvas id="lv-skel" aria-hidden="true"></canvas>
     <div class="lv-scrim" aria-hidden="true"></div>
+    <canvas id="lv-lines" aria-hidden="true"></canvas>
+    <canvas id="lv-skel" aria-hidden="true"></canvas>
     <div class="lv-top">
       <p class="lv-net" id="lv-net" hidden><i></i><span>Reconnecting to your laptop</span></p>
       <button class="lv-rb" id="lv-flip" aria-label="Flip camera">${ICON.flip}</button>
@@ -82,7 +85,7 @@ sheet.innerHTML = `
   </div>`;
 
 const $ = id => sheet.querySelector('#' + id);
-const viewEl = $('lv-view'), video = $('lv-cam'), skel = $('lv-skel'), morph = $('lv-morph'),
+const viewEl = $('lv-view'), video = $('lv-cam'), skel = $('lv-skel'), morph = $('lv-morph'), linesEl = $('lv-lines'),
       netEl = $('lv-net'), flipBtn = $('lv-flip'), tagEl = $('lv-tag'),
       coverEl = $('lv-cover'), cardI = $('lv-card-i'), cardT = $('lv-card-t'), cardM = $('lv-card-m'), cardB = $('lv-card-b'),
       guessEl = $('lv-guess'), actEl = $('lv-act'), actT = $('lv-act-t'), ctaBtn = $('lv-cta'), whyEl = $('lv-why'),
@@ -102,7 +105,7 @@ export class KpLink {
   reset() {
     this.session = null; this.inflight = false; this.pend = null;
     this.timer = null; this.video = null; this.engine = null;
-    this.onFrame = null; this.onResp = null; this.onStatus = null;
+    this.onFrame = null; this.onResp = null; this.onStatus = null; this.filter = null; this.ms = 0;
     this.dead = false;    // 404/405: a laptop on an older build
     this.denied = false;  // 403: not paired, or a proxied request
     this._fake = null;
@@ -120,11 +123,11 @@ export class KpLink {
         const pts = res && res.points;
         if (!pts || pts.length !== 42) return;
         if (this.onFrame) this.onFrame(pts, t);
-        this.send(pts, t);
+        this.send(this.filter ? this.filter(pts) : pts, t);
       });
       return;
     }
-    this.timer = setInterval(() => this.tick(), KP_MS);
+    this.timer = setInterval(() => this.tick(), this.ms || KP_MS);
   }
   tick() {
     if (!this.engine) return;
@@ -134,7 +137,9 @@ export class KpLink {
     try { res = this.engine.detectFrame(this.video, t); } catch (e) { return; }
     if (!res || !res.points) return;
     if (this.onFrame) this.onFrame(res.points, t);
-    this.send(res.points, t);
+    // filter: Go Live hides frames the phone handles itself (air-writing,
+    // pointing) from the laptop's sign matcher
+    this.send(this.filter ? this.filter(res.points) : res.points, t);
   }
   send(pts, t) {
     if (this.inflight) { this.pend = { pts, t }; return; }
@@ -236,7 +241,7 @@ function doneText(a) {
     case 'focus': return 'Switched to ' + appName(a);
     case 'type': return 'Typed “' + String(ar.text || a.text || '').trim().slice(0, 32) + '”';
     case 'key': return 'Pressed ' + keysOf(ar.keys || a.keys);
-    case 'url': return 'Opened ' + hostOf(ar.url || a.url);
+    case 'url': return 'Opened ' + (/^open\s+\S/i.test(a.label || '') ? String(a.label).replace(/^open\s+/i, '') : hostOf(ar.url || a.url));
     case 'shot': return 'Took a screenshot';
     case 'macro': return 'Ran your shortcut';
   }
@@ -275,7 +280,8 @@ function hint() {
     if (S.textLocal && S.words.length) return { t: 'Added to your message', cta: 'Send to laptop' };
     return { t: S.words.length ? 'Typed on your laptop' : 'Sign, and the words type on your laptop' };
   }
-  return { t: 'Sign to control your laptop' };
+  if (S.browse) return { t: 'Point to move, pinch to click, slide to scroll' };
+  return { t: 'Draw C for Chrome, V for YouTube' };
 }
 let subShown = '';
 function renderSub() {
@@ -526,6 +532,7 @@ function setMode(m, persist = true) {
   clearTimeout(S.signT);
   guessEl.textContent = '';
   T.until = 0;
+  H.reset(); lines.setInk(null); setBrowse(false);
   renderSub();
   return syncMode(true);
 }
@@ -574,6 +581,7 @@ function hit() {
 const TIPS = [0, 4, 8, 12, 16, 20];
 function onFrame(pts) {
   S.lastFrame = performance.now();
+  handFrame(pts);
   if (DEV) Skel.draw(skel, pts, { video: S.replay ? null : video, mirror: S.front && !S.replay });
   let hands = 0, e = 0;
   for (const o of [0, 21]) {
@@ -592,6 +600,135 @@ function onFrame(pts) {
   S.hands = hands;
   S.energy = Math.max(Math.min(1, e / .32), S.energy * .7);
   setBars();
+}
+
+/* ---------- one hand controls the laptop (Control mode) ----------
+   The phone reads the hand itself: drawing a letter with one finger, a V sign,
+   pointing, pinching. While it does, the laptop's sign matcher gets an empty
+   frame so a stroke can never also fire a taught sign. */
+const lines = createHandLines(linesEl);
+lines.setVideo(video);
+const H = createHand({ mode: 'write' });
+const ZERO42 = Array.from({ length: 42 }, () => ({ x: 0, y: 0, z: 0, score: 0 }));
+const OWN = new Set(['point', 'v', 'pinch']);
+S.browse = false; S.pose = 'none'; S.firing = false;
+const present = (pts, o) => pts[o] && pts[o + 9] && pts[o].score > .28 && pts[o + 9].score > .28;
+/* one hand, display space (mirrored like the preview), right hand first */
+function pickHand(pts) {
+  const o = present(pts, 21) ? 21 : present(pts, 0) ? 0 : -1;
+  if (o < 0) return null;
+  const m = S.front && !S.replay;
+  const lm = new Array(21);
+  for (let i = 0; i < 21; i++) { const p = pts[o + i]; lm[i] = { x: m ? 1 - p.x : p.x, y: p.y }; }
+  return lm;
+}
+/* normalized video coords -> css px of the view (object-fit: cover), for ink/cursor */
+function toPx(p) {
+  const W = linesEl.clientWidth || innerWidth, Hh = linesEl.clientHeight || innerHeight;
+  const vw = (!S.replay && video.videoWidth) || 0, vh = (!S.replay && video.videoHeight) || 0;
+  if (!vw || !vh) return { x: p.x * W, y: p.y * Hh };
+  const k = Math.max(W / vw, Hh / vh), dw = vw * k, dh = vh * k;
+  return { x: (W - dw) / 2 + p.x * dw, y: (Hh - dh) / 2 + p.y * dh };
+}
+const pxs = pts => pts.map(toPx);
+/* the camera's comfortable middle maps onto the whole laptop screen */
+const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
+const lapX = x => +clamp01((x - .12) / .76).toFixed(4);
+const lapY = y => +clamp01((y - .10) / .62).toFixed(4);
+
+function handFrame(pts) {
+  const lm = pickHand(pts);
+  const now = performance.now();
+  lines.setHand(lm, now);
+  if (S.mode !== 'control' || S.booting) return;
+  const evs = H.update(lm, now);
+  for (const ev of evs) onGesture(ev);
+}
+function ownsHand() { return S.mode === 'control' && (OWN.has(S.pose) || (S.browse && S.pose !== 'none' && S.pose !== 'palm')); }
+function filterFrame(pts) { return ownsHand() ? ZERO42 : pts; }
+
+function onGesture(ev) {
+  switch (ev.type) {
+    case 'pose': S.pose = ev.pose; break;
+    case 'ink': lines.setInk(pxs(ev.points)); break;
+    case 'letter':
+      lines.setInk(null);
+      lines.ignite(ev.letter, pxs(ev.points));
+      fireLetter(ev.letter);
+      break;
+    case 'reject': lines.setInk(null); say('Didn’t catch that letter', 'soft', 2200); break;
+    case 'vsign': fireLetter('V'); break;
+    case 'palm': if (S.browse) { setBrowse(false); App.buzz(); } break;
+    case 'cursor': {
+      S.cur = { x: ev.x, y: ev.y };
+      const c = toPx(S.cur); lines.setCursor(c.x, c.y, S.dwell || 0);
+      pointer({ op: 'move', x: lapX(ev.x), y: lapY(ev.y) }, true);
+      break;
+    }
+    case 'dwell': {
+      S.dwell = ev.p;
+      if (S.cur) { const c = toPx(S.cur); lines.setCursor(c.x, c.y, ev.p); }
+      break;
+    }
+    case 'scroll': pointer({ op: 'scroll', dy: ev.dy }); if (!T.text.startsWith('Scroll')) say('Scrolling', '', 900); break;
+    case 'click': {
+      S.dwell = 0;
+      const c = toPx({ x: ev.x, y: ev.y }); lines.pulse(c.x, c.y); lines.setCursor(c.x, c.y, 0);
+      pointer({ op: 'click', x: lapX(ev.x), y: lapY(ev.y) });
+      say('Clicked', 'ok', 1200); hit();
+      break;
+    }
+  }
+}
+function setBrowse(on) {
+  S.browse = !!on;
+  H.setMode(S.browse ? 'browse' : 'write');
+  viewEl.classList.toggle('browse', S.browse);
+  if (!S.browse) { lines.setCursor(null); S.cur = null; S.dwell = 0; }
+  renderSub();
+}
+/* the laptop's own browser, from its app list (Chrome, else Chromium) */
+function browserAction() {
+  for (const id of ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser']) {
+    if (APPS.has(id)) return { kind: 'app', tool: 'app.open', type: 'open_app', args: { id }, id, label: 'open ' + APPS.get(id), tier: 1 };
+  }
+  return { kind: 'builtin', tool: 'open.url', type: 'open_url', args: { url: 'https://www.google.com' }, label: 'open Chrome', tier: 1 };
+}
+const YT = { kind: 'builtin', tool: 'open.url', type: 'open_url', args: { url: 'https://www.youtube.com' }, label: 'open YouTube', tier: 1 };
+async function fireLetter(letter) {
+  if (S.firing) return;
+  S.firing = true; setTimeout(() => { S.firing = false; }, 1600);
+  const a = letter === 'C' ? browserAction() : YT;
+  const name = letter === 'C' ? 'Chrome' : 'YouTube';
+  showSign('AIR-' + letter, 'open ' + name);
+  say('Opening ' + name + '…', 'wait', 8000);
+  const r = await App.api.post('/act/run', { action: a, label: a.label }).catch(() => null);
+  if (!S.open) return;
+  const j = (r && r.json) || {};
+  if (r && r.ok && (j.ok || j.fired)) { say(doneText(a), 'ok'); setBrowse(true); }
+  else if (j.pending) say('Waiting for your OK', 'wait', 8000);
+  else if (r && (r.status === 404 || r.status === 405)) say('Update your laptop’s Wispr Wrap for this', 'soft', 3000);
+  else say('Couldn’t open ' + name + ' on your laptop', 'soft', 3000);
+}
+/* pointer ops to the laptop: moves are latest-wins (~20/s), clicks and scrolls queue */
+const PTR = { q: [], move: null, busy: false, last: 0 };
+function pointer(body, isMove) {
+  if (isMove) PTR.move = body; else PTR.q.push(body);
+  pumpPointer();
+}
+async function pumpPointer() {
+  if (PTR.busy) return;
+  let next = PTR.q.shift();
+  if (!next && PTR.move) {
+    const wait = 45 - (performance.now() - PTR.last);
+    if (wait > 0) { setTimeout(pumpPointer, wait); return; }
+    next = PTR.move; PTR.move = null;
+  }
+  if (!next) return;
+  PTR.busy = true; PTR.last = performance.now();
+  try { await App.api.post('/act/pointer', next); } catch (e) { /* the net line says so */ }
+  PTR.busy = false;
+  if (PTR.q.length || PTR.move) pumpPointer();
 }
 
 /* ---------- overlay card (camera permission, errors) ---------- */
@@ -716,8 +853,11 @@ function startReplay(rep) {
   setBars(); renderSub();
 }
 function startLink(src, engine) {
+  lines.start();
   S.link.start(src, engine, {
     onFrame,
+    filter: filterFrame,
+    ms: 40,                       // ~25 Hz: smooth pointing; the laptop rate-limits per phone
     onResp: onKpResp,
     onStatus: s => {
       if (s === 'denied') {
@@ -905,7 +1045,8 @@ async function open() {
   S.open = true; S.gen++; S.openAt = performance.now();
   S.seen.clear(); S.base = false; S.words = []; S.fireAct = {};
   S.linkUp = false; S.wantListen = true; S.userPaused = false; S.pendKey = ''; S.remote = false; S.hidden = false;
-  S.energy = 0; S.hands = 0; S.prev = null; S.bankSize = null;
+  S.energy = 0; S.hands = 0; S.prev = null; S.bankSize = null; S.pose = 'none';
+  H.reset(); S.browse = false; viewEl.classList.remove('browse');
   T.until = 0; guessEl.textContent = ''; whyEl.textContent = '';
   pendEl.hidden = true; pendEl.textContent = ''; viewEl.classList.remove('has-ask', 'replay');
   tagEl.hidden = true; netEl.hidden = true;
@@ -931,6 +1072,7 @@ async function close() {
   stopCam();
   if (S.replay) { try { S.replay.close(); } catch (e) {} S.replay = null; }
   S.engine = null;                     // the shared model stays loaded for next time
+  lines.stop(); H.reset(); S.browse = false; PTR.q.length = 0; PTR.move = null;
   wakeLock(false);
   // outside Go Live nothing should type words or keep listening
   App.api.post('/live/listen', { on: false }).catch(() => {});
