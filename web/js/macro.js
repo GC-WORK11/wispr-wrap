@@ -27,8 +27,8 @@ sheet.innerHTML = `
     </div>
     <div class="sheet-body" id="mc-body"></div>
     <div class="sheet-foot">
-      <button class="btn-ghost btn-block" id="mc-cancel">cancel</button>
-      <button class="btn-primary btn-block" id="mc-done" disabled>bind macro</button>
+      <button class="btn btn-ghost btn-block" id="mc-cancel">cancel</button>
+      <button class="btn btn-primary btn-block" id="mc-done" disabled>bind macro</button>
     </div>
   </div>`;
 const $ = id => sheet.querySelector('#' + id);
@@ -248,6 +248,7 @@ export const Macro = {
     if (!steps.length) steps = [{ _k: 'open_app', _v: '' }];
     titleEl.textContent = 'macro — chain steps';
     sheet.hidden = false;
+    App.raise(sheet);
     render();
     return new Promise(res => { resolver = res; });
   },
@@ -259,6 +260,7 @@ export const Macro = {
     defAction = (action && action.default) || null;
     titleEl.textContent = 'context — per-app rules';
     sheet.hidden = false;
+    App.raise(sheet);
     render();
     return new Promise(res => { resolver = res; });
   },

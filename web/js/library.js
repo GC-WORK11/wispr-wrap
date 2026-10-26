@@ -36,7 +36,7 @@ sheet.innerHTML = `
     </div>
   </div>
   <div class="sheet-foot">
-    <button class="btn-primary btn-block" id="lib-teach">+ teach a sign</button>
+    <button class="btn btn-primary btn-block" id="lib-teach">+ teach a sign</button>
   </div>`;
 const $ = id => sheet.querySelector('#' + id);
 const listEl = $('lib-list'), emptyEl = $('lib-empty'), countEl = $('lib-count'),
