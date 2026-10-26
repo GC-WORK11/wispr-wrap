@@ -134,3 +134,14 @@
 .lib-b.btn-primary { background: var(--ink); color: #fff; margin-left: 0; }
 .lib-b.btn-primary:hover { background: #2b2b2b; }
 .lib-empty-g { background: var(--accent-soft); }
+
+/* v2.1 (simplify): a sign is one calm row; tap it for its actions */
+.lib-card .lib-row { display: none; }
+.lib-card.open .lib-row { display: flex; animation: msg-in var(--t-2) var(--ease-out); }
+.lib-top { cursor: pointer; min-height: 48px; }
+.lib-top::after { content: ""; flex: none; width: 8px; height: 8px; margin: 0 4px 0 2px; border: solid var(--muted); border-width: 0 1.8px 1.8px 0; transform: rotate(45deg) translateY(-2px); transition: transform var(--t-2) var(--ease-out); }
+.lib-card.open .lib-top::after { transform: rotate(-135deg) translateY(-2px); }
+.lib-b { min-height: 48px; padding: 12px 14px; }
+.lib-empty { font-size: 17px; color: var(--muted); padding: 0; }
+.lib-empty-g { margin-bottom: 14px; }
+.lib-act .chip.accent { display: none; }
