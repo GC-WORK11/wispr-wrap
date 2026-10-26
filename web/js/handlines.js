@@ -1,15 +1,15 @@
 // handlines.js — live hand-line canvas renderer for the Go Live view.
 // FOUNDER-SPEC-1229 §A. Pure ES module, no deps.
 //
-// Brand: white lines over the camera feed, ONE deep-pink accent (#C2185B /
-// highlight #E91E63). Light, premium, calm — no neon, no heavy glow, no blue.
+// Brand: white lines over the camera feed, ONE lotus-pink accent (#FF309C /
+// shade #F12F92). Light, premium, calm — no neon, no heavy glow, no blue.
 //
 // Coordinates: MediaPipe Hands, 21 landmarks {x,y} normalized 0..1 in DISPLAY
 // space (already mirrored), relative to the VIDEO frame. We map them onto the
 // canvas like CSS `object-fit: cover` of the video element.
 
-const PINK = '#C2185B';
-const PINK_HI = '#E91E63';
+const PINK = '#F12F92';      // FOUNDER-COLOR-1658 lotus pink (shade)
+const PINK_HI = '#FF309C';   // lotus pink
 
 const BONES = [
   [0, 1], [1, 2], [2, 3], [3, 4],
@@ -255,16 +255,13 @@ export function createHandLines(canvas) {
       }
       return out;
     }
-    // 'C' default: open arc ~300deg opening to the right.
-    // Opening faces +x, so leave a gap centred on angle 0. Sweep from +150deg
-    // down around through 180/270 up to -150deg (i.e. 300deg of arc).
+    // 'C' default: an open arc of ~300deg whose gap faces right (+x), like the
+    // letter. Start at +30deg (upper right), sweep counter-clockwise through the
+    // top (90), the left side (180) and the bottom (270) to 330deg (lower right).
     const cx = bb.x + bb.w / 2, cy = bb.y + bb.h / 2;
     const rx = bb.w / 2, ry = bb.h / 2;
-    const a0 = (150 * Math.PI) / 180;
-    const a1 = (-150 * Math.PI) / 180;
-    // go the long way (counter-clockwise through 180deg): decrease? We want to
-    // traverse the 300deg arc that avoids the right-side gap. Sweep a0 -> a0-300deg.
-    const sweep = -(300 * Math.PI) / 180;
+    const a0 = (30 * Math.PI) / 180;
+    const sweep = (300 * Math.PI) / 180;
     for (let i = 0; i < n; i++) {
       const t = i / (n - 1);
       const a = a0 + sweep * t;

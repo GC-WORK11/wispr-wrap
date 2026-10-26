@@ -45,6 +45,7 @@ const ICON = {
   lock: svg('<rect x="4.5" y="11" width="15" height="10" rx="2.5"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/>', 1.7),
   laptop: svg('<rect x="4" y="5" width="16" height="11" rx="2"/><path d="M2.5 19.5h19"/>', 1.7),
   check: svg('<path d="M20 6 9 17l-5-5"/>', 2.6),
+  linkOff: svg('<rect x="4" y="5" width="16" height="11" rx="2"/><path d="M2.5 19.5h19"/><path d="M3 3l18 18"/>', 1.7),
 };
 
 /* ---------- DOM (built once; index.html keeps only the mount) ---------- */
@@ -56,10 +57,9 @@ sheet.innerHTML = `
     <canvas id="lv-lines" aria-hidden="true"></canvas>
     <canvas id="lv-skel" aria-hidden="true"></canvas>
     <div class="lv-top">
-      <p class="lv-net" id="lv-net" hidden><i></i><span>Reconnecting to your laptop</span></p>
+      <span class="lv-net" id="lv-net" hidden role="img" aria-label="Reconnecting to your laptop">${ICON.linkOff}</span>
       <button class="lv-rb" id="lv-flip" aria-label="Flip camera">${ICON.flip}</button>
     </div>
-    <p class="lv-tag" id="lv-tag" hidden>Demo input · recorded hand motion</p>
     <div class="lv-cover" id="lv-cover" hidden>
       <div class="lv-card" role="alertdialog" aria-labelledby="lv-card-t" aria-describedby="lv-card-m">
         <span class="lv-card-i" id="lv-card-i"></span>
@@ -71,7 +71,7 @@ sheet.innerHTML = `
     <div class="lv-foot">
       <div class="lv-cap" id="lv-cap">
         <p class="lv-line" id="lv-guess" aria-live="polite"></p>
-        <p class="lv-act" id="lv-act" aria-live="polite"><i class="lv-ok">${ICON.check}</i><span id="lv-act-t"></span></p>
+        <p class="lv-sr" id="lv-act" aria-live="polite"><span id="lv-act-t"></span></p>
         <button class="lv-cta" id="lv-cta" hidden></button>
         <p class="lv-why" id="lv-why"></p>
       </div>
@@ -91,7 +91,7 @@ sheet.innerHTML = `
 
 const $ = id => sheet.querySelector('#' + id);
 const viewEl = $('lv-view'), video = $('lv-cam'), skel = $('lv-skel'), morph = $('lv-morph'), linesEl = $('lv-lines'),
-      netEl = $('lv-net'), flipBtn = $('lv-flip'), tagEl = $('lv-tag'),
+      netEl = $('lv-net'), flipBtn = $('lv-flip'),
       coverEl = $('lv-cover'), cardI = $('lv-card-i'), cardT = $('lv-card-t'), cardM = $('lv-card-m'), cardB = $('lv-card-b'),
       guessEl = $('lv-guess'), actEl = $('lv-act'), actT = $('lv-act-t'), ctaBtn = $('lv-cta'), whyEl = $('lv-why'),
       pendEl = $('lv-pend'), segText = $('lv-m-text'), segCtl = $('lv-m-ctl'),
@@ -181,7 +181,7 @@ export class KpLink {
 
 /* ---------- session state ---------- */
 const S = {
-  open: false, gen: 0, openAt: 0, tipUntil: 0,
+  open: false, gen: 0, openAt: 0,
   stream: null, front: true, engine: null, replay: null, remote: false, booting: false, hidden: false,
   link: new KpLink(), stT: null, polling: false, linkUp: false, wantListen: true,
   mode: (() => { try { return localStorage.getItem('wf.livemode') === 'text' ? 'text' : 'control'; } catch (e) { return 'control'; } })(),
@@ -211,7 +211,7 @@ function signName(g, label) {
 function appName(a) {
   const ar = a.args || {};
   const id = String(ar.id || ar.app || a.id || a.app || '');
-  if (id && APPS.has(id.toLowerCase())) return APPS.get(id.toLowerCase());
+  if (id && APPS.has(id.toLowerCase())) return APPS.get(id.toLowerCase()).replace(/^(xfce|gnome|kde|mate|lxqt)\s+(?=\S)/i, '');
   const m = /^(?:open|close|focus|switch to)\s+(.+)$/i.exec(String(a.label || '').trim());
   if (m && !/^app( window)?$/i.test(m[1])) return m[1];
   return id ? cap(human(id.replace(/\.desktop$/, ''))) : 'the app';
@@ -269,43 +269,48 @@ function askText(a, fallback) {
   return cap(human(a.label || fallback || 'Run this'));
 }
 
-/* ---------- captions ---------- */
-const T = { text: '', kind: '', until: 0, timer: 0 };
+/* ---------- what the view says ----------
+   On screen: only the content (your words, or the action you signed with a
+   state icon) and primary buttons. Every status sentence goes to a hidden live
+   region (#lv-act-t) for screen readers and tools; motion and icons carry the
+   meaning visually (FOUNDER-RULE-1652: no helper text, no captions). */
+const T = { text: '', until: 0, timer: 0 };
 function say(text, kind = '', ms = 3200) {
-  T.text = text; T.kind = kind; T.until = performance.now() + ms;
+  T.text = text; T.until = performance.now() + ms;
   clearTimeout(T.timer); T.timer = setTimeout(() => renderSub(), ms + 30);
+  if (kind) mark(kind === 'soft' ? 'fail' : kind);
   renderSub();
 }
-function hint() {
-  if (S.booting) return { t: 'Getting ready…', kind: 'wait' };
-  if (App.state && App.state.online === false) return { t: '' };
-  if (S.mode === 'control' && !laptopOn()) return { t: '', cta: 'Connect your laptop' };
-  if (S.bankSize === 0 && S.mode === 'text') return { t: 'No signs yet', cta: 'Teach a sign' };
-  if (!S.listening) return { t: 'Paused' };
-  if (performance.now() > S.tipUntil) return { t: '' };      // how-to tips fade; the camera stays clean
-  if (S.mode === 'text') return { t: S.textLocal && S.words.length ? '' : 'Sign to type', cta: S.textLocal && S.words.length ? 'Send to laptop' : '' };
-  if (S.browse) return { t: 'Pinch to click. Open hand to draw.' };
-  return { t: 'Draw C or V. Pinch to point.' };
+/* the state icon in front of the action you signed: ok | wait | fail | '' */
+function mark(kind) {
+  const st = guessEl.querySelector('.lv-st');
+  if (st) st.className = 'lv-st' + (kind ? ' ' + kind : '');
 }
-/* show the how-to tip for a few seconds after opening or switching */
-function tip() { S.tipUntil = performance.now() + 4500; clearTimeout(tip.t); tip.t = setTimeout(renderSub, 4600); renderSub(); }
+/* a failure with nothing on screen to mark: the control shakes once */
+function miss(el) {
+  el = el || listenBtn;
+  el.classList.remove('miss'); void el.offsetWidth; el.classList.add('miss');
+  clearTimeout(el._miss); el._miss = setTimeout(() => el.classList.remove('miss'), 600);
+}
+function hint() {
+  if (S.booting) return { s: 'Getting ready' };
+  if (App.state && App.state.online === false) return { s: 'Not connected' };
+  if (S.mode === 'control' && !laptopOn()) return { s: 'No laptop connected', cta: 'Connect your laptop' };
+  if (S.bankSize === 0 && S.mode === 'text') return { s: 'No signs yet', cta: 'Teach a sign' };
+  if (!S.listening) return { s: 'Paused' };
+  if (S.mode === 'text' && S.textLocal && S.words.length) return { s: '', cta: 'Send to laptop' };
+  return { s: '' };
+}
 /* laptop control only while a laptop is connected (spec: otherwise one "Connect" row) */
 function laptopOn() {
   try { return App.connected ? !!App.connected() : !!(App.state.online && App.state.paired); } catch (e) { return false; }
 }
-let subShown = '';
 function renderSub() {
-  const live = performance.now() < T.until;
-  const h = live ? { t: T.text, kind: T.kind } : hint();
-  const k = (h.t || '') + '|' + (h.kind || '');
-  actEl.className = 'lv-act' + (h.kind ? ' ' + h.kind : '') + (h.t ? '' : ' empty');
-  if (k !== subShown) {
-    subShown = k;
-    actT.textContent = h.t || '';
-    actEl.classList.remove('in'); void actEl.offsetWidth; actEl.classList.add('in');
-  } else actEl.classList.add('in');
-  ctaBtn.hidden = !h.cta || live;
-  if (h.cta) ctaBtn.textContent = h.cta;
+  const h = hint();
+  const txt = performance.now() < T.until ? T.text : (h.s || '');
+  if (actT.textContent !== txt) actT.textContent = txt;
+  ctaBtn.hidden = !h.cta;
+  if (h.cta && ctaBtn.textContent !== h.cta) ctaBtn.textContent = h.cta;
 }
 ctaBtn.onclick = () => {
   if (ctaBtn.textContent === 'Send to laptop') App.emit('text:send');
@@ -343,7 +348,11 @@ function onWord(word, gloss, t) {
   if (!S.textLocal) sound('word');        // a local append already chimes through the composer
 }
 function showSign(g, label) {
-  guessEl.textContent = signName(g, label);
+  guessEl.textContent = '';
+  const st = document.createElement('i'); st.className = 'lv-st'; st.setAttribute('aria-hidden', 'true');
+  st.innerHTML = '<span class="ok-i">' + ICON.check + '</span><span class="x">' + ICON.x + '</span>';
+  const nm = document.createElement('span'); nm.textContent = signName(g, label);
+  guessEl.append(st, nm);
   guessEl.classList.remove('pop', 'gone', 'long');
   void guessEl.offsetWidth;
   guessEl.classList.add('pop');
@@ -375,7 +384,7 @@ function onMatch(m) {
   if (m.dup_suppressed) return;            // the second half of one sign: already handled
   dev(m);
   if (!m.accepted) {
-    if (!/^dropped/.test(m.reason || '')) { fadeSign(); say('Didn’t catch that', 'soft', 2400); }
+    if (!/^dropped/.test(m.reason || '')) { fadeSign(); say('Didn’t catch that', '', 2400); miss(); }
     return;
   }
   const a = m.action || null;
@@ -476,9 +485,7 @@ function renderPending(rows) {
   t.className = 'lv-ask-t';
   const b = document.createElement('b');
   b.textContent = askText(act, signName(p.gloss, p.label)) + '?';
-  const s = document.createElement('span');
-  s.textContent = rows.length > 1 ? rows.length + ' waiting' : '';
-  t.append(b, s);
+  t.append(b);
   const btns = document.createElement('div');
   btns.className = 'lv-ask-b';
   const no = document.createElement('button');
@@ -495,7 +502,7 @@ function renderPending(rows) {
   no.onclick = async () => {
     yes.disabled = no.disabled = true;
     await App.api.post('/act/confirm', { id: p.id, cancel: true }).catch(() => null);
-    say('Cancelled', 'soft', 1800);
+    say('Cancelled', '', 1800); mark('');
     S.pendKey = '#'; poll();
   };
   btns.append(no, yes);
@@ -530,7 +537,7 @@ async function listen(on) {
   S.listenAt = performance.now();
   setListening(on);
   const r = await App.api.post('/live/listen', { on }).catch(() => null);
-  if (!r || !r.ok) { setListening(!on); say('Couldn’t reach your laptop', 'soft'); }
+  if (!r || !r.ok) { setListening(!on); say('Couldn’t reach your laptop', ''); miss(); }
 }
 listenBtn.onclick = () => { S.wantListen = false; S.userPaused = S.listening; listen(!S.listening); };
 
@@ -547,7 +554,7 @@ function setMode(m, persist = true) {
   guessEl.textContent = '';
   T.until = 0;
   H.reset(); lines.setInk(null); setBrowse(false);
-  tip();
+  renderSub();
   return syncMode(true);
 }
 /* tell the laptop; an older laptop without text mode falls back to "words go
@@ -580,7 +587,9 @@ App.on('sent', r => {
    it swells with how much your hands move (transform/opacity only, set at the
    frame cadence with a CSS transition, so it stays smooth on the compositor) */
 function setBars() {
-  const on = S.listening && !S.booting && S.hands > 0;
+  viewEl.classList.toggle('booting', !!S.booting);
+  if (S.booting) { ring.style.transform = ''; ring.style.opacity = ''; ring._t = ring._o = null; return; }
+  const on = S.listening && S.hands > 0;
   const e = on ? Math.min(1, S.energy) : 0;
   const t = on ? 'scale(' + (1.04 + .2 * e).toFixed(3) + ')' : 'scale(.92)';
   const o = on ? (.32 + .6 * e).toFixed(2) : '0';
@@ -682,7 +691,7 @@ function onGesture(ev) {
       fireLetter(ev.letter);
       break;
     case 'stroke-cancel': lines.setInk(null); break;        // a twitch, not a letter: say nothing
-    case 'reject': lines.setInk(null); say('Try again', 'soft', 1800); break;
+    case 'reject': lines.setInk(null); say('Try again', '', 1800); miss(); break;
     case 'vsign': fireLetter('V'); break;
     case 'pinch': if (!S.browse) { setBrowse(true); App.buzz(); } break;    // pinch: start pointing
     case 'palm': if (S.browse) { setBrowse(false); App.buzz(); } break;     // still open hand: back to drawing
@@ -712,7 +721,7 @@ function setBrowse(on) {
   H.setMode(S.browse ? 'browse' : 'write');
   viewEl.classList.toggle('browse', S.browse);
   if (!S.browse) { lines.setCursor(null); S.cur = null; S.dwell = 0; }
-  tip();
+  renderSub();
 }
 /* an air letter: the laptop runs what it is bound to (C -> Chrome, V -> YouTube
    unless you bound AIR-C / AIR-V to something else). POST /live/event queues it;
@@ -723,7 +732,7 @@ async function fireLetter(letter) {
   S.firing = true; setTimeout(() => { S.firing = false; }, 1600);
   const name = AIR_NAME[letter] || letter;
   showSign('AIR-' + letter, 'open ' + name);
-  if (!laptopOn()) { say('Connect your laptop to use this', 'soft', 2600); return; }
+  if (!laptopOn()) { say('Connect your laptop to use this', 'soft', 2600); miss(ctaBtn); return; }
   say('Opening ' + name + '…', 'wait', 9000);
   S.airWait = { letter, name };
   const r = await App.api.post('/live/event', { type: 'air', letter }).catch(() => null);
@@ -769,6 +778,7 @@ function card(icon, title, msg, buttons) {
   cardM.textContent = msg || '';
   cardB.textContent = '';
   for (const b of buttons || []) if (b) cardB.appendChild(b);
+  cardI.classList.toggle('pulse', !cardB.children.length && icon === 'cam');
   coverEl.hidden = false;
   viewEl.classList.add('has-cover');
 }
@@ -878,7 +888,6 @@ function startReplay(rep) {
   S.replay = rep;
   S.front = false;
   viewEl.classList.add('replay');
-  tagEl.hidden = false;
   S.booting = false;
   startLink(video, rep);
   setBars(); renderSub();
@@ -977,7 +986,7 @@ flipBtn.onclick = async () => {
     }
     if (!ok && gen === S.gen) {
       await openCam(wasFront, was || undefined).catch(() => {});
-      say('No other camera on this device', 'soft', 2200);
+      say('No other camera on this device', '', 2200); miss(flipBtn);
     }
   } catch (e) {
     if (gen === S.gen && !S.stream) camFail(e);
@@ -1080,7 +1089,7 @@ async function open() {
   H.reset(); S.browse = false; viewEl.classList.remove('browse');
   T.until = 0; guessEl.textContent = ''; whyEl.textContent = '';
   pendEl.hidden = true; pendEl.textContent = ''; viewEl.classList.remove('has-ask', 'replay');
-  tagEl.hidden = true; netEl.hidden = true;
+  netEl.hidden = true;
   document.body.classList.add('live-open');
   S.link.reset();
   setListening(false);

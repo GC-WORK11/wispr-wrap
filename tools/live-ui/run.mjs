@@ -162,6 +162,31 @@ const shot = (page, name) => page.shot(path.join(OUT, name + '.png'));
 const rawShot = (page, name) => page.shot(path.join(RAW, name + '.png'));
 const text = (page, sel) => page.eval(`(document.querySelector(${JSON.stringify(sel)}) || {}).textContent || ''`);
 const visible = (page, sel) => page.eval(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e || e.hidden) return false; const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden'; })()`);
+/* the words a person can see in the Go Live view: text nodes whose element is
+   laid out, not clipped to 1px (screen-reader only), and not faded out */
+const VISIBLE = `(() => {
+  const root = document.querySelector('#sheet-live'), out = [];
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let n = w.nextNode(); n; n = w.nextNode()) {
+    const t = n.textContent.replace(/\\s+/g, ' ').trim();
+    if (!t) continue;
+    let el = n.parentElement, ok = true;
+    const r = el.getBoundingClientRect();
+    if (r.width < 3 || r.height < 3) ok = false;
+    for (let e = el; ok && e && e !== document.body; e = e.parentElement) {
+      const cs = getComputedStyle(e);
+      if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < .05 || e.hidden) ok = false;
+    }
+    if (ok) out.push(t);
+  }
+  return out;
+})()`;
+const visibleWords = page => page.eval(VISIBLE);
+async function onlyShows(F, page, what, allowed) {
+  const seen = await visibleWords(page);
+  const extra = seen.filter(t => !allowed.some(a => a instanceof RegExp ? a.test(t) : a === t));
+  return check(F, what, extra.length === 0, 'visible: ' + JSON.stringify(seen) + (extra.length ? ' · not allowed: ' + JSON.stringify(extra) : ''));
+}
 async function home(page) {
   await page.goto(E.BASE + '/?k=' + E.KEY, { settle: 2600 });
 }
@@ -262,8 +287,7 @@ async function flowOpen() {
     let st = await liveState();
     const why = st.listening ? '' : ` · view: ${await text(page, '#lv-badge-t')} "${await text(page, '#lv-act-t')}" · last_match ${JSON.stringify(st.last_match || {}).slice(0, 120)} · feed ${JSON.stringify((st.feed || []).slice(-3)).slice(0, 200)} · listen calls ${JSON.stringify(page.listenLog)}`;
     check(F, 'opening Go Live starts listening and puts the laptop in Control', st.listening === true && st.text_mode === false, `listening=${st.listening} text_mode=${st.text_mode}${why}`);
-    const words = await page.eval(`document.querySelector('#sheet-live').innerText`);
-    check(F, 'no developer words on screen', !/python|daemon|wfd|keypoint|confidence|port\b|engine|dtw|d=/i.test(words), JSON.stringify(words.replace(/\s+/g, ' ').trim()).slice(0, 120));
+    await onlyShows(F, page, 'nothing but Text and Control on screen (no captions, tips or labels)', ['Text', 'Control']);
     await page.tap('#lv-x');
     await page.waitFor(`document.querySelector('#sheet-live').hidden && location.hash !== '#/live'`, 5000, 'closed');
     await sleep(500);
@@ -319,7 +343,8 @@ async function flowText() {
   compose(phone, lap, 'live-06b-text-phone-and-laptop', 'the signed words typed into the focused editor');
   const cap = (await text(page, '#lv-guess')).replace(/\s+/g, ' ').trim();
   const sub = await text(page, '#lv-act-t');
-  check(F, 'sign "world" -> the caption builds the sentence; the laptop has it too', /hello world/i.test(cap) && /hello world/.test(notesText()), `caption "${cap}" · "${sub}" · editor ${JSON.stringify(notesText())}`);
+  check(F, 'sign "world" -> the caption builds the sentence; the laptop has it too', /hello world/i.test(cap) && /hello world/.test(notesText()), `caption "${cap}" · status "${sub}" · editor ${JSON.stringify(notesText())}`);
+  await onlyShows(F, page, 'Text mode shows only your words and the two mode labels', ['Text', 'Control', 'hello', 'world']);
 }
 async function flowControl() {
   const F = 'control';
@@ -346,6 +371,7 @@ async function flowControl() {
   lap = xshot(path.join(RAW, 'control-ask.png'));
   compose(phone, lap, 'live-08b-needs-ok-phone-and-laptop', 'tier-2 action held: the Terminal is still open');
   check(F, 'sign "close terminal" (tier 2) waits for an OK; nothing closed yet', terms().length === n0 + 1 && /close/i.test(ask), `"${ask}" · windows ${terms().length}`);
+  await onlyShows(F, page, 'the OK card is just the question and two buttons', [/^Close .+\?$/, 'Not now', 'Run', 'Text', 'Control']);
   await page.tap('#lv-ok-run');
   await until(() => terms().length === n0, 10000, 'Terminal window closed');
   await page.waitFor(`/closed/i.test(document.querySelector('#lv-act-t').textContent)`, 6000, 'caption Closed ...');
@@ -494,12 +520,16 @@ async function flowHands() {
     await shot(page, 'live-21b-air-C-ignites');
     await sleep(380);
     await shot(page, 'live-21c-air-C-glyph');
+    await page.waitFor(`!!document.querySelector('#lv-guess .lv-st.ok')`, 15000, 'the laptop confirmed it ran');
+    await sleep(350);
+    await shot(page, 'live-21d-air-C-done');
     await until(() => chromes() > c0, 25000, 'a Chrome window on the laptop');
     await page.waitFor(`document.querySelector('#lv-view').classList.contains('browse')`, 8000, 'pointing after Chrome opened');
     await sleep(4500);
     let phone = await shot(page, 'live-22-air-C-chrome-opened');
     compose(phone, xshot(path.join(RAW, 'hands-chrome.png')), 'live-22b-air-C-phone-and-laptop', 'air-written C opened Google Chrome');
     check(F, 'air "C" ignites into a glyph and Google Chrome opens on the laptop', true, `"${await text(page, '#lv-guess')}" · Chrome windows ${c0} -> ${chromes()}`);
+    await onlyShows(F, page, 'after C: only the action (with its check) and the mode labels', ['Open Chrome', 'Text', 'Control']);
 
     // 3) V sign -> YouTube
     await sleep(1500);
@@ -590,7 +620,8 @@ async function flowOffline() {
     await page.waitFor(`/connect your laptop/i.test(document.querySelector('#lv-act-t').textContent)`, 15000, 'asks to connect');
     await sleep(800);
     await shot(page, 'live-17-not-connected');
-    check(F, 'no laptop connected: Control offers "Connect your laptop" and a drawn C sends nothing', events === 0, `${events} laptop events sent · "${await text(page, '#lv-act-t')}"`);
+    check(F, 'no laptop connected: Control offers "Connect your laptop" and a drawn C sends nothing', events === 0, `${events} laptop events sent · status "${await text(page, '#lv-act-t')}"`);
+    await onlyShows(F, page, 'not connected shows only Connect your laptop, the drawn action and the mode labels', ['Connect your laptop', 'Open Chrome', 'Text', 'Control']);
     await page.tap('#lv-x');
     await sleep(600);
   } finally { await page.close(); }
@@ -609,7 +640,8 @@ async function flowPerms() {
     await page.waitFor(`/camera is off/i.test(document.querySelector('#lv-card-t').textContent) && !document.querySelector('#lv-cover').hidden`, 10000, 'blocked card');
     await sleep(700);
     await shot(page, 'live-12-camera-blocked');
-    check(F, 'blocked camera: a calm card with Try again', /try again/i.test(await text(page, '#lv-card-b')), await text(page, '#lv-card-t'));
+    check(F, 'blocked camera: an icon and Try again (the sentence is for screen readers)', /try again/i.test(await text(page, '#lv-card-b')), 'aria label: ' + await text(page, '#lv-card-t'));
+    await onlyShows(F, page, 'blocked camera shows only the Try again button', ['Try again']);
     await page.send('Browser.setPermission', { permission: { name: 'camera' }, setting: 'granted', origin: E.BASE });
     await page.eval(`[...document.querySelectorAll('#lv-card-b button')].find(b => /try again/i.test(b.textContent)).click()`);
     await page.waitFor(`document.querySelector('#lv-cover').hidden && !!document.querySelector('#lv-cam').srcObject`, 30000, 'camera on after allowing');
@@ -627,7 +659,8 @@ async function flowPerms() {
     await sleep(800);
     await shot(page, 'live-13-allow-camera');
     const perm = await page.eval(`navigator.permissions.query({ name: 'camera' }).then(p => p.state)`);
-    check(F, 'first use: "Allow the camera" while the browser asks', true, `permission state "${perm}"; the test held the browser prompt open`);
+    check(F, 'first use: a camera icon while the browser asks', /allow the camera/i.test(await text(page, '#lv-card-t')), `permission state "${perm}"; the test held the browser prompt open`);
+    await onlyShows(F, page, 'while the browser asks: no words at all', []);
   } finally { await page.close(); }
 
   const lan = os.networkInterfaces();
@@ -641,7 +674,8 @@ async function flowPerms() {
     await page.waitFor(`/secure/i.test(document.querySelector('#lv-card-t').textContent)`, 10000, 'secure-link card');
     await sleep(700);
     await shot(page, 'live-14-needs-secure-link');
-    check(F, 'plain http on the LAN: explains the secure link instead of failing silently', true, await text(page, '#lv-card-m'));
+    check(F, 'plain http on the LAN: a lock icon instead of a broken camera', true, 'aria: ' + await text(page, '#lv-card-t'));
+    await onlyShows(F, page, 'insecure link: no words on screen', ['Use the laptop camera']);
   } finally { await page.close(); }
 }
 
@@ -736,7 +770,8 @@ async function flowEmpty() {
     await page.waitFor(`/no signs yet/i.test(document.querySelector('#lv-act-t').textContent)`, 8000, 'no-signs hint');
     await sleep(600);
     await shot(page, 'live-16-no-signs-yet');
-    check(F, 'no signs yet: says so and offers Teach a sign', await visible(page, '#lv-cta'), await text(page, '#lv-cta'));
+    check(F, 'no signs yet: one Teach a sign button', await visible(page, '#lv-cta'), await text(page, '#lv-cta'));
+    await onlyShows(F, page, 'no signs yet shows only Teach a sign and the mode labels', ['Teach a sign', 'Text', 'Control']);
     await page.tap('#lv-cta');
     await page.waitFor(`location.hash === '#/teach'`, 5000, 'teach route');
     check(F, 'Teach a sign opens the Teach page', true);
