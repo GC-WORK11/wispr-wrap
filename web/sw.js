@@ -12,7 +12,7 @@
  *   API/auth  network-only, never cached (keypoint/bank data must not persist)
  *   everything else same-origin: stale-while-revalidate
  */
-const VERSION = "wf-shell-v27-merge";
+const VERSION = "wf-shell-v28-merge";
 const CACHE = `wispr-wrap-${VERSION}`;
 
 const SHELL = [
@@ -41,7 +41,7 @@ const VENDOR = [
 ];
 
 /* endpoints that must never be served from cache */
-const API_PATHS = /^\/(health|pair-info|pair|send|send-image|send-file|live|teach|bank|act)(\/|$)/;
+const API_PATHS = /^\/(health|pair-info|pair|send|send-image|send-file|live|teach|bank|act|status|engine|packs)(\/|$)/;
 
 function precache(cache, urls) {
   /* add() fails the whole install on one 404 — use per-url fetch+put so

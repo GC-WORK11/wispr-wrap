@@ -315,3 +315,9 @@
 .tw-rec { background: rgba(255, 255, 255, .92); border-color: transparent; }
 
 #sheet-teach .sheet-x svg, #sheet-actions .sheet-x svg, #sheet-macro .sheet-x svg { width: 20px; height: 20px; display: block; margin: auto; }
+
+/* recording: the sign's name (and its icon) above the lens; no sentence */
+.qa-rec { flex-direction: row; justify-content: center; gap: 10px; margin: 2px 0 0; }
+.qa-rec .qa-ic { width: 28px; height: 28px; }
+.qa-rec .qa-ic svg, .qa-rec .qa-real { width: 26px; height: 26px; }
+.qa-rec .qa-l { font-size: 17px; }

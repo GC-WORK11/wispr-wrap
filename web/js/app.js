@@ -134,7 +134,7 @@ function renderStatus() {
 }
 
 async function pollHealth() {
-  try { await fetch('/health', { cache: 'no-store' }); setOnline(true); }
+  try { const r = await fetch('/health', { cache: 'no-store' }); setOnline(r.status < 500); }   // the service worker answers 503 when the laptop is gone
   catch (e) { setOnline(false); }
   if (!state.checked) { state.checked = true; renderStatus(); }
 }
