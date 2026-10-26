@@ -483,16 +483,16 @@ if act_linux is not None:
                                             describe="%s (%s)" % (a.get(
                                                 "label") or tid, tid))
             _SYS_CAT = [
-                ("screenshot", {"id": "sys.screenshot", "kind": "sys",
+                ("screenshot", {"id": "sys.screenshot", "icon": "camera-photo", "kind": "sys",
                                 "label": "take a screenshot", "tier": 1,
                                 "desc": "full display -> ~/Pictures"}),
-                ("volume", {"id": "sys.volume-up", "kind": "sys",
+                ("volume", {"id": "sys.volume-up", "icon": "audio-volume-high", "kind": "sys",
                             "label": "volume up", "tier": 1}),
-                ("volume", {"id": "sys.volume-down", "kind": "sys",
+                ("volume", {"id": "sys.volume-down", "icon": "audio-volume-low", "kind": "sys",
                             "label": "volume down", "tier": 1}),
-                ("volume", {"id": "sys.mute", "kind": "sys",
+                ("volume", {"id": "sys.mute", "icon": "audio-volume-muted", "kind": "sys",
                             "label": "mute / unmute", "tier": 1}),
-                ("media", {"id": "media.playpause", "kind": "media",
+                ("media", {"id": "media.playpause", "icon": "media-playback-start", "kind": "media",
                            "label": "play / pause", "tier": 1}),
                 ("media", {"id": "media.next", "kind": "media",
                            "label": "next track", "tier": 1}),
