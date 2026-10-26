@@ -21,7 +21,7 @@ for (let k = 0; k < NF; k++) { LF.push(.84 + .22 * hash(k, 3)); LB.push(.8 + .22
 
 let field, LY, anchor, topPad = 64;
 let cols = 0, rows = 0, cw = 6, lh = 11, stride = 1, bufs = [], tmpl = null, P = null, lastF = 0, PQ = 0;
-let bloom = 0, charge = 0, burstAt = -99, online = false, paused = false;
+let bloom = 0, charge = 0, burstAt = -99, online = true, paused = false;   // blooms fully on every load; closes to a bud only if the first health check fails
 const RM = matchMedia('(prefers-reduced-motion: reduce)');
 
 const put = (i, l, ch) => { bufs[0][i] = l === 0 ? ch : SP; bufs[1][i] = l === 1 ? ch : SP; bufs[2][i] = l === 2 ? ch : SP; };
@@ -180,6 +180,8 @@ export const Flower = {
   poke(a) { charge = Math.min(1, charge + (a == null ? .22 : a)); },
   burst() { burstAt = performance.now() / 1000; },
   pause(v) { paused = !!v; },
+  /** replay the sprout from a bud (called as the loading screen dissolves) */
+  restart() { bloom = 0; charge = 0; burstAt = -99; lastF = 0; },
   measure,
   get bloom() { return bloom; },
 };
