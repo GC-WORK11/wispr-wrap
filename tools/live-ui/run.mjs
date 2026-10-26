@@ -18,7 +18,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
-import { launchChrome, sleep, Page } from './cdp.mjs';
+import { launchChrome, sleep } from './cdp.mjs';
 import * as HS from './handsynth.mjs';
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
@@ -27,7 +27,7 @@ const STATE = process.env.LIVE_STATE || '/tmp/kiro-live';
 const E = Object.fromEntries(fs.readFileSync(path.join(STATE, 'env'), 'utf8').split('\n')
   .filter(l => l.includes('=')).map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
 const OUT = path.resolve(process.argv[2] || path.join(ROOT, 'proofs/ui-v2'));
-const FLOWS = (process.argv[3] || 'seed,open,text,control,states,hands,perms,responsive,perf,empty').split(',');
+const FLOWS = (process.argv[3] || 'seed,open,text,control,states,hands,offline,perms,responsive,perf,empty').split(',');
 const CLIPS = path.join(STATE, 'clips');
 const RAW = path.join(STATE, 'raw');
 fs.mkdirSync(OUT, { recursive: true });
@@ -407,9 +407,12 @@ async function flowStates() {
 }
 
 /* ======================================================================
-   hands: one hand controls the laptop. Air-write C -> Chrome, V -> YouTube,
-   point + pinch selects a video, a finger slide scrolls the real page.
-   Recorded: phone (CDP screencast) and laptop (x11grab).
+   hands: one hand controls the laptop, the way a person would use it:
+   hand lines -> air-write C (Chrome opens) -> V sign (YouTube opens) -> point at
+   the search box and pinch (the phone types the search through its own text
+   path) -> finger slides scroll the results -> point at a video -> pinch opens it.
+   Every check reads the laptop's real screen or window titles; nothing
+   instruments the laptop's browser. Recorded: phone (CDP screencast) | laptop.
    ====================================================================== */
 const ZERO = Array.from({ length: 42 }, () => ({ x: 0, y: 0, z: 0, score: 0 }));
 const raw = frames => frames.map(f => ({ points: f.lm ? HS.toKp42(f.lm) : ZERO }));
@@ -421,20 +424,19 @@ function palmMove({ x0 = .46, y0 = .62, x1 = .54, y1 = .56, ms = 1600 } = {}) {
   }
   return out;
 }
-async function laptopChrome() {                       // the laptop Chrome's DevTools (test targeting only)
-  const list = await (await fetch('http://127.0.0.1:8962/json/list')).json();
-  const t = list.find(x => x.type === 'page' && /youtube\.com/.test(x.url)) || list.find(x => x.type === 'page');
-  if (!t) return null;
-  const pg = new Page(t.webSocketDebuggerUrl, 'https://www.youtube.com');
-  await pg.ready;
-  return pg;
-}
-async function lapPages() {
-  try { return (await (await fetch('http://127.0.0.1:8962/json/list')).json()).filter(x => x.type === 'page'); } catch (e) { return []; }
-}
-async function lapEval(expr) {
-  const pg = await laptopChrome(); if (!pg) return null;
-  try { return await pg.eval(expr); } finally { try { pg.ws.close(); } catch (e) { /* closed */ } }
+const titles = () => windows().map(l => { try { return X('xprop', ['-id', l.split(' ')[0], 'WM_NAME']).split(' = ')[1] || ''; } catch (e) { return ''; } });
+const chromes = () => windows().filter(l => /google-chrome/i.test(l)).length;
+const SCREEN = path.join(HERE, 'screen.py');
+const scr = (...a) => execFileSync('python3', [SCREEN, ...a.map(String)], { encoding: 'utf8' }).trim();
+function findThumb(png) { try { const [x, y] = scr('thumb', png).split(/\s+/).map(Number); return Number.isFinite(x) ? { x, y } : null; } catch (e) { return null; } }
+/* laptop screen px -> where the finger must be in the camera (inverse of live.js lapX/lapY) */
+const camAt = (sx, sy) => ({ x: .12 + .76 * sx / 1280, y: .10 + .62 * sy / 800 });
+async function pointAndPinch(page, from, to) {
+  const clip = [...raw(HS.hover({ x0: from.x, y0: from.y, x1: to.x, y1: to.y, ms: 1100 })),
+    ...raw(HS.dwellAt({ x: to.x, y: to.y, ms: 300 }))];
+  await page.eval(`window.__clips.go = ${JSON.stringify(clip)}; window.__clips.pinch = ${JSON.stringify(raw(HS.pinchAt(to)))}`);
+  await page.eval(`window.__play('go')`);
+  await page.waitFor('window.__idle()', 15000, 'hover');
 }
 function startLaptopRec(file) {
   const p = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'x11grab', '-framerate', '8', '-video_size', '1280x800', '-i', E.D,
@@ -464,139 +466,133 @@ async function startPhoneRec(page, dir) {
 async function flowHands() {
   const F = 'hands';
   const page = await newPage({ tick: 33 });
-  const stopLap = startLaptopRec(path.join(RAW, 'hands-laptop.mp4'));
-  let stopPhone = null;
+  let stopLap = null, stopPhone = null, tLap = 0, tBlur = 0;
   try {
     await home(page);
     stopPhone = await startPhoneRec(page, path.join(RAW, 'hands-phone'));
+    stopLap = startLaptopRec(path.join(RAW, 'hands-laptop.mp4')); tLap = Date.now();
     await goLive(page);
-    const clips = {
-      palm: raw(palmMove()), airC: raw(HS.airC({ cx: .5, cy: .42, r: .15 })), vsign: raw(HS.vSign(1000)),
-      idle: raw(HS.idle(600)), slideUp: raw(HS.slide({ x: .5, y0: .72, y1: .3, ms: 330 })),
-    };
+    const C = raw(HS.airC({ cx: .5, cy: .42, r: .15 }));
+    const clips = { palm: raw(palmMove()), airC: C, vsign: raw(HS.vSign(1000)), idle: raw(HS.idle(600)),
+      slideUp: raw(HS.slide({ x: .5, y0: .72, y1: .3, ms: 330 })) };
     for (const [k, v] of Object.entries(clips)) await page.eval(`window.__clips[${JSON.stringify(k)}] = ${JSON.stringify(v)}`);
+
     // 1) the hand lines follow the hand
     await page.eval(`window.__play('palm')`);
     await sleep(900);
     await shot(page, 'live-20-hand-lines');
+    const inked = await page.eval(`(() => { const c = document.querySelector('#lv-lines'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 16) if (d[i] > 40) n++; return n; })()`);
     await page.waitFor('window.__idle()', 8000, 'palm clip');
-    check(F, 'hand lines follow the hand (60 fps canvas, springs between frames)', await page.eval(`(() => { const c = document.querySelector('#lv-lines'); return c.width > 0 && c.height > 0; })()`), 'lines canvas live');
+    check(F, 'thin hand lines follow the hand on the camera view', inked > 150, `${inked} drawn pixels (sampled)`);
+
     // 2) air-write C -> Chrome
-    const before = windows().filter(l => /google-chrome/i.test(l)).length;
+    const c0 = chromes();
     await page.eval(`window.__play('airC')`);
-    await page.waitFor(`/opening chrome|opened google chrome/i.test(document.querySelector('#lv-act-t').textContent)`, 15000, 'C recognised');
+    await sleep(Math.round(C.length * 33 * .5));
+    await shot(page, 'live-21-air-C-drawing');
+    await page.waitFor(`/opening chrome|opened chrome/i.test(document.querySelector('#lv-act-t').textContent)`, 15000, 'C recognised');
+    await shot(page, 'live-21b-air-C-ignites');
     await sleep(380);
-    await shot(page, 'live-21-air-C-ignites');
-    await until(() => windows().filter(l => /google-chrome/i.test(l)).length > before, 20000, 'a Chrome window on the laptop');
-    // "Opened Google Chrome" is a 3 s caption; after it the browse hint shows
-    await page.waitFor(`document.querySelector('#lv-view').classList.contains('browse')`, 8000, 'browse mode after Chrome opened');
+    await shot(page, 'live-21c-air-C-glyph');
+    await until(() => chromes() > c0, 25000, 'a Chrome window on the laptop');
+    await page.waitFor(`document.querySelector('#lv-view').classList.contains('browse')`, 8000, 'pointing after Chrome opened');
     await sleep(4500);
     let phone = await shot(page, 'live-22-air-C-chrome-opened');
     compose(phone, xshot(path.join(RAW, 'hands-chrome.png')), 'live-22b-air-C-phone-and-laptop', 'air-written C opened Google Chrome');
-    check(F, 'air "C" -> the stroke ignites into a C and Google Chrome opens on the laptop', true, `"${await text(page, '#lv-guess')}" · "${await text(page, '#lv-act-t')}" · chrome windows ${before} -> ${windows().filter(l => /google-chrome/i.test(l)).length}`);
+    check(F, 'air "C" ignites into a glyph and Google Chrome opens on the laptop', true, `"${await text(page, '#lv-guess')}" · Chrome windows ${c0} -> ${chromes()}`);
+
     // 3) V sign -> YouTube
-    await sleep(1800);
+    await sleep(1500);
     await page.eval(`window.__play('vsign')`);
-    await page.waitFor(`/opened youtube/i.test(document.querySelector('#lv-act-t').textContent) || /youtube/i.test(document.querySelector('#lv-guess').textContent)`, 15000, 'Opened YouTube');
-    const yt = await until(async () => { const pg = (await lapPages()).find(x => /youtube\.com/.test(x.url)); return pg && pg.url; }, 40000, 'YouTube loaded on the laptop');
-    await sleep(5000);
+    await page.waitFor(`/youtube/i.test(document.querySelector('#lv-guess').textContent)`, 15000, 'V recognised');
+    const yt = await until(() => titles().find(t => /YouTube/.test(t)), 40000, 'YouTube on the laptop');
+    await sleep(6000);
     phone = await shot(page, 'live-23-V-youtube-opened');
     compose(phone, xshot(path.join(RAW, 'hands-youtube.png')), 'live-23b-V-phone-and-laptop', 'V sign opened YouTube');
-    check(F, 'V sign -> YouTube opens on the laptop', !!yt, String(yt));
-    // a search, typed through the phone's own text path (/send): "/" focuses YouTube search
-    await api('POST', '/send', { text: '/', mode: 'type' }); await sleep(600);
-    await api('POST', '/send', { text: 'lofi hip hop\n', mode: 'type' });
-    const thumb = await until(() => lapEval(`(() => { if (location.pathname !== '/results') return null;
-      const a = [...document.querySelectorAll('ytd-video-renderer a#thumbnail')].find(e => { const r = e.getBoundingClientRect(); return r.width > 100 && r.top > 120 && r.bottom < innerHeight; });
-      if (!a) return null; const r = a.getBoundingClientRect(); const top = window.screenY + (outerHeight - innerHeight);
-      return { x: Math.round(window.screenX + r.left + r.width / 2), y: Math.round(top + r.top + r.height / 2), href: a.href.split('&')[0] }; })()`), 30000, 'search results with a thumbnail');
-    await sleep(1500);
-    // 4) select: point at that thumbnail, pinch
-    const tx = .12 + .76 * thumb.x / 1280, ty = .10 + .62 * thumb.y / 800;
-    await page.eval(`window.__clips.hover = ${JSON.stringify(raw(HS.hover({ x0: .5, y0: .5, x1: tx, y1: ty, ms: 1100 })))}`);
-    await page.eval(`window.__clips.hold = ${JSON.stringify(raw(HS.dwellAt({ x: tx, y: ty, ms: 700 })))}`);
-    await page.eval(`window.__clips.pinch = ${JSON.stringify(raw(HS.pinchAt({ x: tx, y: ty })))}`);
-    await page.eval(`window.__play('hover'); window.__play('hold')`);
-    await sleep(1500);
-    phone = await shot(page, 'live-24-point-to-select');
-    compose(phone, xshot(path.join(RAW, 'hands-hover.png')), 'live-24b-point-phone-and-laptop', 'the finger moves the laptop cursor onto a video');
-    await page.waitFor('window.__idle()', 8000, 'hover');
-    await page.eval(`window.__play('pinch')`);
-    const watch = await until(async () => { const pg = (await lapPages()).find(x => /youtube\.com\/watch/.test(x.url)); return pg && pg.url.split('&')[0]; }, 25000, 'the video page opened');
-    await sleep(4000);
-    phone = await shot(page, 'live-25-pinch-selected-video');
-    compose(phone, xshot(path.join(RAW, 'hands-watch.png')), 'live-25b-select-phone-and-laptop', 'pinch clicked: the video opened');
-    check(F, 'point + pinch selects a video on the laptop', watch && watch === thumb.href, `${thumb.href} -> ${watch}`);
-    // 5) finger slide scrolls the real page
-    const y0 = await lapEval('Math.round(scrollY)');
-    for (let i = 0; i < 3; i++) { await page.eval(`window.__play('slideUp'); window.__play('idle')`); await sleep(900); }
+    check(F, 'V sign opens YouTube on the laptop', !!yt, yt);
+
+    // 4) point at YouTube's search box, pinch; the phone sends the search as text
     await sleep(1200);
-    const y1 = await lapEval('Math.round(scrollY)');
-    phone = await shot(page, 'live-26-finger-scroll');
-    compose(phone, xshot(path.join(RAW, 'hands-scrolled.png')), 'live-26b-scroll-phone-and-laptop', `finger slides scrolled the page (scrollY ${y0} -> ${y1})`);
-    check(F, 'one finger sliding up scrolls the real laptop page', y1 > y0 + 100, `scrollY ${y0} -> ${y1}`);
+    const box = camAt(580, 114);
+    await pointAndPinch(page, { x: .5, y: .55 }, box);
+    phone = await shot(page, 'live-24-point-search');
+    compose(phone, xshot(path.join(RAW, 'hands-search.png')), 'live-24b-point-phone-and-laptop', 'the finger moved the laptop cursor to the search box');
+    await page.eval(`window.__play('pinch')`);
+    await page.waitFor('window.__idle()', 8000, 'pinch');
+    await sleep(900);
+    const sent = await api('POST', '/send', { text: 'lofi girl\n', mode: 'type' });
+    const res = await until(() => titles().find(t => /^"?lofi girl - YouTube/.test(t)), 30000, 'search results on the laptop');
+    check(F, 'pinch on the search box focuses it; the phone types the search', sent.status === 200 && !!res, res);
+    await sleep(5000);
+
+    // 5) finger slides scroll the results
+    const before = xshot(path.join(RAW, 'hands-scroll-a.png'));
+    for (let i = 0; i < 3; i++) { await page.eval(`window.__play('slideUp'); window.__play('idle')`); await sleep(1100); }
+    await sleep(1500);
+    phone = await shot(page, 'live-25-finger-scroll');
+    const after = xshot(path.join(RAW, 'hands-scroll-b.png'));
+    compose(phone, after, 'live-25b-scroll-phone-and-laptop', 'three upward finger slides scrolled the results');
+    const moved = +scr('diff', before, after, 620, 150, 1270, 790);
+    check(F, 'one finger sliding up scrolls the real laptop page', moved > 3, `the results text column changed by ${moved} (mean abs pixel difference)`);
+
+    // 6) point at a fully visible video thumbnail, pinch: the video opens
+    let t = findThumb(after);
+    if (!t) { await sleep(2500); t = findThumb(xshot(path.join(RAW, 'hands-scroll-c.png'))); }
+    if (!t) throw new Error('no fully visible video thumbnail on the laptop screen');
+    const target = camAt(t.x, t.y);
+    await pointAndPinch(page, { x: .5, y: .5 }, target);
+    phone = await shot(page, 'live-26-point-to-video');
+    compose(phone, xshot(path.join(RAW, 'hands-hover.png')), 'live-26b-point-phone-and-laptop', `the finger moved the laptop cursor onto a video (${t.x}, ${t.y})`);
+    tBlur = Date.now();
+    await page.eval(`window.__play('pinch')`);
+    const video = await until(() => titles().find(t2 => / - YouTube/.test(t2) && !/^"?(lofi girl - )?YouTube - Google Chrome/.test(t2)), 30000, 'the video page opened');
+    await sleep(4500);
+    phone = await shot(page, 'live-27-pinch-opens-video');
+    const watch = xshot(path.join(RAW, 'hands-watch.png'));
+    scr('redact', watch, watch);                // pre-roll ads can show real people
+    compose(phone, watch, 'live-27b-select-phone-and-laptop', 'pinch opened the video (player and side column blurred: ads can show people)');
+    check(F, 'point + pinch selects a video on the laptop', !!video, video);
     check(F, 'no page errors', page.errors.length === 0, page.errors.slice(0, 2).join(' | '));
     await page.tap('#lv-x');
     await sleep(900);
   } finally {
-    if (stopPhone) { const f = await stopPhone(path.join(RAW, 'hands-phone.mp4')).catch(() => null); if (f) note('phone recording ' + f); }
-    await stopLap();
+    const ph = stopPhone ? await stopPhone(path.join(RAW, 'hands-phone.mp4')).catch(() => null) : null;
+    if (stopLap) await stopLap();
     await page.close();
-    try {
-      execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', path.join(RAW, 'hands-phone.mp4'), '-i', path.join(RAW, 'hands-laptop.mp4'),
-        '-filter_complex', '[0:v]scale=-2:600,setsar=1[a];[1:v]scale=960:600,setsar=1[b];[a][b]hstack=inputs=2,format=yuv420p[v]', '-map', '[v]',
-        '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '30', '-shortest', path.join(OUT, 'live-hands-demo.mp4')]);
-      note('recording: proofs/ui-v2/live-hands-demo.mp4 (phone | laptop)');
-    } catch (e) { note('recording merge failed: ' + e.message.slice(0, 120)); }
+    if (ph && fs.existsSync(path.join(RAW, 'hands-laptop.mp4'))) {
+      const T = tBlur ? Math.max(0, (tBlur - tLap) / 1000 - .3).toFixed(2) : '99999';
+      try {
+        execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', ph, '-i', path.join(RAW, 'hands-laptop.mp4'),
+          '-filter_complex', `[0:v]scale=-2:600,setsar=1[a];[1:v]scale=960:600,setsar=1,split[b0][b1];[b1]crop=960:495:0:105,gblur=sigma=18[bb];[b0][bb]overlay=0:105:enable='gte(t,${T})'[b];[a][b]hstack=inputs=2,format=yuv420p[v]`,
+          '-map', '[v]', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '30', '-shortest', path.join(OUT, 'live-hands-demo.mp4')]);
+        note(`recording: proofs/ui-v2/live-hands-demo.mp4 (phone | laptop; the laptop page is blurred from ${T} s, when the video opens)`);
+      } catch (e) { note('recording merge failed: ' + e.message.slice(0, 160)); }
+    }
   }
 }
 
-/* select + scroll on a YouTube results page already on the laptop:
-   open palm -> pointing, the finger moves the laptop cursor onto a video,
-   pinch clicks it, finger slides scroll the video page. Verified by the
-   laptop's window titles and screen pixels (no browser instrumentation). */
-const titles = () => windows().map(l => { try { return X('xprop', ['-id', l.split(' ')[0], 'WM_NAME']).split(' = ')[1] || ''; } catch (e) { return ''; } });
-function pixDiff(a, b) {
-  return +execFileSync('python3', ['-c', 'import sys;from PIL import Image,ImageChops,ImageStat;a=Image.open(sys.argv[1]).convert("L");b=Image.open(sys.argv[2]).convert("L");print(round(sum(ImageStat.Stat(ImageChops.difference(a,b)).mean),2))', a, b], { encoding: 'utf8' }).trim();
-}
-async function flowSelect() {
-  const F = 'select';
-  const TX = +(process.env.TX || 346), TY = +(process.env.TY || 340);
+/* ======================================================================
+   offline: no laptop connected -> Control offers to connect and sends nothing
+   ====================================================================== */
+async function flowOffline() {
+  const F = 'offline';
   const page = await newPage({ tick: 33 });
   try {
-    const t0 = titles().find(t => /lofi hip hop - YouTube/.test(t));
-    check(F, 'the laptop shows YouTube search results', !!t0, t0 || titles().join(' | '));
+    let events = 0;
+    page.on('Network.requestWillBeSent', p => { if (/\/live\/event$/.test(p.request.url)) events++; });
+    await page.send('Network.setBlockedURLs', { urls: ['http://127.0.0.1:8877/*', '*/health*'] });
     await home(page);
-    await goLive(page);
-    const tx = .12 + .76 * TX / 1280, ty = .10 + .62 * TY / 800;
-    const clips = { palm: raw(HS.palm(1000)), idle: raw(HS.idle(500)), hover: raw(HS.hover({ x0: .5, y0: .55, x1: tx, y1: ty, ms: 1100 })),
-      hold: raw(HS.dwellAt({ x: tx, y: ty, ms: 650 })), pinch: raw(HS.pinchAt({ x: tx, y: ty })), slideUp: raw(HS.slide({ x: .5, y0: .72, y1: .3, ms: 330 })) };
-    for (const [k, v] of Object.entries(clips)) await page.eval(`window.__clips[${JSON.stringify(k)}] = ${JSON.stringify(v)}`);
-    await page.eval(`window.__play('palm'); window.__play('idle')`);
-    await page.waitFor(`document.querySelector('#lv-view').classList.contains('browse')`, 10000, 'open palm -> pointing');
-    check(F, 'an open palm switches to pointing', true);
-    await page.eval(`window.__play('hover'); window.__play('hold')`);
-    await sleep(1500);
-    let phone = await shot(page, 'live-24-point-to-select');
-    compose(phone, xshot(path.join(RAW, 'sel-hover.png')), 'live-24b-point-phone-and-laptop', 'the finger moves the laptop cursor onto a video');
-    await page.waitFor('window.__idle()', 8000, 'hover');
-    await page.eval(`window.__play('pinch')`);
-    const vt = await until(() => titles().find(t => / - YouTube - Google Chrome/.test(t) && !/lofi hip hop - YouTube/.test(t) && !/^"YouTube - Google/.test(t)), 25000, 'the video page opened');
-    await sleep(4000);
-    phone = await shot(page, 'live-25-pinch-selected-video');
-    const lapA = xshot(path.join(RAW, 'sel-watch.png'));
-    compose(phone, lapA, 'live-25b-select-phone-and-laptop', 'pinch clicked the video: it opened');
-    check(F, 'point + pinch selects a video on the laptop', !!vt, vt);
-    for (let i = 0; i < 3; i++) { await page.eval(`window.__play('slideUp'); window.__play('idle')`); await sleep(1000); }
-    await sleep(1500);
-    phone = await shot(page, 'live-26-finger-scroll');
-    const lapB = xshot(path.join(RAW, 'sel-scrolled.png'));
-    compose(phone, lapB, 'live-26b-scroll-phone-and-laptop', 'three finger slides scrolled the video page');
-    const d = pixDiff(lapA, lapB);
-    check(F, 'one finger sliding up scrolls the real laptop page', d > 3, `screen changed by ${d} (mean abs pixel difference)`);
-    check(F, 'no page errors', page.errors.length === 0, page.errors.slice(0, 2).join(' | '));
-    await page.tap('#lv-x');
+    await page.tap('#tray-live');
+    await page.waitFor(`document.querySelector('#lv-cover').hidden && !!document.querySelector('#lv-cam').srcObject`, 45000, 'camera on');
+    await page.waitFor(`!document.querySelector('#lv-cta').hidden && /connect your laptop/i.test(document.querySelector('#lv-cta').textContent)`, 10000, 'Connect your laptop');
+    await page.eval(`window.__clips.airC = ${JSON.stringify(raw(HS.airC({ cx: .5, cy: .42, r: .15 })))}`);
+    await page.eval(`window.__play('airC')`);
+    await page.waitFor(`/connect your laptop/i.test(document.querySelector('#lv-act-t').textContent)`, 15000, 'asks to connect');
     await sleep(800);
+    await shot(page, 'live-17-not-connected');
+    check(F, 'no laptop connected: Control offers "Connect your laptop" and a drawn C sends nothing', events === 0, `${events} laptop events sent · "${await text(page, '#lv-act-t')}"`);
+    await page.tap('#lv-x');
+    await sleep(600);
   } finally { await page.close(); }
 }
 
@@ -748,7 +744,7 @@ async function flowEmpty() {
 }
 
 /* ---------- main ---------- */
-const FN = { seed: flowSeed, open: flowOpen, text: flowText, control: flowControl, states: flowStates, hands: flowHands, select: flowSelect, perms: flowPerms, responsive: flowResponsive, perf: flowPerf, empty: flowEmpty };
+const FN = { seed: flowSeed, open: flowOpen, text: flowText, control: flowControl, states: flowStates, hands: flowHands, offline: flowOffline, perms: flowPerms, responsive: flowResponsive, perf: flowPerf, empty: flowEmpty };
 const t0 = Date.now();
 for (const f of FLOWS) {
   if (!FN[f]) { console.log('unknown flow ' + f); continue; }

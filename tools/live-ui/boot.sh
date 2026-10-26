@@ -29,8 +29,14 @@ log() { printf '[live-ui] %s\n' "$*" >&2; }
 die() { log "FATAL: $*"; exit 1; }
 
 teardown() {
-    # the laptop's Chrome was started by the daemon inside our scratch HOME
-    pkill -f "^/opt/google/chrome/chrome .*remote-debugging-port=8962" 2>/dev/null
+    # the laptop's Chrome was started by the daemon inside our scratch HOME; its
+    # main process runs as /usr/bin/google-chrome-stable with our marker switch
+    # (anchored, so this can never match a shell whose command line mentions it)
+    pkill -f "^/usr/bin/google-chrome-stable .*(--kiro-live-laptop|--remote-debugging-port=8962)" 2>/dev/null
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        pgrep -f "^/usr/bin/google-chrome-stable .*(--kiro-live-laptop|--remote-debugging-port=8962)" >/dev/null || break
+        sleep 0.3
+    done
     for pidf in "$STATE"/pids.*; do
         [ -f "$pidf" ] || continue
         pid="$(cat "$pidf" 2>/dev/null)"
@@ -122,14 +128,14 @@ rm -rf "$WFHOME"; mkdir -p "$WFHOME"
 # a PATH-shadow wrapper keeps the daemon's real launch path (the .desktop Exec ->
 # `google-chrome` on PATH, and xdg-open for URLs). The profile is seeded like a
 # laptop where Chrome has been used before (no first-run / default-browser dialogs).
-# --remote-debugging-port lets the PROOF read where a video thumbnail is and which
-# page is showing; it never drives the page (the phone's gestures do).
+# --kiro-live-laptop is an inert marker so teardown can find this Chrome. Nothing
+# instruments it: the proofs read the laptop's screen and window titles only.
 BIN="$STATE/bin"; rm -rf "$BIN"; mkdir -p "$BIN"
 cat > "$BIN/google-chrome" <<'CHR'
 #!/bin/sh
 exec /usr/bin/google-chrome-stable --no-sandbox --no-first-run --no-default-browser-check \
   --disable-dev-shm-usage --password-store=basic --disable-features=Translate,DefaultBrowserPromptRefresh \
-  --start-maximized --lang=en-US --remote-debugging-port=8962 --remote-allow-origins=* "$@"
+  --start-maximized --lang=en-US --kiro-live-laptop "$@"
 CHR
 chmod +x "$BIN/google-chrome"
 mkdir -p "$WFHOME/.config/google-chrome/Default" "$WFHOME/.local/share/applications"

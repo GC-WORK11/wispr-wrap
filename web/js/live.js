@@ -24,8 +24,13 @@
 import { App } from './app.js';
 import { Pose } from './pose.js';
 import { Skel } from './skeleton.js';
-import { createHand } from './hand.js';
+import { createHand, classify } from './hand.js';
 import { createHandLines } from './handlines.js';
+
+/* the app's quiet sound cues, when the shell ships them (optional module) */
+let SND = null;
+import('./sound.js').then(m => { SND = m.Sound || null; }).catch(() => {});
+const sound = k => { try { if (SND && SND[k]) SND[k](); } catch (e) { /* audio is optional */ } };
 
 const sheet = App.el.sheetLive;
 if (!sheet) throw new Error('live: #sheet-live missing');
@@ -279,8 +284,8 @@ function hint() {
   if (!S.listening) return { t: 'Paused' };
   if (performance.now() > S.tipUntil) return { t: '' };      // how-to tips fade; the camera stays clean
   if (S.mode === 'text') return { t: S.textLocal && S.words.length ? '' : 'Sign to type', cta: S.textLocal && S.words.length ? 'Send to laptop' : '' };
-  if (S.browse) return { t: 'Point, pinch to click' };
-  return { t: 'Draw C or V' };
+  if (S.browse) return { t: 'Pinch to click. Open hand to draw.' };
+  return { t: 'Draw C or V. Pinch to point.' };
 }
 /* show the how-to tip for a few seconds after opening or switching */
 function tip() { S.tipUntil = performance.now() + 4500; clearTimeout(tip.t); tip.t = setTimeout(renderSub, 4600); renderSub(); }
@@ -335,6 +340,7 @@ function onWord(word, gloss, t) {
   if (S.textLocal) App.emit('text:append', word);
   say(S.textLocal ? 'Added' : 'Typed', 'ok', 1800);
   hit();
+  if (!S.textLocal) sound('word');        // a local append already chimes through the composer
 }
 function showSign(g, label) {
   guessEl.textContent = signName(g, label);
@@ -387,8 +393,9 @@ function onFired(ev) {
   const r = ev.result || {};
   const act = S.fireAct[up(g)] || (bankRow(g) || {}).action || null;
   if (r.pending) { say('Waiting for your OK', 'wait', 8000); return; }
-  if (ev.ok === false || r.fired === false || r.refused) { say('Couldn’t do that on your laptop', 'soft', 3200); return; }
+  if (ev.ok === false || r.fired === false || r.refused) { say('Couldn’t do that on your laptop', 'soft', 3200); sound('error'); return; }
   say(doneText(act), 'ok');
+  sound('fired');
 }
 function feed(evs) {
   if (!Array.isArray(evs)) return;
@@ -481,7 +488,7 @@ function renderPending(rows) {
   yes.onclick = async () => {
     yes.disabled = no.disabled = true;
     const r = await App.api.post('/act/confirm', { id: p.id }).catch(() => null);
-    if (r && r.ok) { say(doneText(act), 'ok'); hit(); }
+    if (r && r.ok) { say(doneText(act), 'ok'); hit(); sound('fired'); }
     else say('Couldn’t do that on your laptop', 'soft');
     S.pendKey = '#'; poll();
   };
@@ -620,14 +627,25 @@ const ZERO42 = Array.from({ length: 42 }, () => ({ x: 0, y: 0, z: 0, score: 0 })
 const OWN = new Set(['point', 'v', 'pinch']);
 S.browse = false; S.pose = 'none'; S.firing = false;
 const present = (pts, o) => pts[o] && pts[o + 9] && pts[o].score > .28 && pts[o + 9].score > .28;
-/* one hand, display space (mirrored like the preview), right hand first */
-function pickHand(pts) {
-  const o = present(pts, 21) ? 21 : present(pts, 0) ? 0 : -1;
-  if (o < 0) return null;
-  const m = S.front && !S.replay;
-  const lm = new Array(21);
+/* the one hand that controls, in display space (mirrored like the preview).
+   With two hands in view: the one making a gesture (point, pinch, V), else the
+   one already in control, else slot 0 — MediaPipe labels hands as if the image
+   were mirrored, and the phone feeds raw selfie frames, so 'Left' is your right hand. */
+const GESTURE = new Set(['point', 'pinch', 'v']);
+function handAt(pts, o) {
+  const m = S.front && !S.replay, lm = new Array(21);
   for (let i = 0; i < 21; i++) { const p = pts[o + i]; lm[i] = { x: m ? 1 - p.x : p.x, y: p.y }; }
   return lm;
+}
+function pickHand(pts) {
+  const a = present(pts, 0), b = present(pts, 21);
+  if (!a && !b) { S.slot = -1; return null; }
+  if (a !== b) { S.slot = a ? 0 : 21; return handAt(pts, S.slot); }
+  const L = handAt(pts, 0), R = handAt(pts, 21);
+  const gl = GESTURE.has(classify(L).pose), gr = GESTURE.has(classify(R).pose);
+  if (gl !== gr) S.slot = gl ? 0 : 21;
+  else if (S.slot !== 0 && S.slot !== 21) S.slot = 0;
+  return S.slot === 0 ? L : R;
 }
 /* normalized video coords -> css px of the view (object-fit: cover), for ink/cursor */
 function toPx(p) {
@@ -663,9 +681,11 @@ function onGesture(ev) {
       lines.ignite(ev.letter, pxs(ev.points));
       fireLetter(ev.letter);
       break;
+    case 'stroke-cancel': lines.setInk(null); break;        // a twitch, not a letter: say nothing
     case 'reject': lines.setInk(null); say('Try again', 'soft', 1800); break;
     case 'vsign': fireLetter('V'); break;
-    case 'palm': setBrowse(!S.browse); App.buzz(); break;     // open palm: drawing <-> pointing
+    case 'pinch': if (!S.browse) { setBrowse(true); App.buzz(); } break;    // pinch: start pointing
+    case 'palm': if (S.browse) { setBrowse(false); App.buzz(); } break;     // still open hand: back to drawing
     case 'cursor': {
       S.cur = { x: ev.x, y: ev.y };
       const c = toPx(S.cur); lines.setCursor(c.x, c.y, S.dwell || 0);
@@ -717,8 +737,8 @@ function onAirResult(ev) {
   const name = (S.airWait && S.airWait.letter === ev.letter && S.airWait.name) || AIR_NAME[ev.letter] || cap(human(ev.label || 'it'));
   S.airWait = null;
   if (r.pending) say('Waiting for your OK', 'wait', 8000);
-  else if (r.fired || (r.routed && !r.refused)) { say('Opened ' + name, 'ok'); hit(); }
-  else say('Couldn’t open ' + name + ' on your laptop', 'soft', 3200);
+  else if (r.fired || (r.routed && !r.refused)) { say('Opened ' + name, 'ok'); hit(); sound('fired'); }
+  else { say('Couldn’t open ' + name + ' on your laptop', 'soft', 3200); sound('error'); }
 }
 /* pointer ops to the laptop: moves are latest-wins (~20/s), clicks and scrolls queue */
 const PTR = { q: [], move: null, busy: false, last: 0 };
