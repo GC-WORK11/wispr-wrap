@@ -29,7 +29,6 @@ Exit 0 always — assertions live in the calling verify script.
 """
 import argparse
 import json
-import math
 import sys
 import time
 import urllib.error
@@ -41,11 +40,53 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
 import synth  # noqa: E402
 
 FRAME_MS = 1000.0 / 15.0    # synthetic stream time runs at 15 Hz
-# Seed clip-time from wall-clock, not 0: each kpstream invocation must send
-# t_ms AHEAD of whatever the daemon's session endpointer last saw (previous
-# runs, the demo page, etc). Starting at 0 sends frames into the past —
-# negative dt breaks the speed/quiet math and segments never close.
-BASE_MS = [time.time() * 1000.0]
+# t_ms seeds from WALL CLOCK: each kpstream process must keep the daemon's
+# endpointer clock monotonic (a restart at 0 gives dt<=0 -> zero motion
+# energy -> the clip is invisible). Within a clip we still advance 66.7ms
+# per frame — the 15 Hz phone cadence.
+BASE_MS = [time.monotonic() * 1000.0]
+
+# Jitter budget: the endpointer's exit_v is 0.7 palm-widths/s. Our palm
+# is ~0.034 normalized units, so jitter of 0.003 = ~1.3 pw/s of pure
+# noise -> a "still" tail reads as motion and the segment NEVER closes.
+# 0.0004 keeps realism (no frozen landmarks) while staying under exit_v.
+JITTER = 0.0004
+
+# Handshape isolation: synth.render_clip draws an OPEN palm everywhere.
+# A still open palm is the endpointer's listen-mode sign by definition —
+# any still lead/tail of a "sign" clip would fire PALM-OPEN mid-clip and
+# pollute the listen-gate proof (the sign itself would turn listening
+# on). So sign/teach clips wear a FIST: fingertips curled to 30% reach,
+# wrist+MCP anchors identical -> the centroid trajectory (what DTW
+# matches on) is unchanged, but openness ~0.7 < 1.35 -> never a mode
+# event. Only the dedicated palm/namaste clips stay open-palmed.
+TIPS = (4, 8, 12, 16, 20)
+
+
+def _fist_block(pts):
+    """Curl one 21-point hand's tips toward the wrist; anchors kept."""
+    if not pts:
+        return pts
+    w = pts[0]
+    out = []
+    for i, p in enumerate(pts):
+        if i in TIPS:
+            out.append({"x": w["x"] + (p["x"] - w["x"]) * 0.30,
+                        "y": w["y"] + (p["y"] - w["y"]) * 0.30,
+                        "score": p["score"]})
+        else:
+            out.append(dict(p))
+    return out
+
+
+def fistify(frames):
+    """Rewrite both hands of every present frame to the fist shape."""
+    for f in frames:
+        ps = f.get("points") or []
+        if len(ps) == 42 and ps[0].get("score", 0) + \
+                ps[21].get("score", 0) > 0:
+            f["points"] = _fist_block(ps[:21]) + _fist_block(ps[21:])
+    return frames
 
 # The gate's sign grammar — every bound gloss gets its OWN motion-distinct
 # path so the DTW bank never confuses two bound glosses (it is direction
@@ -67,10 +108,17 @@ RR_PATHS = {
     "RR-MACRO":   [(0.15, 0.35), (0.30, 0.70), (0.45, 0.40),
                    (0.60, 0.70), (0.75, 0.35)],
     "RR-CTX":     [(0.30, 0.35), (0.70, 0.35), (0.50, 0.72), (0.30, 0.35)],
+    "RR-CTX2":    [(0.35, 0.70), (0.65, 0.70), (0.50, 0.30), (0.35, 0.70)],
+    "RR-OBS":     [(0.20, 0.25), (0.20, 0.75), (0.80, 0.75), (0.80, 0.25)],
+    "RR-PICK":    [(0.15, 0.15), (0.85, 0.15), (0.85, 0.85)],
+    "RR-PICK2":   [(0.15, 0.85), (0.85, 0.85), (0.15, 0.15)],
+    "RR-PICK3":   [(0.50, 0.15), (0.15, 0.50), (0.50, 0.85), (0.85, 0.50)],
     "RR-PARK":    [(0.70, 0.35), (0.40, 0.35), (0.40, 0.68)],
     "RR-PARK2":   [(0.30, 0.35), (0.60, 0.35), (0.60, 0.68)],
     "RR-REC":     [(0.25, 0.70), (0.25, 0.35), (0.45, 0.55),
                    (0.65, 0.35), (0.65, 0.70)],
+    "RR-OBSERVE": [(0.18, 0.72), (0.18, 0.32), (0.82, 0.68),
+                   (0.82, 0.30)],
 }
 
 
@@ -121,27 +169,18 @@ def emit(frames, base, key, fps, quiet=False):
     return True
 
 
-def palm_hold(n=None, fps=40):
+def palm_hold(n=12):
     """Held open palm on the active hand (parked hand also open — the
     endpointer fires on whichever hand qualifies)."""
     path = [(0.50, 0.55)]
-    # jitter must stay well under the endpointer's hold_v (0.6 pw/s):
-    # 0.001/frame at ~66ms already produced 0.27-0.92 pw/s wrist speeds
-    # and PALM-OPEN never fired. 0.0001 keeps a whisper of sensor noise.
-    # Duration must also clear hold_s (0.45s) at the ACTUAL fps —
-    # n=12 at 40fps is only 0.3s and the hold never committed.
-    if n is None: n = max(12, math.ceil(fps * 0.7))
-    # absent tail: an open palm leaves the segment open, and the NEXT clip's
-    # sign merges into it and never matches (found by verify_live_sign).
-    return synth.render_clip(path, n_motion=n, lead=0, tail=0, absent=8,
-                             jitter=0.0001)
+    return synth.render_clip(path, n_motion=n, lead=0, tail=0, absent=0,
+                             jitter=JITTER)
 
 
-def namaste_hold(n=None, fps=40):
+def namaste_hold(n=12):
     """Two open palms held together at center -> NAMASTE mode event.
     Palm centroids must sit within namaste_gap (1.4 x avg palm size
     ~ 0.048 in normalized units) of each other."""
-    if n is None: n = max(12, math.ceil(fps * 0.7))
     frames = []
     for i in range(n):
         pa = [{"x": 0.478 + ox, "y": 0.55 + oy, "score": 0.9}
@@ -149,9 +188,6 @@ def namaste_hold(n=None, fps=40):
         pb = [{"x": 0.522 + ox, "y": 0.55 + oy, "score": 0.9}
               for ox, oy in synth.PALM]
         frames.append({"t_ms": 0.0, "points": pa + pb})
-    # same absent-tail close as palm_hold so the next segment starts clean
-    away = [{"x": 0.5, "y": 0.5, "score": 0.0} for _ in range(21)]
-    frames += [{"t_ms": 0.0, "points": away + away} for _ in range(8)]
     return frames
 
 
@@ -167,9 +203,9 @@ def main():
     for c in a.clips:
         kind, _, name = c.partition(":")
         if kind == "palm":
-            ok &= emit(palm_hold(fps=a.fps), a.base, a.key, a.fps, a.quiet)
+            ok &= emit(palm_hold(), a.base, a.key, a.fps, a.quiet)
         elif kind == "namaste":
-            ok &= emit(namaste_hold(fps=a.fps), a.base, a.key, a.fps, a.quiet)
+            ok &= emit(namaste_hold(), a.base, a.key, a.fps, a.quiet)
         elif kind == "wait":
             ok &= emit(synth.render_clip(None, absent=max(
                 1, int(int(name or "300") / FRAME_MS))),
@@ -181,12 +217,9 @@ def main():
                 path = synth.sign_paths()[name]
             else:
                 path = synth.unknown_path(7)
-            # absent tail must clear the endpointer's quiet_s (0.35s clip
-            # time = 6+ frames at FRAME_MS 66.7) or the segment never closes
-            # and the match never emits — kpstream has no background stream
-            # to flush it, unlike the composer page's replay pump.
-            ok &= emit(synth.render_clip(path, n_motion=18, lead=4,
-                                         tail=8, absent=8),
+            ok &= emit(fistify(synth.render_clip(
+                        path, n_motion=18, lead=4,
+                        tail=10, absent=10, jitter=JITTER)),
                        a.base, a.key, a.fps, a.quiet)
         else:
             print(f"unknown clip {c!r}", file=sys.stderr)

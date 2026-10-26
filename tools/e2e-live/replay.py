@@ -86,23 +86,52 @@ def jscan(obj, keys):
 
 def extract_decision(state):
     """Pull (gloss, accepted, raw_dict) out of a /live/state-shaped blob.
-    Duck-typed: any dict holding a gloss-ish key plus a verdict-ish key
-    counts; freshest one wins (highest ts/seq field, else last)."""
+
+    Duck-typed but ranked: a decision row carries a name-ish key AND a
+    verdict-ish key (accepted/ok/fired).  The daemon's state also carries
+    a feedback ring + action receipts whose events hold a gloss/label but
+    no verdict — they must never shadow last_match.  Rank by
+    (has-verdict, freshest-ts, gloss-named): the freshest verdict-bearing
+    gloss wins; event echoes and label-only receipts fall behind.  The
+    wfd last_match uses "at_ms" — it is in the ts key list (a missing key
+    made every decision sort as ts=0 before).
+    """
     if not isinstance(state, (dict, list)):
         return None
     cands = []
-    for d in jscan(state, ("gloss", "name", "label")):
-        name = d.get("gloss") or d.get("name") or d.get("label")
+    for d in jscan(state, ("gloss", "name", "label", "glosses")):
+        name = d.get("gloss")
+        if not isinstance(name, str) or not name:
+            gl = d.get("glosses")
+            # feed fired/would-fire + last_action rows carry the
+            # committed gloss list — they persist in the ring even after
+            # a tail-fragment segment overwrites last_match, so a real
+            # commit stays visible.  Single-gloss only: compositions are
+            # out of this lane's scope.
+            if isinstance(gl, list) and len(gl) == 1 \
+                    and isinstance(gl[0], str) and gl[0]:
+                name = gl[0]
+        if not isinstance(name, str) or not name:
+            name = d.get("name") or d.get("label")
         if not isinstance(name, str) or not name:
             continue
-        acc = d.get("accepted", d.get("ok", d.get("committed", d.get("fired"))))
-        ts = max((d.get(k) for k in ("t_ms", "ts", "at", "seq", "ms")
+        acc = d.get("accepted",
+                    d.get("ok", d.get("committed", d.get("fired"))))
+        ts = max((d.get(k) for k in
+                  ("t_ms", "ts", "at", "at_ms", "seq", "ms")
                   if isinstance(d.get(k), (int, float))), default=0)
-        cands.append((ts, name, acc, d))
+        # an accepted verdict is the committed answer — rank it above a
+        # fresher reject (a clip's tail fragment can reject AFTER the
+        # real match committed; the stale-accept hazard is handled by
+        # wait_decision's baseline, which is captured before streaming).
+        rank = (1 if acc is not None else 0, 1 if acc is True else 0,
+                ts, 1 if isinstance(d.get("gloss"), str)
+                      and d["gloss"] else 0)
+        cands.append((rank, name, acc, d))
     if not cands:
         return None
     cands.sort(key=lambda c: c[0])
-    ts, name, acc, raw = cands[-1]
+    _rank, name, acc, raw = cands[-1]
     return name, acc, raw
 
 
@@ -125,6 +154,19 @@ def stream_clip(d, frames, speed=1.0):
     return posted, bad
 
 
+def stream_gap(d, frames=6, speed=1.0):
+    """Absent-hand frames between clips: the fixtures all end hand-in-
+    view, so back-to-back clips read as one continuous segment to the
+    endpointer (merged signs match garbage and pollute taught
+    exemplars).  A real signer drops hands between separate signs —
+    ~0.4 s of empty frames forces the segment closed first."""
+    t_frame = synth.FRAME_MS / 1000.0 / max(speed, 1e-6)
+    for i in range(frames):
+        d.post("/live/kp", {"t_ms": int(time.time() * 1000),
+                            "points": []})
+        time.sleep(t_frame)
+
+
 def _fetch_state(d):
     st, body = d.get("/live/state")
     if st != 200:
@@ -136,20 +178,30 @@ def _fetch_state(d):
 
 
 def wait_decision(d, baseline_dec, timeout_s, poll=0.1):
-    """Poll /live/state until a decision DIFFERENT from the baseline
-    lands (different gloss or a newer timestamp inside the decision).
-    -> (name, accepted, raw) | None."""
+    """Poll /live/state for the clip's decision. -> (name, accepted, raw) | None.
+
+    last_match is overwritten by EVERY closed segment, and a clip's
+    trailing absent-hand frames can spawn a tiny spurious segment whose
+    thin-query/marginal-reject lands AFTER the real verdict. Returning
+    the first-changed decision therefore races the tail fragments. Track
+    the best non-baseline decision for the whole window instead: an
+    accepted verdict short-circuits (it is the committed answer and
+    cannot be improved on); otherwise the freshest reject wins so the
+    unknown/abstain case still reports its argmin honestly."""
     def key(dec):
         return json.dumps(dec[2], sort_keys=True) if dec else None
     deadline = time.monotonic() + timeout_s
+    best = None
     while time.monotonic() < deadline:
         state = _fetch_state(d)
         if state is not None:
             dec = extract_decision(state)
             if dec is not None and key(dec) != key(baseline_dec):
-                return dec
+                if dec[1] is True:
+                    return dec          # committed answer — done
+                best = dec              # remember the freshest reject
         time.sleep(poll)
-    return None
+    return best
 
 
 def main():
@@ -242,6 +294,7 @@ def main():
                                     f"/teach/begin -> {st_} {body_[:80]!r}"))
                     continue
                 posted, bad = stream_clip(d, frames, args.speed)
+                stream_gap(d, speed=args.speed)
                 st_, body_ = d.post("/teach/end", {})
                 ok = st_ == 200 and posted == len(frames) and not bad
                 results.append((f"teach {name}", PASS if ok else FAIL,
@@ -257,6 +310,7 @@ def main():
         label = expect or "UNKNOWN"
         baseline_dec = extract_decision(_fetch_state(d) or {})
         posted, bad = stream_clip(d, frames, args.speed)
+        stream_gap(d, speed=args.speed)
         dec = wait_decision(d, baseline_dec, args.timeout)
         if expect is None:
             ok = dec is None or (dec[1] is False)

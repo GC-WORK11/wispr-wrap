@@ -1,39 +1,46 @@
 <!doctype html>
-<!-- selftest — drives web/teach.html end-to-end against tests/stub_wfd.py.
-     Injects a fake kp42 tracker (WFFakeTrack seam), performs the full wizard:
-     name → 3 takes → preview → bind open_app → save → library → +take → delete.
-     Reports into #result AND POSTs /_result so a headless run is observable.
+<!-- selftest — drives the MERGED app shell (web/index.html, #/teach route)
+     end-to-end against tests/stub_wfd.py.
+
+     Flow: inject a fake kp42 source (window.WFFakeTrack seam) → open the
+     teach sheet → name → 3 daemon-captured takes (stub endpointer) →
+     bind a tier-2 argv action via the @ picker → PUT /bank → verify →
+     library: +take, rename, delete. Reports into #result AND POSTs
+     /_result so a headless run is observable.
      Not shipped to users: lives outside web/. -->
 <html><head><meta charset="utf-8"><title>teach selftest</title>
 <style>body{font:13px ui-monospace,monospace;padding:18px;background:#f4f5f8;color:#0f172a}
 #result{font-size:16px;font-weight:700;margin-bottom:10px}
-#log{white-space:pre-wrap;color:#64748b}iframe{width:390px;height:720px;border:1px solid #cbd5e1;border-radius:12px;background:#fff}</style>
+#log{white-space:pre-wrap;color:#64748b}iframe{width:390px;height:760px;border:1px solid #cbd5e1;border-radius:12px;background:#fff}</style>
 </head><body>
 <div id="result">RUNNING</div>
 <div id="log"></div>
-<iframe id="fr" src="/teach.html?k=teach-stub-key"></iframe>
+<iframe id="fr" src="/index.html?k=teach-stub-key"></iframe>
 <script>
 const KEY = 'teach-stub-key', logEl = document.getElementById('log'), resEl = document.getElementById('result');
 const errs = [], steps = [];
 const fr = document.getElementById('fr');
 const win = fr.contentWindow;
 const log = m => { steps.push(m); logEl.textContent += m + '\n'; };
-win.addEventListener('error', e => errs.push('iframe: ' + e.message));
+win.addEventListener('error', e => errs.push('iframe: ' + e.message + ' @' + (e.filename || '') + ':' + (e.lineno || '')));
+win.addEventListener('unhandledrejection', e => errs.push('iframe reject: ' + (e.reason && e.reason.message || e.reason)));
 addEventListener('error', e => errs.push('driver: ' + e.message));
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-async function until(fn, what, ms = 12000) {
+async function until(fn, what, ms = 15000) {
   const t0 = Date.now();
-  while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(60); }
+  while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(70); }
   throw new Error('timeout waiting for ' + what);
 }
 const $ = id => win.document.getElementById(id);
+const $$ = sel => [...win.document.querySelectorAll(sel)];
+const visible = el => el && !el.hidden;   // sheets are position:fixed — no offsetParent
 
 /* ---- fake kp42 tracker: a moving left hand, no right hand ---- */
-let pumpOn = false, handsOn = false;
+let handsOn = false, pump = null;
 function fakePts(t) {
   const pts = [];
-  for (let i = 0; i < 42; i++) pts.push({ x: 0, y: 0, score: 0 });
+  for (let i = 0; i < 42; i++) pts.push({ x: 0, y: 0, z: 0, score: 0 });
   if (handsOn) {
     const wx = .45 + .13 * Math.sin(t / 210), wy = .55 + .09 * Math.cos(t / 260);
     const F = [[0,0],[-.03,-.05],[-.05,-.10],[-.07,-.14],[-.08,-.17],
@@ -42,106 +49,136 @@ function fakePts(t) {
                [.03,-.05],[.05,-.10],[.06,-.13],[.07,-.16],
                [.05,-.03],[.08,-.06],[.10,-.08],[.11,-.10]];
     for (let i = 0; i < 21; i++)
-      pts[i] = { x: wx + F[i][0] + .004 * Math.sin(t / 60 + i), y: wy + F[i][1], score: .9 };
+      pts[i] = { x: wx + F[i][0] + .004 * Math.sin(t / 60 + i),
+                 y: wy + F[i][1], z: 0, score: .9 };
   }
   return pts;
 }
 win.WFFakeTrack = {
   start(video, cb) {
-    pumpOn = true;
-    const iv = setInterval(() => cb({ t_ms: performance.now(), points: fakePts(performance.now()) }), 33);
-    return { stop() { pumpOn = false; clearInterval(iv); } };
+    pump = setInterval(() => cb({ t_ms: performance.now(),
+                                 points: fakePts(performance.now()) }), 33);
+    return { stop() { clearInterval(pump); pump = null; } };
   },
 };
 
 async function doTake(expect) {
   handsOn = true;
-  await sleep(1500);            // hands in view ~1.5s (page needs >1.2s before auto-stop)
-  handsOn = false;              // hands drop — the page should end the take itself
-  await until(() => win.WFTeach.state.takes === expect, 'take ' + expect + ' captured');
-  log('take ' + expect + ' captured (' + win.WFTeach.state.kept + ' kept)');
-  handsOn = true;
+  await sleep(700);              // hands up — stub counts segment frames
+  handsOn = false;               // hands drop — daemon closes the segment
+  await until(() => $$('#tw-takebar .tk.got').length === expect,
+              'take ' + expect + ' captured');
+  log('take ' + expect + ' captured (daemon-side segment)');
 }
 
 async function main() {
-  await until(() => win.WFTeach && win.WFTeach.state, 'WFTeach boot');
-  Object.assign(win.WFTeach.T, { beat: 45, go: 60, cap: 4000, grace: 350, min: 6 });
-  await until(() => ! $('teachBtn').disabled, 'library probe (daemon up)');
-  log('page loaded, daemon probed, library empty=' + (win.WFTeach.state.library === 0));
+  await until(() => win.document.readyState === 'complete' && $('tw-name'),
+              'module app boot');
+  await sleep(300);
+  log('shell booted — composer live');
 
-  /* --- wizard: name --- */
-  $('teachBtn').click();
-  await until(() => $('sheet') && !$('sheet').hidden, 'wizard open');
-  $('nameIn').value = 'test browser sign';
-  $('nameIn').dispatchEvent(new win.Event('input', { bubbles: true }));
-  await until(() => !$('nameNext').disabled, 'gloss preview');
-  if (!$('glossPre').textContent.includes('TEST-BROWSER-SIGN')) throw new Error('gloss preview wrong: ' + $('glossPre').textContent);
+  /* --- teach sheet via the tray --- */
+  $('tray-teach').click();
+  await until(() => visible($('sheet-teach')), 'teach sheet open');
+  $('tw-name').value = 'test browser sign';
+  $('tw-name').dispatchEvent(new win.Event('input', { bubbles: true }));
+  await until(() => !$('tw-name-next').disabled, 'gloss preview');
+  if (!$('tw-gloss').textContent.includes('TEST-BROWSER-SIGN'))
+    throw new Error('gloss preview wrong: ' + $('tw-gloss').textContent);
   log('gloss preview → TEST-BROWSER-SIGN');
-  $('nameNext').click();
+  $('tw-name-next').click();
+  await until(() => $$('.tw-step[data-step="record"]').length &&
+              $$('.tw-step')[1].classList.contains('on'),
+              'record step');
+  log('record step armed — fake kp42 streaming to /live/kp');
 
-  /* --- record ×3 --- */
-  await until(() => $('recBtn') && !$('recBtn').disabled && win.WFTeach.WFTrack.kind === 'fake', 'tracker armed');
-  log('tracker: ' + win.WFTeach.WFTrack.kind);
-  for (let i = 1; i <= 3; i++) {
-    await until(() => !$('recBtn').disabled, 'record button ' + i);
-    $('recBtn').click();
-    await doTake(i);
-    await sleep(120);
+  for (let i = 1; i <= 3; i++) { await doTake(i); await sleep(120); }
+  await until(() => $$('.tw-step')[2].classList.contains('on'),
+              'bind step auto-advance');
+  await until(() => $$('#tw-prev .tkv canvas').length === 3,
+              'three take previews');
+  log('3 daemon takes + previews drawn');
+
+  /* --- @ picker: bind a tier-2 command --- */
+  $('tw-pick').click();
+  await until(() => visible($('sheet-actions')), 'picker open');
+  const findRow = () => $$('#act-list .act-row')
+    .find(r => (r.querySelector('.act-name') || {}).textContent ===
+               'Terminal command');
+  let cmdRow = null;
+  try { cmdRow = await until(findRow, 'x', 9000); } catch (e) {}
+  if (!cmdRow) {
+    const A = (await win.import('./js/actions.js')).Actions;
+    throw new Error('Terminal command row missing — cat=' +
+                    JSON.stringify(A._cat()));
   }
-  await until(() => win.document.querySelector('.wstep[data-step="bind"].on'), 'bind step');
-  await until(() => win.document.querySelectorAll('#takes .take').length === 3, 'three take previews');
-  log('3 take previews drawn');
-
-  /* --- bind open_app --- */
-  const rows = [...win.document.querySelectorAll('.arow')];
-  const app = rows.find(r => r.querySelector('.a-name').textContent === 'open app');
-  if (!app) throw new Error('open_app row missing');
-  app.click();
-  const argv = app.querySelector('input[data-k="argv"]');
-  argv.value = 'notify-send hi';
-  argv.dispatchEvent(new win.Event('input', { bubbles: true }));
-  await until(() => !$('saveBtn').disabled, 'save enabled');
-  if (!app.querySelector('.a-confirm')) throw new Error('tier-2 confirm note missing');
-  log('open_app bound · argv=notify-send hi · tier 2 confirm note shown');
-  $('saveBtn').click();
+  const argvIn = cmdRow.querySelector('.act-input');
+  argvIn.value = 'notify-send hi';
+  argvIn.dispatchEvent(new win.Event('input', { bubbles: true }));
+  cmdRow.querySelector('.act-use').click();
+  await until(() => !visible($('sheet-actions')) && !$('tw-save').disabled,
+              'action bound + save enabled');
+  if (!$('tw-action').textContent.match(/laptop confirm/i))
+    throw new Error('tier-2 note missing: ' + $('tw-action').textContent);
+  log('bound: run `notify-send hi` · tier 2 confirm shown');
+  $('tw-save').click();
 
   /* --- verify in bank --- */
-  await until(() => win.document.querySelector('.wstep[data-step="done"].on'), 'done step');
-  const bank = await (await fetch('/bank', { headers: { 'X-WF-Key': KEY } })).json();
+  await until(() => $$('.tw-step')[3].classList.contains('on'), 'done step');
+  const bank = await (await fetch('/bank',
+    { headers: { 'X-WF-Key': KEY } })).json();
   const sign = (bank.signs || []).find(s => s.gloss === 'TEST-BROWSER-SIGN');
   if (!sign) throw new Error('sign not in bank: ' + JSON.stringify(bank));
-  if (sign.exemplar_count !== 3) throw new Error('exemplar_count=' + sign.exemplar_count);
-  if (!sign.action || sign.action.type !== 'open_app' || sign.action.argv !== 'notify-send hi')
+  if (sign.exemplar_count !== 3)
+    throw new Error('exemplar_count=' + sign.exemplar_count);
+  const av = sign.argv || (sign.action && sign.action.argv) || '';
+  if (!/notify-send/.test(Array.isArray(av) ? av.join(' ') : String(av)))
     throw new Error('bad action: ' + JSON.stringify(sign.action));
   if (sign.tier !== 2) throw new Error('tier=' + sign.tier);
-  log('bank verified: TEST-BROWSER-SIGN · 3 exemplars · open_app · tier 2');
-  handsOn = false;
+  log('bank verified: TEST-BROWSER-SIGN · 3 exemplars · notify-send hi · tier 2');
 
-  /* --- library: add a take --- */
-  $('doneLib').click();
-  await until(() => win.document.querySelector('.sign'), 'library card');
-  const addBtn = [...win.document.querySelectorAll('.sign .btn')].find(b => b.textContent === '+ take');
-  addBtn.click();
-  await until(() => $('recBtn') && !$('recBtn').disabled, 'add-take tracker');
-  $('recBtn').click();
+  /* --- library: +take adds a 4th exemplar --- */
+  $('tw-done-lib').click();
+  await until(() => $$('#lib-list .lib-card').length, 'library card');
+  [...$$('#lib-list .lib-card .lib-b')]
+    .find(b => b.textContent === '+ take').click();
+  await until(() => $$('.tw-step')[1] && $$('.tw-step')[1].classList.contains('on'),
+              'add-take record step');
   await doTake(1);
-  await until(() => !$('saveBtn').disabled, 'add-take save enabled');
-  $('saveBtn').click();
-  await until(() => win.document.querySelector('.wstep[data-step="done"].on'), 'add done');
-  const b2 = await (await fetch('/bank', { headers: { 'X-WF-Key': KEY } })).json();
+  await until(() => $$('.tw-step')[3].classList.contains('on'), 'add done');
+  const b2 = await (await fetch('/bank',
+    { headers: { 'X-WF-Key': KEY } })).json();
   const s2 = (b2.signs || []).find(s => s.gloss === 'TEST-BROWSER-SIGN');
-  if (!s2 || s2.exemplar_count !== 4) throw new Error('add_exemplar failed: ' + JSON.stringify(s2));
+  if (!s2 || s2.exemplar_count !== 4)
+    throw new Error('add_exemplar failed: ' + JSON.stringify(s2));
   log('add_exemplar verified: 4 exemplars');
-  handsOn = false;
-  $('doneLib').click();
+  $('tw-done-lib').click();
+
+  /* --- library: rename label --- */
+  await until(() => $$('#lib-list .lib-card').length, 'library card again');
+  [...$$('#lib-list .lib-card .lib-b')]
+    .find(b => b.textContent === 'rename').click();
+  await until(() => $$('#lib-list .lib-rename input').length,
+              'rename input');
+  const rin = $$('#lib-list .lib-rename input')[0];
+  rin.value = 'renamed sign';
+  [...$$('#lib-list .lib-rename .lib-b')]
+    .find(b => b.textContent === 'save').click();
+  await until(() => $$('#lib-list .lib-name').length &&
+              $$('#lib-list .lib-name')[0].textContent.includes('renamed sign'),
+              'rename applied');
+  log('rename verified');
 
   /* --- library: delete --- */
-  await until(() => win.document.querySelector('.sign'), 'library card again');
-  const del = [...win.document.querySelectorAll('.sign .btn')].find(b => b.textContent === 'delete');
-  del.click(); await sleep(80);
-  const del2 = [...win.document.querySelectorAll('.sign .btn')].find(b => b.textContent === 'sure?');
-  (del2 || del).click();
-  await until(() => win.WFTeach.state.library === 0, 'sign deleted');
+  [...$$('#lib-list .lib-card .lib-b')]
+    .find(b => b.textContent === 'delete').click();
+  await sleep(120);
+  [...$$('#lib-list .lib-card .lib-b')]
+    .find(b => b.textContent === 'sure?').click();
+  await until(() => !$$('#lib-list .lib-card').length, 'sign deleted');
+  const b3 = await (await fetch('/bank',
+    { headers: { 'X-WF-Key': KEY } })).json();
+  if ((b3.signs || []).length) throw new Error('bank not empty after delete');
   log('delete verified: library empty');
 
   finish(errs.length === 0, errs);
@@ -152,8 +189,8 @@ function finish(pass, errs) {
   resEl.textContent = pass ? 'SELFTEST PASS' : 'SELFTEST FAIL — ' + (errs[0] || 'see log');
   resEl.style.color = pass ? '#15803d' : '#b91c1c';
   document.title = resEl.textContent;
-  fetch('/_result', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(out) })
-    .catch(() => {});
+  fetch('/_result', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(out) }).catch(() => {});
 }
 main().catch(e => { errs.push(e.message); log('FAIL ' + e.message); finish(false, errs); });
 </script>

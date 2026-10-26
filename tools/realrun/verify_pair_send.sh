@@ -23,10 +23,11 @@ echo "$info" | python3 -c 'import json,sys; d=json.load(sys.stdin); print("code_
 PC="$(echo "$info" | python3 -c 'import json,sys; print(json.load(sys.stdin)["code"])')"
 PAIR_CODE="$PC"   # for sanitize_dir redaction
 sleep 1.1   # /pair rate limit: 1 try/sec
-code=$(call POST /pair "{\"code\":\"$PC\"}")
+call POST /pair "{\"code\":\"$PC\"}" >/dev/null
+code=$CALL_CODE
 paired_key="$(call_json key)"
 [ "$code" = 200 ] && [ "$paired_key" = "$KEY" ] \
-    || { cat "$CALL_BODY"; verdict FAILED "pair failed ($code)"; }
+    || { call_body; verdict FAILED "pair failed ($code)"; }
 echo "paired -> key matches daemon key" | tee -a "$PROOF/pair-info.txt"
 
 # --- snapshot + focus -----------------------------------------------------
@@ -39,8 +40,9 @@ echo "$cls" | grep -q SinkEdit || verdict FAILED "focus did not land on SinkEdit
 shot "$PROOF/before.png"
 
 # --- the REAL path: POST /send mode=type -> daemon -> xdotool type --------
-code=$(call POST /send "{\"text\":\"$TEXT\",\"mode\":\"type\"}")
-echo "POST /send -> $code $(cat "$CALL_BODY")"
+call POST /send "{\"text\":\"$TEXT\",\"mode\":\"type\"}" >/dev/null
+code=$CALL_CODE
+echo "POST /send -> $code $(call_body)"
 for i in $(seq 1 40); do
     grep -q "$TEXT" "$SINK" 2>/dev/null && break; sleep 0.2
 done

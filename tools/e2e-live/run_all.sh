@@ -18,19 +18,20 @@ ROOT="$(cd "$HERE/../.." && pwd)"
 
 PORT="${WF_E2E_PORT:-8893}"
 command -v python3 >/dev/null || { echo "python3 required"; exit 1; }
-# if the default alt port is taken, grab a free one
-python3 - "$PORT" <<'PY' >/dev/null 2>&1 || PORT=$(python3 - <<'PY2'
-import socket; s = socket.socket(); s.bind(("127.0.0.1", 0))
-print(s.getsockname()[1]); s.close()
-PY2
-)
+free_port() { # preferred port -> echoes a port that binds free
+    python3 - "$1" <<'PY'
 import socket, sys
 s = socket.socket()
 try:
-    s.bind(("127.0.0.1", int(sys.argv[1]))); s.close(); sys.exit(0)
+    s.bind(("127.0.0.1", int(sys.argv[1]))); s.close()
+    print(sys.argv[1])
 except OSError:
-    sys.exit(1)
+    s = socket.socket(); s.bind(("127.0.0.1", 0))
+    print(s.getsockname()[1]); s.close()
 PY
+}
+# if the default alt port is taken, grab a free one
+PORT="$(free_port "$PORT")"
 
 TMP="$(mktemp -d /tmp/wf-e2e.XXXXXX)"
 WF_HOME="$TMP/home"
@@ -53,6 +54,7 @@ for g in SWIPE-R SWIPE-L PUSH-UP CIRCLE Z-SHAPE V-CHECK; do
 done
 
 # --- seed a Rust-format bank (normalized exemplars of the synthetic signs)
+seed_bank() {
 PYTHONPATH="$HERE" python3 - "$CONFIG/signbank.json" <<'PY'
 import sys
 import refmatch, synth
@@ -67,15 +69,26 @@ for name in synth.sign_paths():
 bank.save(sys.argv[1])
 print(f"seeded bank: {len(bank.templates)} glosses -> {sys.argv[1]}")
 PY
+}
+seed_bank
 
-wait_health() { # port -> 0 when daemon serves /health
-    python3 - "$1" <<'PY'
+wait_health() { # port [key] -> 0 when OUR daemon serves (authed check
+    # when a key is passed — a stale squatter on the port returns /health
+    # 200 too, but 403s the authed probe, so this never mistakes it).
+    python3 - "$1" "${2:-}" <<'PY'
 import sys, time, urllib.request
-url = f"http://127.0.0.1:{sys.argv[1]}/health"
+port, key = sys.argv[1], sys.argv[2]
 for _ in range(80):
     try:
-        if urllib.request.urlopen(url, timeout=1).status == 200:
-            sys.exit(0)
+        if urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/health", timeout=1).status != 200:
+            raise RuntimeError("health")
+        if key:
+            r = urllib.request.Request(f"http://127.0.0.1:{port}/live/state")
+            r.add_header("X-WF-Key", key)
+            if urllib.request.urlopen(r, timeout=1).status != 200:
+                raise RuntimeError("authed probe")
+        sys.exit(0)
     except Exception:
         time.sleep(0.1)
 sys.exit(1)
@@ -118,11 +131,17 @@ run "parity signbank vs matcher.rs" \
 # --- contract-double leg: the same suite against stubdaemon -------------
 # Proves the harness itself end-to-end (teach -> stream -> endpoint ->
 # DTW -> commands.tsv marker) and gives W1 an executable contract spec.
-STUB_PORT=$((PORT + 1))
+STUB_PORT="$(free_port "$((PORT + 1))")"
+# the main leg's wfd.py rewrote signbank.json in its own format after
+# /teach/end — re-seed the Rust-format bank so the double sees the same
+# starting state the real daemon did.
+seed_bank
 PYTHONPATH="$HERE" python3 "$HERE/stubdaemon.py" --port "$STUB_PORT" \
     --config "$CONFIG" > "$TMP/stub.log" 2>&1 &
 STUB_PID=$!
-if wait_health "$STUB_PORT"; then
+# authed probe: /health alone is satisfied by ANY squatter on the port —
+# /live/state with our key proves the process answering is our stub.
+if wait_health "$STUB_PORT" "$KEY"; then
     mkdir -p "$TMP/markers-stub"
     run "replay vs contract-double" \
         python3 "$HERE/replay.py" --port "$STUB_PORT" --key "$KEY" \

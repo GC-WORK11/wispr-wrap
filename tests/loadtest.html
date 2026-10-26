@@ -1,0 +1,53 @@
+<!doctype html>
+<!-- loadtest — clean-load smoke for the merged app shell. Asserts every
+     sheet mounts on boot (composer, live, teach, signs) and reports
+     console errors, then posts to /_result?f=load. -->
+<html><head><meta charset="utf-8"><title>load selftest</title>
+<style>body{font:13px ui-monospace,monospace;padding:18px;background:#f4f5f8}
+#result{font-size:16px;font-weight:700}iframe{width:390px;height:720px;border:1px solid #cbd5e1;border-radius:12px}</style>
+</head><body>
+<div id="result">RUNNING</div>
+<div id="log" style="white-space:pre-wrap;color:#64748b"></div>
+<iframe id="fr" src="/index.html?k=teach-stub-key"></iframe>
+<script>
+const logEl = document.getElementById('log'), resEl = document.getElementById('result');
+const errs = [], steps = [];
+const win = document.getElementById('fr').contentWindow;
+const log = m => { steps.push(m); logEl.textContent += m + '\n'; };
+win.addEventListener('error', e => errs.push('iframe: ' + e.message));
+win.addEventListener('unhandledrejection', e => errs.push('iframe reject: ' + (e.reason && e.reason.message || e.reason)));
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function until(fn, what, ms = 12000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(70); }
+  throw new Error('timeout waiting for ' + what);
+}
+const $ = id => win.document.getElementById(id);
+
+async function main() {
+  await until(() => win.document.readyState === 'complete' && $('box'),
+              'module app boot');
+  await sleep(500);                       // let mounts settle + polls land
+  const need = ['box', 'go', 'tray-live', 'tray-teach', 'tray-signs',
+                'sheet-live', 'sheet-teach', 'sheet-signs',
+                'tw-name', 'lv-cam', 'lib-list', 'toast', 'confirms'];
+  const missing = need.filter(id => !$(id));
+  if (missing.length) throw new Error('unmounted elements: ' + missing.join(','));
+  log('all mounts present: ' + need.length + ' elements');
+  if (!win.document.body.textContent.includes('teach a sign'))
+    throw new Error('teach CTA copy missing');
+  log('teach CTA copy present');
+  finish(errs.length === 0, errs);
+}
+function finish(pass, errs) {
+  const out = { pass, errs, steps };
+  resEl.textContent = pass ? 'LOADTEST PASS' : 'LOADTEST FAIL — ' + (errs[0] || 'see log');
+  resEl.style.color = pass ? '#15803d' : '#b91c1c';
+  fetch('/_result?f=load', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(out) }).catch(() => {});
+}
+main().catch(e => { errs.push(e.message); log('FAIL ' + e.message); finish(false, errs); });
+</script>
+</body></html>

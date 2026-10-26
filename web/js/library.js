@@ -138,7 +138,13 @@ function startRename(card, s, row) {
     const label = inp.value.trim(); if (!label) return cleanup();
     ok.disabled = true; ok.textContent = '…';
     const r = await App.api.put('/bank', { gloss: s.gloss, label }).catch(() => null);
-    if (r && r.ok) { s.label = label; render(); App.toast('renamed'); }
+    if (r && r.ok) {
+      /* the card object may be stale — a refresh() can replace rows while
+         the PUT is in flight. Patch every row sharing this gloss. */
+      rows.forEach(rw => { if (rw.gloss === s.gloss) rw.label = label; });
+      s.label = label;
+      render(); App.toast('renamed');
+    }
     else if (r && r.status === 403) { App.toast('unpaired — rescan QR', true); cleanup(); }
     else { App.toast('rename failed', true); ok.disabled = false; ok.textContent = 'save'; }
   };

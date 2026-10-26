@@ -11,9 +11,9 @@ LOG="$PROOF/run.log"; : > "$LOG"
 exec > >(tee -a "$LOG") 2>&1
 
 have xmessage || verdict UNVERIFIABLE "xmessage absent"
-DISPLAY="$D" setsid xmessage -name realrun-tile -center "tile me by sign" </dev/null >/dev/null 2>&1 &
+DISPLAY="$D" setsid xmessage -title "$TAG-tile" -center "tile target" </dev/null >/dev/null 2>&1 &
 sleep 1.2
-WID=$(DISPLAY="$D" xdotool search --name "^realrun-tile$" | tail -1)
+WID=$(DISPLAY="$D" xdotool search --name "^$TAG-tile$" | tail -1)
 [ -n "$WID" ] || verdict FAILED "tile target never appeared"
 DISPLAY="$D" xwininfo -id "$WID" > "$PROOF/before.txt"
 DISPLAY="$D" xprop -id "$WID" _NET_WM_STATE >> "$PROOF/before.txt" 2>&1

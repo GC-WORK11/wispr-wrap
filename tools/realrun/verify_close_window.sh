@@ -10,23 +10,23 @@ LOG="$PROOF/run.log"; : > "$LOG"
 exec > >(tee -a "$LOG") 2>&1
 
 have xmessage || verdict UNVERIFIABLE "xmessage absent"
-DISPLAY="$D" setsid xmessage -name realrun-close-me -center "close me by sign" </dev/null >/dev/null 2>&1 &
+DISPLAY="$D" setsid xmessage -title "$TAG-close-me" -center "close target" </dev/null >/dev/null 2>&1 &
 sleep 1.2
 DISPLAY="$D" wmctrl -l > "$PROOF/before.txt"
-grep -q realrun-close-me "$PROOF/before.txt" || verdict FAILED "target window never appeared"
+grep -q $TAG-close-me "$PROOF/before.txt" || verdict FAILED "target window never appeared"
 
-teach_bind_fire RR-CLOSE "close window" "wmctrl -c realrun-close-me" || {
+teach_bind_fire RR-CLOSE "close window" "wmctrl -c $TAG-close-me" || {
     rc=$?; [ "$rc" = 3 ] && verdict PENDING "endpoints not wired"
     verdict FAILED "teach_bind_fire rc=$rc"; }
 
 for i in $(seq 1 40); do
-    DISPLAY="$D" wmctrl -l | grep -q realrun-close-me || break; sleep 0.2
+    DISPLAY="$D" wmctrl -l | grep -q $TAG-close-me || break; sleep 0.2
 done
 DISPLAY="$D" wmctrl -l > "$PROOF/after.txt"
 shot "$PROOF/after.png"
 diff -u "$PROOF/before.txt" "$PROOF/after.txt" > "$PROOF/diff.txt" || true
 
-if ! grep -q realrun-close-me "$PROOF/after.txt"; then
+if ! grep -q $TAG-close-me "$PROOF/after.txt"; then
     verdict VERIFIED "sign closed the real window (gone from _NET_CLIENT_LIST)"
 else
     verdict FAILED "window still present after sign"

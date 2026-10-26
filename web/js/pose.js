@@ -127,12 +127,14 @@ export const Pose = {
         const r = await fetch(REPLAY_BASE + '/health',
                               { signal: ctl.signal, cache: 'no-store' });
         clearTimeout(t);
-        replayProbed = r.ok ? replayEngine() : null;
+        replayProbed = r.ok;
       } catch (e) {
-        replayProbed = null;
+        replayProbed = false;
       }
     }
-    return replayProbed;
+    // a FRESH engine each call — callers close() theirs on sheet close,
+    // and a dead queue must not poison the next opener.
+    return replayProbed ? replayEngine() : null;
   },
 
   load(onProgress) {

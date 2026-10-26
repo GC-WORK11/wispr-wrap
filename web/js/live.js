@@ -76,11 +76,25 @@ export class KpLink {
     this.onFrame = null; this.onResp = null; this.onStatus = null;
     this.dead = false;    // 404/405 — pre-merge daemon
     this.denied = false;  // 403 — unpaired or proxied
+    this._fake = null;
   }
   start(video, engine, opts) {
     this.stop();
     Object.assign(this, opts || {});
     this.video = video; this.engine = engine;
+    /* test seam: tests/selftest.html injects window.WFFakeTrack before load —
+       a fake kp42 source so a headless browser can drive the real wizard.
+       Production pages never define it, so this branch is dead there. */
+    if (window.WFFakeTrack && typeof window.WFFakeTrack.start === 'function') {
+      this._fake = window.WFFakeTrack.start(video, res => {
+        const t = res && res.t_ms != null ? res.t_ms : performance.now();
+        const pts = res && res.points;
+        if (!pts || pts.length !== 42) return;
+        if (this.onFrame) this.onFrame(pts, t);
+        this.send(pts, t);
+      });
+      return;
+    }
     this.timer = setInterval(() => this.tick(), KP_MS);
   }
   tick() {
@@ -120,6 +134,7 @@ export class KpLink {
   }
   stop() {
     if (this.timer) { clearInterval(this.timer); this.timer = null; }
+    if (this._fake) { try { this._fake.stop(); } catch (e) {} this._fake = null; }
     this.inflight = false; this.pend = null;
   }
 }

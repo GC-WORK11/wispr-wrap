@@ -141,12 +141,15 @@ class Endpointer:
         self._seg = []
         self._seg_t0 = 0.0
         self._quiet = None
+        self._absent = 0              # consecutive no-hand frames
         self._pre.clear()
         self._prev = [None, None]     # last _Hand per slot
         self._t = None                # last frame time (s)
         self._ema = None
-        self._palm = [{"since": None, "armed": True} for _ in range(2)]
+        self._palm = [{"since": None, "armed": False, "seen": False}
+                      for _ in range(2)]
         self._nam = {"since": None, "armed": True}
+        self._n = 0                   # frames seen before the current one
 
     @property
     def active(self):
@@ -194,8 +197,21 @@ class Endpointer:
         events.extend(self._mode_events(hands, t))
 
         self._pre.append(frame)
+        # a hand gone from view IS the end of the sign — no EMA decay to
+        # wait out.  One absent frame can be an occlusion flicker, two in
+        # a row cannot be mid-sign: force-close.  (Real streams and the
+        # e2e clips both end signs by dropping the hand — without this a
+        # held-open segment blends into the NEXT sign's lead-in and the
+        # match sees a glued double-length arc.)
+        if any(h.present for h in hands):
+            self._absent = 0
+        else:
+            self._absent += 1
         if self._state == "idle":
-            if self._ema >= self.enter_v:
+            # a segment starts only on a frame that actually carries a
+            # hand — a decaying EMA tail on an absent/still frame is the
+            # residue of the LAST sign, not the start of a new one.
+            if self._ema >= self.enter_v and any(h.present for h in hands):
                 self._state = "active"
                 self._seg = list(self._pre)   # pre-roll includes this frame
                 self._seg_t0 = float(self._pre[0].get("t_ms") or 0) / 1000.0
@@ -204,6 +220,9 @@ class Endpointer:
             self._seg.append(frame)
             if t - self._seg_t0 >= self.max_seg_s:
                 events.append(self._close(t, "maxlen"))
+            elif self._absent >= 2:
+                events.append(self._close(t, "absent"))
+                self._absent = 0
             elif self._ema < self.exit_v:
                 if self._quiet is None:
                     self._quiet = t
@@ -211,12 +230,21 @@ class Endpointer:
                     events.append(self._close(t, "quiet"))
             else:
                 self._quiet = None
+        self._n += 1
         return events
 
     def _close(self, t, how):
         seg, self._seg = self._seg, []
         self._state = "idle"
         self._quiet = None
+        self._absent = 0
+        # The EMA tail that ended this segment belongs to it — reset the
+        # smoother so a just-closed sign can never re-trigger a phantom
+        # segment on the very next frame (idle re-activation must be
+        # driven by NEW energy, exactly like the stream's first segment;
+        # a genuine continuation after a maxlen cut re-arms instantly
+        # because its energy is real).
+        self._ema = None
         dur = t - self._seg_t0
         if len(seg) >= self.min_frames and dur >= self.min_seg_s:
             return {"type": "segment", "frames": seg, "dur_s": dur,
@@ -232,10 +260,24 @@ class Endpointer:
             gap = _d(a.cx, a.cy, b.cx, b.cy)
             together = gap <= self.namaste_gap * (a.palm + b.palm) / 2.0
 
-        # held open palm — but hands-together means namaste, never palm
+        # held open palm — but hands-together means namaste, never palm.
+        # A palm that is ALREADY resting in view when the stream starts is
+        # not a deliberate presentation: arm on hand entry (absent->present
+        # after the first frame) or after the hand closes past rearm_ratio.
+        # Without this, a static rest pose fires PALM-OPEN by accident
+        # (measured: 155/320 LSA64 signer-6 clips, 125 of them in the
+        # leading rest pad at ~0.47 s).
         for i, h in enumerate(hands):
             st = self._palm[i]
+            if h.present and not st["seen"]:
+                st["seen"] = True
+                if self._n > 0:       # entered view after the stream began
+                    st["armed"] = True
+            elif not h.present and st["seen"]:
+                st["seen"] = False
+                st["armed"] = True    # leaving view re-arms the next entry
             held_open = h.present and not together and \
+                self._state != "active" and \
                 h.openness >= self.open_ratio and h.speed <= self.hold_v
             if held_open:
                 if st["since"] is None:
@@ -247,8 +289,7 @@ class Endpointer:
                                    "t_ms": int(t * 1000)})
             else:
                 st["since"] = None
-                if (not h.present) or h.openness <= self.rearm_ratio or \
-                        h.speed > self.hold_v * 2.0:
+                if (not h.present) or h.openness <= self.rearm_ratio:
                     st["armed"] = True
 
         # held palms-together (namaste)

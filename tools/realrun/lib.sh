@@ -16,9 +16,15 @@
 #  - a verify that cannot run on this box must say so and exit 77, never
 #    fake a result.
 
-REALRUN_STATE="${REALRUN_STATE:-/tmp/wf-realrun}"
+# State dir is namespaced PER WORKTREE: several agents share this box
+# (/workspace/wispr-wrap, wispr-wrap-pro, wispr-wrap-kiro all run the same
+# gate) and a shared /tmp/wf-realrun meant one agent's env/pids/windows
+# stomped another's — verifiers sourced a FOREIGN env and ran another
+# tree's helpers. Never again: the suffix comes from the repo dir name.
+_RR_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+REALRUN_STATE="${REALRUN_STATE:-/tmp/wf-realrun-$(basename "$_RR_ROOT")}"
 REALRUN_ENV="${REALRUN_ENV:-$REALRUN_STATE/env}"
-REALRUN_PROOFS="${REALRUN_PROOFS:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/proofs/realrun}"
+REALRUN_PROOFS="${REALRUN_PROOFS:-$_RR_ROOT/proofs/realrun}"
 
 log()  { printf '[realrun %s] %s\n' "$(date +%H:%M:%S)" "$*"; }
 die()  { printf '[realrun] FATAL: %s\n' "$*" >&2; exit 2; }
@@ -36,15 +42,15 @@ load_env() {
 
 # --- HTTP --------------------------------------------------------------
 # call METHOD PATH [body-or-@file] [extra curl args...]
-#   -> prints "<http_code>" ; body lands in $CALL_BODY (temp file)
-# Allocate the body file once at source time: callers often run `code=$(call …)`
-# in a command-substitution subshell — a mktemp inside call() would leave the
-# parent's $CALL_BODY empty and call_body()/call_json() silently reading "".
-# Writing to the same preallocated file survives the subshell.
-CALL_BODY="$(mktemp /tmp/realrun-body.XXXXXX)"
+#   -> prints "<http_code>" AND sets $CALL_CODE; body lands in $CALL_BODY.
+#   NB: `code=$(call ...)` runs call in a SUBSHELL — CALL_BODY/CALL_CODE
+#   are lost to the parent. When you need the body, run call plainly:
+#       call POST /x '{"a":1}' >/dev/null; code=$CALL_CODE; call_body
+CALL_BODY=""; CALL_CODE=""
 call() {
     local m="$1" p="$2" body="${3:-}"
     if [ $# -ge 3 ]; then shift 3; else shift $#; fi
+    CALL_BODY="$(mktemp /tmp/realrun-body.XXXXXX)"
     local code
     if [ -n "$body" ]; then
         case "$body" in
@@ -58,12 +64,13 @@ call() {
         code=$(curl -sS -o "$CALL_BODY" -w '%{http_code}' -X "$m" \
                  -H "X-WF-Key: $KEY" "$@" "$BASE$p")
     fi
+    CALL_CODE="$code"
     printf '%s' "$code"
 }
 # unauthenticated call (auth-gate probes)
 call_noauth() {
     local m="$1" p="$2" body="${3:-}"
-    [ -n "$CALL_BODY" ] || CALL_BODY="$(mktemp /tmp/realrun-body.XXXXXX)"
+    CALL_BODY="$(mktemp /tmp/realrun-body.XXXXXX)"
     local code
     if [ -n "$body" ]; then
         code=$(curl -sS -o "$CALL_BODY" -w '%{http_code}' -X "$m" \
@@ -71,6 +78,7 @@ call_noauth() {
     else
         code=$(curl -sS -o "$CALL_BODY" -w '%{http_code}' -X "$m" "$BASE$p")
     fi
+    CALL_CODE="$code"
     printf '%s' "$code"
 }
 call_body() { cat "$CALL_BODY"; }
@@ -157,20 +165,12 @@ focus_term() { # focus the sink terminal; die if it won't take focus
 #   endpoints themselves -> rc 3 = route pending).
 teach_bind_fire() {
     local g="$1" label="$2" argv="$3" tier="${4:-0}"
-    local code try exemplars
-    for try in 1 2; do
-        code=$(call POST /teach/begin "{\"name\":\"$g\",\"takes\":1,\"label\":\"$label\"}")
-        [ "$code" = 200 ] || return 3
-        python3 "$HERE/kpstream.py" --base "$BASE" --key "$KEY" --fps 40 "teach:$g" >/dev/null
-        sleep 0.25
-        code=$(call POST /teach/end '{}')
-        # a rotated session (another client posting /live/kp) cancels the
-        # teach mid-capture -> /teach/end 409 or exemplars 0. One honest
-        # retry rides out a single foreign rotation.
-        exemplars=$(call_body | python3 -c "import json,sys;print(json.load(sys.stdin).get('exemplars',0))" 2>/dev/null || echo 0)
-        [ "$code" = 200 ] && [ "${exemplars:-0}" -ge 1 ] && break
-        note "teach $g try $try: exemplars=$exemplars (session rotated?)"
-    done
+    local code
+    code=$(call POST /teach/begin "{\"name\":\"$g\",\"takes\":1,\"label\":\"$label\"}")
+    [ "$code" = 200 ] || return 3
+    python3 "$HERE/kpstream.py" --base "$BASE" --key "$KEY" --fps 40 "teach:$g" >/dev/null
+    sleep 0.25
+    code=$(call POST /teach/end '{}')
     code=$(call PUT /bank "{\"gloss\":\"$g\",\"label\":\"$label\",\"argv\":\"$argv\",\"tier\":$tier}")
     [ "$code" = 200 ] || return 3
     python3 "$HERE/kpstream.py" --base "$BASE" --key "$KEY" --fps 40 palm >/dev/null 2>&1
