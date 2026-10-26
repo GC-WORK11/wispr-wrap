@@ -126,6 +126,8 @@
 .lib-gl { display: none; }
 .lib-name { font-size: 19px; font-weight: 600; letter-spacing: -.02em; }
 .lib-top .chip { background: none; padding: 0; color: var(--muted); font-size: 14px; font-weight: 450; }
+.lib-takes { flex: none; color: var(--muted); font-size: 13.5px; font-weight: 450; white-space: nowrap; }
+.lib-ask { flex: none; color: var(--muted); font-size: 12.5px; font-weight: 450; }
 .lib-act { margin-top: 3px; font-size: 14.5px; }
 .lib-row { border-top: 0; margin-top: 8px; padding-top: 0; gap: 2px; }
 .lib-b { border: 0; background: transparent; padding: 9px 12px; margin-left: -12px; margin-right: 4px; font-size: 14.5px; font-weight: 550; color: var(--ink-2); border-radius: 10px; }

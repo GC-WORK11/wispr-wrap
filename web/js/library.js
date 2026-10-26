@@ -63,17 +63,17 @@ function render() {
   for (const s of rows) {
     const card = document.createElement('div');
     card.className = 'lib-card';
+    const name = s.label && s.label !== s.gloss
+      ? s.label : String(s.gloss || '').toLowerCase().replace(/[-_]+/g, ' ');
     const n = s.n_exemplars != null ? s.n_exemplars
       : (s.exemplar_count != null ? s.exemplar_count
-      : (s.exemplars ? s.exemplars.length : '?'));
+      : (s.exemplars ? s.exemplars.length : 0));
     const tier = s.tier || 0;
     card.innerHTML =
-      `<div class="lib-top"><span class="lib-gl">${esc(s.gloss)}</span>` +
-      `<span class="lib-name">${esc(s.label && s.label !== s.gloss ? s.label : String(s.gloss || '').toLowerCase().replace(/[-_]+/g, ' '))}</span>` +
-      `<span class="chip">${n} take${n === 1 ? '' : 's'}</span></div>` +
+      `<div class="lib-top"><span class="lib-name">${esc(name)}</span>` +
+      `<span class="lib-takes">${n} take${n === 1 ? '' : 's'}</span></div>` +
       `<div class="lib-act"><span class="lib-act-v">${esc(actSummary(s))}</span>` +
-      (tier >= 2 ? '<span class="chip warn">confirm</span>' : '') +
-      (s.taught === false ? '<span class="chip accent">bound</span>' : '') +
+      (tier >= 2 ? '<span class="lib-ask">asks on laptop</span>' : '') +
       `</div>`;
     const row = document.createElement('div'); row.className = 'lib-row';
     const mk = (txt, cls, fn) => {
@@ -112,7 +112,8 @@ function bannerShow(text, retry) {
 }
 
 async function rebind(card, s) {
-  const a = await Actions.pick({ forGloss: s.gloss, title: 'rebind ' + s.gloss });
+  const nm = s.label && s.label !== s.gloss ? s.label : String(s.gloss || '').toLowerCase().replace(/[-_]+/g, ' ');
+  const a = await Actions.pick({ forGloss: s.gloss, title: 'What should “' + nm + '” do?' });
   if (!a) return;
   const body = { gloss: s.gloss, tier: a.tier == null ? s.tier || 0 : a.tier, action: a };
   if (Array.isArray(a.argv) && a.argv.length) body.argv = a.argv;
