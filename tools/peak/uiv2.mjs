@@ -106,6 +106,15 @@ try {
     await page.click('#go');
     for (const [n, ms] of [['0.25s', 250], ['0.7s', 450], ['1.3s', 600]]) { await sleep(ms); await shot('16-send-burst-' + n); }
   }
+  if (sets.includes('pages')) {
+    await phone();
+    await page.goto(S.base + '/?k=' + S.KEY, { settle: 1500 });
+    await page.click('#menu'); await sleep(600); await page.click('#dr-laptop'); await sleep(900);
+    await shot('17-connected-laptop');
+    await page.click('[data-close]').catch(() => {}); await sleep(500);
+    await page.eval(`location.hash = '#/settings'`); await sleep(900);
+    await shot('18-settings');
+  }
   if (sets.includes('offline')) {
     // the laptop is unreachable: block /health so the app sees it as offline
     await page.send('Network.setBlockedURLs', { urls: ['http://127.0.0.1:8877/*', S.base + '/health'] });

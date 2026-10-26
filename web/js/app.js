@@ -212,7 +212,7 @@ function toast(msg, isErr) {
   toastT = setTimeout(() => toastEl.classList.remove('show'), 2000);
 }
 
-const buzz = () => { try { navigator.vibrate && navigator.vibrate(18); } catch (e) {} };
+const buzz = () => { try { if (store.getItem('wf.haptics') !== '0') navigator.vibrate && navigator.vibrate(18); } catch (e) {} };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // ---------- shared keypoint envelope ----------
@@ -272,6 +272,7 @@ export const App = {
   api: { get: p => req('GET', p), post: (p, b, h) => req('POST', p, b, h), del: p => req('DELETE', p), put: (p, b) => req('PUT', p, b) },
   on, off, emit,
   state, renderStatus, pollState, pollEngine, pollStatus, connected, canAct,
+  connect: () => { showOnboarding(''); onbSkip.hidden = false; },
   route, nav, back, routes, parseHash,
   toast, buzz, sleep, raise,
   kpFrame,
