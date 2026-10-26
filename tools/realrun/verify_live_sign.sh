@@ -67,14 +67,47 @@ PY
 python3 "$HERE/kpstream.py" --base "$BASE" --key "$KEY" --fps 40 sign:$G
 for i in $(seq 1 30); do [ -f "$MARKER" ] && break; sleep 0.2; done
 call GET /live/state > /dev/null; call_body > "$PROOF/state-after-sign.json"
+
+# A second open-palm hold while ALREADY listening must not overwrite the
+# last sign reading with "listening" (the reading strip flipped before).
+python3 "$HERE/kpstream.py" --base "$BASE" --key "$KEY" --fps 40 palm >/dev/null 2>&1
+sleep 0.4
+call GET /live/state > /dev/null; call_body > "$PROOF/state-after-extra-palm.json"
+KEEP=0
+python3 - "$PROOF/state-after-extra-palm.json" "$G" <<'PY' && KEEP=1
+import json, sys
+s = json.load(open(sys.argv[1]))
+lm = s.get("last_match") or {}
+assert s.get("listening") is True, s.get("listening")
+assert lm.get("gloss") == sys.argv[2], lm
+print("redundant palm kept last_match=%s" % lm.get("gloss"))
+PY
+echo "redundant palm kept last_match: $KEEP" | tee -a "$PROOF/RESULT.detail"
 snapshot > "$PROOF/after.txt"
 shot "$PROOF/after.png"
 diff -u "$PROOF/before.txt" "$PROOF/after.txt" > "$PROOF/diff.txt" || true
 
-if [ -f "$MARKER" ]; then
+# The app parses /live/state with JSON.parse: Python's Infinity/NaN are
+# INVALID JSON. With one taught sign `margin` is infinite, so this exact
+# reply is the regression case (state poll froze in the browser).
+STRICT=1
+python3 - "$PROOF/state-after-sign.json" <<'PY' || STRICT=0
+import json, sys
+def bad(c):
+    raise ValueError("non-finite JSON constant: " + c)
+json.loads(open(sys.argv[1]).read(), parse_constant=bad)
+print("strict JSON: ok")
+PY
+echo "strict JSON parse: $STRICT" | tee -a "$PROOF/RESULT.detail"
+
+if [ -f "$MARKER" ] && [ "$STRICT" = 1 ] && [ "$KEEP" = 1 ]; then
     last=$(python3 -c "import json; s=json.load(open('$PROOF/state-after-sign.json')); print(s.get('last_match'))" 2>/dev/null)
     echo "marker spawned: $MARKER; last_match=$last" >> "$PROOF/RESULT.detail"
-    verdict VERIFIED "synthetic sign -> endpointer -> DTW match -> argv spawned (marker file + last_match accepted)"
+    verdict VERIFIED "synthetic sign -> endpointer -> DTW match -> argv spawned (marker file + last_match accepted); /live/state with a one-sign bank is strict JSON; a redundant palm keeps the last sign reading"
+elif [ -f "$MARKER" ] && [ "$STRICT" != 1 ]; then
+    verdict FAILED "/live/state is not strict JSON (Infinity/NaN) — the browser state poll would freeze"
+elif [ -f "$MARKER" ]; then
+    verdict FAILED "a redundant open-palm hold overwrote last_match (reading flipped to listening)"
 else
     cat "$PROOF/state-after-sign.json"
     verdict FAILED "sign matched nothing / action never spawned"

@@ -60,7 +60,7 @@ Per feature: `before.txt after.txt diff.txt shot.png run.log RESULT`.
 | feature | OS effect observed | proof dir | repro | verdict |
 |---------|--------------------|-----------|-------|---------|
 | pair_send | typed text lands in the focused real editor (sink file + WM_NAME diff) | proofs/realrun/pair_send | `tools/realrun/verify_pair_send.sh` | VERIFIED |
-| live_sign | sign -> marker file spawned; palm gate holds (no listen = no commit) | proofs/realrun/live_sign | `tools/realrun/verify_live_sign.sh` | VERIFIED |
+| live_sign | sign -> marker file spawned; palm gate holds; one-sign /live/state is strict JSON; redundant palm keeps reading | proofs/realrun/live_sign | `tools/realrun/verify_live_sign.sh` | VERIFIED |
 | open_app | sign -> new real app window (wmctrl -l diff, WM_CLASS) | proofs/realrun/open_app | `tools/realrun/verify_open_app.sh` | VERIFIED |
 | focus_app | sign -> _NET_ACTIVE_WINDOW changes (WM_NAME diff) | proofs/realrun/focus_app | `tools/realrun/verify_focus_app.sh` | VERIFIED |
 | close_window | sign -> window gone from client list | proofs/realrun/close_window | `tools/realrun/verify_close_window.sh` | VERIFIED |
