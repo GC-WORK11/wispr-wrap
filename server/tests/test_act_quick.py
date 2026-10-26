@@ -197,3 +197,54 @@ class TestMediaFallback(unittest.TestCase):
         self.assertFalse(self.sc._volume("up")[0])
         self.assertFalse(self.sc._mute()[0])
         self.assertFalse(self.sc._media("playpause")[0])
+
+
+class _FocusStub(ai.ActionProvider):
+    """A provider whose focused window is whatever the test sets."""
+
+    def __init__(self, wm_class="Xfce4-terminal", instance="xfce4-terminal",
+                 title="kiro — agent terminal"):
+        self._f = ai.FocusInfo(wid=1, wm_class=wm_class,
+                               instance=instance, title=title, pid=1)
+
+    def focused_app(self):
+        return self._f
+
+
+class TestTypeAllowGuard(unittest.TestCase):
+    """WF_TYPE_ALLOW pins guarded actions to a scratch window: stray
+    type/key ops can never land in a real terminal (chalk 19:19)."""
+
+    def setUp(self):
+        self._old = os.environ.get("WF_TYPE_ALLOW")
+
+    def tearDown(self):
+        if self._old is None:
+            os.environ.pop("WF_TYPE_ALLOW", None)
+        else:
+            os.environ["WF_TYPE_ALLOW"] = self._old
+
+    def test_allowlist_refuses_agent_terminal(self):
+        os.environ["WF_TYPE_ALLOW"] = r"wispr-wrap-merge-(sink|term)"
+        p = _FocusStub(title="kiro — agent terminal")
+        self.assertFalse(p.verify_focus())
+
+    def test_allowlist_passes_scratch_sink_title(self):
+        os.environ["WF_TYPE_ALLOW"] = r"wispr-wrap-merge-(sink|term)"
+        p = _FocusStub(title="wispr-wrap-merge-sink")
+        self.assertTrue(p.verify_focus())
+
+    def test_allowlist_matches_class_or_instance_too(self):
+        os.environ["WF_TYPE_ALLOW"] = r"sink-app"
+        p = _FocusStub(wm_class="Sink-app", title="untitled")
+        self.assertTrue(p.verify_focus())
+
+    def test_unset_allow_behaves_as_before(self):
+        os.environ.pop("WF_TYPE_ALLOW", None)
+        p = _FocusStub(title="kiro — agent terminal")
+        self.assertTrue(p.verify_focus())
+
+    def test_bad_pattern_refuses_safe(self):
+        os.environ["WF_TYPE_ALLOW"] = r"(["
+        p = _FocusStub(title="wispr-wrap-merge-sink")
+        self.assertFalse(p.verify_focus())
