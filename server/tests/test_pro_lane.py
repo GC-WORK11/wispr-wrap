@@ -156,3 +156,65 @@ class TestDictActionChain(unittest.TestCase):
             code, obj = wfd.teach_begin({"name": name})
             self.assertEqual(code, 400, (name, obj))
             self.assertIn("reserved", obj.get("error", ""))
+
+
+class TestModeDispatch(unittest.TestCase):
+    """Demo-critical split: a sign bound to a laptop action fires it in
+    Control mode and types its label in Text mode. Same match object,
+    only LIVE['text_mode']/['observe'] differ."""
+
+    class _M:
+        def __init__(self, gloss, label, action):
+            self.gloss, self.label, self.action = gloss, label, action
+            self.dist, self.accepted, self.tier = 0.01, True, 1
+            self.score, self.margin = 1.0, 1.5
+            self.second_gloss, self.reason = "OTHER", "ok"
+
+    class _Bank:
+        m = None
+        @classmethod
+        def match(cls, frames):
+            return cls.m
+
+    def _run(self, frames, **live):
+        import wfd
+        saved = {k: LIVEV for k, LIVEV in
+                 ((k, getattr(wfd, k)) for k in ("BANK", "OPS"))}
+        live_saved = dict(wfd.LIVE)
+        try:
+            wfd.BANK = self._Bank
+            wfd.OPS = None
+            wfd.LIVE.update(listening=True, observe=False,
+                            text_mode=False, last_accept=None,
+                            last_match=None, session="t")
+            wfd.LIVE.update(live)
+            return wfd._on_segment(frames, 12345)
+        finally:
+            for k, v in saved.items():
+                setattr(wfd, k, v)
+            wfd.LIVE.update(live_saved)
+
+    def setUp(self):
+        self._Bank.m = self._M("MY-SWITCH", "Switch app",
+                               {"kind": "builtin", "tool": "win.alt-tab"})
+        self.frames = [{"t_ms": 12000, "points": []},
+                       {"t_ms": 12200, "points": []}]
+
+    def test_text_mode_types_label_not_action(self):
+        res = self._run(self.frames, text_mode=True)
+        self.assertEqual(res["action"]["kind"], "text")
+        self.assertEqual(res["action"]["typed"], "Switch app")
+        self.assertTrue(res["action"]["dispatched"])
+
+    def test_control_mode_routes_to_provider(self):
+        res = self._run(self.frames, text_mode=False)
+        a = res["action"]
+        self.assertNotEqual(a.get("kind"), "text")
+        # no provider in the test env: the refusal proves the dispatch
+        # path was taken (routed attempt), not the text path.
+        self.assertIn("routed", a)
+
+    def test_observe_reports_never_fires(self):
+        res = self._run(self.frames, observe=True)
+        self.assertTrue(res["action"]["observe"])
+        self.assertTrue(res["action"]["would_fire"])
