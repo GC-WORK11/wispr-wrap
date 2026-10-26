@@ -31,10 +31,12 @@ sleep 1.5
 bash "$HERE/record.sh" start "09-altmax"
 
 # --- drop the glosses whose motions we're re-binding (identical training
-#     data is genuinely ambiguous — the matcher would pick the old sign) ---
-"${CURL[@]}" -X DELETE -H "X-WF-Key: $KEY" "$BASE/bank?gloss=OPEN-NOTES" >/dev/null
-"${CURL[@]}" -X DELETE -H "X-WF-Key: $KEY" "$BASE/bank?gloss=TYPE-HELLO" >/dev/null
-note "removed OPEN-NOTES + TYPE-HELLO so their motions bind to MAX-WIN/ALT-TAB"
+#     data is genuinely ambiguous — the matcher would pick the old sign).
+#     Also drop stale MAX-WIN/ALT-TAB so re-runs don't pile up exemplars. ---
+for g in OPEN-NOTES TYPE-HELLO MAX-WIN ALT-TAB; do
+    "${CURL[@]}" -X DELETE -H "X-WF-Key: $KEY" "$BASE/bank?gloss=$g" >/dev/null
+done
+note "removed OPEN-NOTES + TYPE-HELLO (+stale MAX-WIN/ALT-TAB)"
 
 # --- teach MAX-WIN (reuses the OPEN-NOTES teach clip — same kp path) ---------
 call POST /teach/begin '{"name":"MAX-WIN","takes":3,"label":"maximize window"}'
@@ -87,6 +89,10 @@ fi
 "${CURL[@]}" -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -c \
     'import json,sys; s=json.load(sys.stdin)
 print("last_match:", json.dumps(s.get("last_match") or {}))' | tee -a "$EVE"
+# --- leave the bank clean: our glosses collide with the demo's motions ------
+for g in MAX-WIN ALT-TAB; do
+    "${CURL[@]}" -X DELETE -H "X-WF-Key: $KEY" "$BASE/bank?gloss=$g" >/dev/null
+done
 bash "$HERE/record.sh" stop
 [ "$FAIL" -eq 0 ] && ok "altmax recorded" || bad "$FAIL checks failed"
 cp "$RUNLOG" "$PROOFS/09-altmax.log" 2>/dev/null || true
