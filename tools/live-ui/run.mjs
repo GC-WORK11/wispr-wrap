@@ -570,6 +570,13 @@ async function flowHands() {
     // 6) point at a fully visible video thumbnail, pinch: the video opens
     let t = findThumb(after);
     if (!t) { await sleep(2500); t = findThumb(xshot(path.join(RAW, 'hands-scroll-c.png'))); }
+    // results pages differ by day (a dark channel card can fill the first screen): keep
+    // scrolling with the finger, like a person would, until a whole video thumbnail shows
+    for (let i = 0; !t && i < 4; i++) {
+      await page.eval(`window.__play('slideUp'); window.__play('idle')`);
+      await sleep(2600);
+      t = findThumb(xshot(path.join(RAW, `hands-scroll-more-${i}.png`)));
+    }
     if (!t) throw new Error('no fully visible video thumbnail on the laptop screen');
     const target = camAt(t.x, t.y);
     await pointAndPinch(page, { x: .5, y: .5 }, target);
