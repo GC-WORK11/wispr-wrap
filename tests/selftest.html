@@ -118,7 +118,7 @@ async function main() {
   cmdRow.querySelector('.act-use').click();
   await until(() => !visible($('sheet-actions')) && !$('tw-save').disabled,
               'action bound + save enabled');
-  if (!$('tw-action').textContent.match(/laptop confirm/i))
+  if (!$('tw-action').textContent.match(/laptop confirm|yes on your laptop/i))
     throw new Error('tier-2 note missing: ' + $('tw-action').textContent);
   log('bound: run `notify-send hi` · tier 2 confirm shown');
   $('tw-save').click();

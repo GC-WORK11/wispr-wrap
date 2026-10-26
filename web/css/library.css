@@ -117,3 +117,20 @@
   .lib-name { font-size: 14px; }
   .lib-b { padding: 8px 12px; }
 }
+
+/* ---- v2 (founder spec): a flat list on paper. No cards, no capsule buttons,
+   no internal gloss chip. PEAK's pass so the page is clean until PRO's rewrite lands. ---- */
+#lib-list { gap: 0; }
+.lib-card { background: transparent; border: 0; border-top: 1px solid var(--hairline-2); border-radius: 0; box-shadow: none; padding: 18px 2px 12px; }
+#lib-list .lib-card:first-child { border-top: 0; }
+.lib-gl { display: none; }
+.lib-name { font-size: 19px; font-weight: 600; letter-spacing: -.02em; }
+.lib-top .chip { background: none; padding: 0; color: var(--muted); font-size: 14px; font-weight: 450; }
+.lib-act { margin-top: 3px; font-size: 14.5px; }
+.lib-row { border-top: 0; margin-top: 8px; padding-top: 0; gap: 2px; }
+.lib-b { border: 0; background: transparent; padding: 9px 12px; margin-left: -12px; margin-right: 4px; font-size: 14.5px; font-weight: 550; color: var(--ink-2); border-radius: 10px; }
+.lib-b:hover { background: var(--hairline-2); }
+.lib-b.danger { color: var(--danger); }
+.lib-b.btn-primary { background: var(--ink); color: #fff; margin-left: 0; }
+.lib-b.btn-primary:hover { background: #2b2b2b; }
+.lib-empty-g { background: var(--accent-soft); }

@@ -88,6 +88,9 @@ function renderStatus() {
     sub = nm + (state.focus ? ' · typing into ' + state.focus : '');
   }
   if (lapSub) lapSub.textContent = sub;
+  // spec: laptop features exist only while a laptop is connected; otherwise one "Connect your laptop" row
+  for (const id of ['tray-teach', 'tray-signs']) { const el = document.getElementById(id); if (el) el.hidden = !ok; }
+  const dc = document.getElementById('dr-connect'); if (dc) dc.hidden = ok;
   if (connHint) connHint.hidden = ok || !state.checked || !K;
   emit('statusbar', state);
 }
@@ -215,7 +218,7 @@ function toast(msg, isErr) {
   toastT = setTimeout(() => toastEl.classList.remove('show'), 2000);
 }
 
-const buzz = () => { try { navigator.vibrate && navigator.vibrate(18); } catch (e) {} };
+const buzz = () => { try { if (store.getItem('wf.haptics') !== '0') navigator.vibrate && navigator.vibrate(18); } catch (e) {} };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // ---------- shared keypoint envelope ----------
@@ -275,6 +278,7 @@ export const App = {
   api: { get: p => req('GET', p), post: (p, b, h) => req('POST', p, b, h), del: p => req('DELETE', p), put: (p, b) => req('PUT', p, b) },
   on, off, emit,
   state, renderStatus, pollState, pollEngine, pollStatus, connected, canAct,
+  connect: () => { showOnboarding(''); onbSkip.hidden = false; },
   route, nav, back, routes, parseHash,
   toast, buzz, sleep, raise,
   kpFrame,
@@ -386,6 +390,7 @@ document.getElementById('tray-live').onclick = () => nav(current === 'live' ? ''
 document.getElementById('tray-teach').onclick = go('teach');
 document.getElementById('tray-signs').onclick = go('signs');
 document.getElementById('dr-laptop').onclick = go('laptop');
+document.getElementById('dr-connect').onclick = () => { openDrawer(false); App.connect(); };
 document.getElementById('dr-settings').onclick = go('settings');
 if (connHint) connHint.onclick = () => nav('laptop');
 on('route', name => { openDrawer(false); document.body.classList.toggle('sheet-open', name !== ''); });
