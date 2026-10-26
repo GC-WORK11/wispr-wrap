@@ -41,17 +41,17 @@ try {
 
   /* ---------- (a) ready-made signs from GET /packs ---------- */
   await openTeach(page);
-  // ready-made signs are plain tiles in the same grid (Hello, I am Govinda); Namaste is the built-in pause
+  // ready-made signs are plain tiles in the same grid (Hello, Thank you); Namaste is the built-in pause
   await page.waitFor(`document.querySelectorAll('.qa-tile').length >= 15`, 12000, 'grid');
   await sleep(900);
   const tileNames = await page.eval(`[...document.querySelectorAll('.qa-tile .qa-l')].map(n => n.textContent)`);
-  check('Hello and I am Govinda are tiles from the real GET /packs', ['Hello', 'I am Govinda'].every(t => tileNames.includes(t)), tileNames.slice(-4).join(', '));
+  check('Hello and Thank you are tiles from the real GET /packs', ['Hello', 'Thank you'].every(t => tileNames.includes(t)), tileNames.slice(-4).join(', '));
   check('the start screen shows tile names and one button, nothing else',
     (await visibleText(page, '#sheet-teach')).every(isLabel), (await visibleText(page, '#sheet-teach')).filter(t => !isLabel(t)).join(' | '));
   await shotTo(page, OUT, '01-start');
 
   /* ---------- (b) full Teach: pick action -> 3 takes -> train -> done ---------- */
-  // pick the action with the one-tap grid: the "Type text" tile + the words (FOUNDER-SIMPLIFY-1433)
+  // pick the action with the one-tap grid: the "Type text" tile + the words (one-tap grid)
   await page.waitFor(`document.querySelectorAll('.qa-tile').length >= 15`, 10000, 'quick grid');
   await page.click('.qa-tile[data-id="type.text"]'); await sleep(400);
   await page.focus('#qa-text-in'); await page.type('hello-from-site'); await sleep(400);

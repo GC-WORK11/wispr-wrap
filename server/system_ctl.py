@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """system_ctl — deep-OS Linux system actions for the merged product.
 
-Founder addendum 17:04 ("go deep into the OS"): the @ picker's system set,
+The @ picker's system set,
 each with a REAL implementation plus honest capability detection — the box
 may not have the tool, in which case we say `not available` and name what
 would provide it, instead of faking a failure later at fire time.

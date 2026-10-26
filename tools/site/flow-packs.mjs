@@ -49,7 +49,7 @@ try {
   await loadClips(page, ['teach-TYPE-HELLO', 'perform-TYPE-HELLO', 'palm-hold', 'namaste', 'idle']);
   // the list is the laptop's own
   const packs = (((await api('GET', '/packs')).json || {}).packs) || [];
-  check('GET /packs lists Hello, Namaste, I am Govinda', ['Hello', 'Namaste', 'Thank you'].every(t => packs.some(p => p.title === t)), packs.map(p => p.title + ':' + p.state).join(', '));
+  check('GET /packs lists Hello, Namaste, Thank you', ['Hello', 'Namaste', 'Thank you'].every(t => packs.some(p => p.title === t)), packs.map(p => p.title + ':' + p.state).join(', '));
   // Hello
   const said = await teachPack('pack.hello', '01-hello');
   check('Hello: Ready names the action', /type .?hello/i.test(said), said);
@@ -68,8 +68,8 @@ try {
   await api('DELETE', '/bank?gloss=HELLO');
   const said2 = await teachPack('pack.thank-you', '02-thankyou');
   check('Thank you: Ready names the action', /Thank you/i.test(said2), said2);
-  await perform('I-AM-GOVINDA', 'I am Govinda');
-  await shotTo(page, OUT, '02-govinda-4-live');
+  await perform('THANK-YOU', 'Thank you');
+  await shotTo(page, OUT, '02-thankyou-4-live');
   // Namaste: built in, palms together pauses listening
   await api('POST', '/live/listen', { on: true }); await sleep(400);
   const was = ((await api('GET', '/live/state')).json || {}).listening;

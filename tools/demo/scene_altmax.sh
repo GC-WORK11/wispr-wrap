@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scene_altmax.sh — FOUNDER-SIMPLIFY-1433 demo chapter: a taught sign does
+# scene_altmax.sh — demo chapter: a taught sign does
 # a REAL laptop window action — maximize the focused window, and alt-tab
 # between windows — through the same teach -> perform -> OS-effect path.
 set -u

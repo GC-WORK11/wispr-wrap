@@ -197,7 +197,7 @@ async function run() {
     for (let i = 0; i < 80; i++) {
       const st = await page.eval(`(() => { const p = document.querySelector('#pill'); return { up: p.classList.contains('uploading'), f: parseFloat(p.style.getPropertyValue('--up')) }; })()`);
       if (st.up) sawLine = true;
-      if (st.up && st.f > 0.01 && st.f < 0.99) { sawProgress = true; sampled = Math.round(st.f * 100) + '%'; }   // founder 1652: no percent text, the line carries it
+      if (st.up && st.f > 0.01 && st.f < 0.99) { sawProgress = true; sampled = Math.round(st.f * 100) + '%'; }   // layout rule: no percent text, the line carries it
       if (sawProgress && sawLine) { await shot('09-upload-progress'); break; }
       await sleep(120);
     }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# verify_section_a — Founder spec section A, laptop side, on the real
+# verify_section_a — Spec section A, laptop side, on the real
 # X11 stack: the Go Live camera view POSTs semantic events to
 # /live/event and the laptop does REAL OS work:
 #   air-letter C  -> Google Chrome actually launches (app.open)

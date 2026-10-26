@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """signflow_ops — the session layer that makes a small taught vocabulary
-powerful instead of a macro toy (founder addendum 17:06).
+powerful instead of a macro toy (review note).
 
 Sits BETWEEN perception (endpointer -> signbank.match) and the act
 layer (act_iface / wfd routing).  signbank answers "which sign was

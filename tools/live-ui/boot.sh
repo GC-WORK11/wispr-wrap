@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# boot.sh — a private, real stack for the Go Live proofs (Kiro LIVE lane).
+# boot.sh — a private, real stack for the Go Live proofs (live lane).
 #
 #   Xvfb (own display, 1280x800) + xfwm4 (a real EWMH window manager)
 #   + a real editor window (Tk "Notes", WM_CLASS SinkEdit, buffer mirrored to a file)
@@ -19,7 +19,7 @@
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
-STATE="${LIVE_STATE:-/tmp/kiro-live}"
+STATE="${LIVE_STATE:-/tmp/wf-live}"
 SERVE="$STATE/serve"
 WFHOME="$STATE/home"
 mkdir -p "$STATE"
@@ -32,9 +32,9 @@ teardown() {
     # the laptop's Chrome was started by the daemon inside our scratch HOME; its
     # main process runs as /usr/bin/google-chrome-stable with our marker switch
     # (anchored, so this can never match a shell whose command line mentions it)
-    pkill -f "^/usr/bin/google-chrome-stable .*(--kiro-live-laptop|--remote-debugging-port=8962)" 2>/dev/null
+    pkill -f "^/usr/bin/google-chrome-stable .*(--wf-live-laptop|--remote-debugging-port=8962)" 2>/dev/null
     for _ in 1 2 3 4 5 6 7 8 9 10; do
-        pgrep -f "^/usr/bin/google-chrome-stable .*(--kiro-live-laptop|--remote-debugging-port=8962)" >/dev/null || break
+        pgrep -f "^/usr/bin/google-chrome-stable .*(--wf-live-laptop|--remote-debugging-port=8962)" >/dev/null || break
         sleep 0.3
     done
     for pidf in "$STATE"/pids.*; do
@@ -128,14 +128,14 @@ rm -rf "$WFHOME"; mkdir -p "$WFHOME"
 # a PATH-shadow wrapper keeps the daemon's real launch path (the .desktop Exec ->
 # `google-chrome` on PATH, and xdg-open for URLs). The profile is seeded like a
 # laptop where Chrome has been used before (no first-run / default-browser dialogs).
-# --kiro-live-laptop is an inert marker so teardown can find this Chrome. Nothing
+--wf-live-laptop is an inert marker so teardown can find this Chrome. Nothing
 # instruments it: the proofs read the laptop's screen and window titles only.
 BIN="$STATE/bin"; rm -rf "$BIN"; mkdir -p "$BIN"
 cat > "$BIN/google-chrome" <<'CHR'
 #!/bin/sh
 exec /usr/bin/google-chrome-stable --no-sandbox --no-first-run --no-default-browser-check \
   --disable-dev-shm-usage --password-store=basic --disable-features=Translate,DefaultBrowserPromptRefresh \
-  --start-maximized --lang=en-US --kiro-live-laptop "$@"
+  --start-maximized --lang=en-US --wf-live-laptop "$@"
 CHR
 chmod +x "$BIN/google-chrome"
 mkdir -p "$WFHOME/.config/google-chrome/Default" "$WFHOME/.local/share/applications"

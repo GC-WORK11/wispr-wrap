@@ -34,7 +34,7 @@ Semantics (honest, documented — the picker UI must show these):
   * Total timeout: deadline covers the WHOLE chain including wait/delay
     sleeps; on expiry remaining steps are "skipped" with error "timeout".
   * Focus guard: "type" and "keys" steps call provider.verify_focus()
-    BEFORE dispatching (founder demo-review: refuse rather than mistype
+    BEFORE dispatching (review note: refuse rather than mistype
     into the wrong window). A provider with no focus guard => step fails
     "focus-unverified" — we never type blind.
   * Results: per-step {i, step, label, ok, detail, ms} list — JSON-able,

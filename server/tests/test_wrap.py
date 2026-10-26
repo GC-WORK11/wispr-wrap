@@ -186,7 +186,7 @@ class TestDetachAndFootprint(unittest.TestCase):
                 if line.startswith("VmRSS"):
                     rss_kb = int(line.split()[1])
         mb = rss_kb / 1024
-        # write the measurement to proofs (founder wants it on record)
+        # write the measurement to proofs (kept on record)
         proofs = os.path.join(os.path.dirname(__file__), "..", "..",
                               "proofs", "daemon-footprint")
         os.makedirs(proofs, exist_ok=True)

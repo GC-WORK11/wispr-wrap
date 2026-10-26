@@ -37,7 +37,7 @@ const G = {
 };
 const glyph = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${G[name] || G.app}</svg>`;
 
-/* The 20 tiles, in the founder's order. id = the laptop's tool id (GET /act), label = 1-2 words,
+/* The 20 tiles, in the spec order. id = the laptop's tool id (GET /act), label = 1-2 words,
    alt = extra icon names to try when the theme lacks the row's own, say = "Your laptop will <say>". */
 const T = (id, label, g, say, o) => Object.assign({ id, label, g, say }, o || {});
 export const TILES = [

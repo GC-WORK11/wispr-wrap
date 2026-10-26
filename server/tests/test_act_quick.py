@@ -49,7 +49,7 @@ class TestQuickCatalog(unittest.TestCase):
             with self.subTest(aid=aid):
                 self.assertIn(aid, ids)
 
-    def test_founder_list_has_icon_label_tier(self):
+    def test_quick_list_has_icon_label_tier(self):
         rows = {r["id"]: r for r in
                 al.LinuxX11Provider(config_dir="/nonexistent")._tool_rows}
         for aid in QUICK:
@@ -213,7 +213,7 @@ class _FocusStub(ai.ActionProvider):
 
 class TestTypeAllowGuard(unittest.TestCase):
     """WF_TYPE_ALLOW pins guarded actions to a scratch window: stray
-    type/key ops can never land in a real terminal (chalk 19:19)."""
+    type/key ops can never land in a real terminal (review note)."""
 
     def setUp(self):
         self._old = os.environ.get("WF_TYPE_ALLOW")

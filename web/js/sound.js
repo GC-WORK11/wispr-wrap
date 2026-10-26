@@ -1,4 +1,4 @@
-// sound.js — a very small, tasteful sound design. No toggle (founder): five short synthesised
+// sound.js — a very small, tasteful sound design. No toggle: five short synthesised
 // tones, all quiet, none looping, nothing on load (browsers block that anyway). The phone's own
 // volume/silent switch is the mute. Tones are plain sine/triangle with a soft attack and a long
 // exponential release so they feel like a touch, not a notification.

@@ -1,4 +1,4 @@
-/* compose.css — the composer, matched to the founder's composer-target.jpg:
+/* compose.css — the composer, matched to the composer design reference:
    a round + , a white pill input, and a BLACK waveform button inside the pill
    at the right (Go Live). No mic icon (Wispr Flow does voice). When there is
    text or an attachment the waveform gives way to the send arrow, same slot,
@@ -6,7 +6,7 @@
 
 .stage { padding: 0 20px calc(var(--safe-b) + clamp(14px, 2.4dvh, 22px)); }
 
-.conn-hint {   /* founder 1652: no caption under the lotus — the wilted lotus and the drawer row carry it */
+.conn-hint {   /* layout rule: no caption under the lotus — the wilted lotus and the drawer row carry it */
   display: none !important;
   appearance: none; border: none; background: none; cursor: pointer;
   display: flex; align-items: center; gap: 8px; margin: 0 0 14px; padding: 6px 10px;

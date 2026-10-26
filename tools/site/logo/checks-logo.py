@@ -192,7 +192,7 @@ allpass = all(ok for _, ok, _ in results)
 print("\nSUMMARY:", "ALL PASS" if allpass else "SOME FAIL")
 # write RESULT.txt
 with open(os.path.join(PROOF, "RESULT.txt"), "w") as f:
-    f.write("Wispr Wrap — site logo proof (FOUNDER-COLOR-1658)\n")
+    f.write("Wispr Wrap — site logo proof (brand palette)\n")
     f.write("mark: glossy lotus-blob, viewBox 0 0 64 64: 1 blob path, 2 glints, 1 radial gradient (tools/site/logo/make-blob.py)\n\n")
     for name, ok, detail in results:
         f.write(f"{'PASS' if ok else 'FAIL'}  {name}  {detail}\n")

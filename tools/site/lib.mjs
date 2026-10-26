@@ -158,7 +158,7 @@ export function recorder(page, dir) {
 }
 
 // every string a person can actually SEE inside `rootSel` (visible, painted, not screen-reader-only) -------------
-// FOUNDER-RULE-1652: screens carry tile names and button names, never sentences.
+// Layout rule: screens carry tile names and button names, never sentences.
 export async function visibleText(page, rootSel) {
   return page.eval(`(() => {
     const root = document.querySelector(${JSON.stringify(rootSel)}); if (!root) return [];

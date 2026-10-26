@@ -1,6 +1,6 @@
 # The 5-minute judge path
 
-**clone → run → scan → teach a sign → sign it → an app opens.** No founder, no GPU,
+**clone → run → scan → teach a sign → sign it → an app opens.** No operator, no GPU,
 no model download beyond one vendored WASM. Total budget: under 5 minutes.
 
 Every step is stamped:
@@ -140,7 +140,7 @@ PENDING 2026-10-25. Failure modes when it lands:
 |---|---|---|
 | clone → daemon → QR | VERIFIED | this doc re-run on `2493c53`; smoke covers it |
 | pair (QR / code / usb) | VERIFIED | `tools/judge-smoke.sh` exercises `/pair` + `/pair-info` |
-| text / image / file → cursor | VERIFIED | shipped on `main`, daily-driven by the founder |
+| text / image / file → cursor | VERIFIED | shipped on `main`, in daily use |
 | teach wizard + bank write | PENDING | endpoints mid-merge; `judge-smoke` watches for them |
 | sign → action | PENDING | needs `/live/kp` + endpointer + matcher |
 | per-user taught-sign recall | UNMEASURED | will land in `BENCH.md` (eval lane) — no claim until then |
@@ -151,7 +151,7 @@ If any PENDING row is still 404 when you read this, the merge is in flight —
 
 ---
 
-## naming — proposals only, founder decides
+## naming — proposals
 
 "Wispr Wrap" is unofficial-bridge branding; the merged product is its own thing.
 Shortlist (no code renamed until a pick lands):
@@ -164,4 +164,4 @@ Shortlist (no code renamed until a pick lands):
 | **openpalm** | the listen gesture; warmer, least descriptive |
 
 `signwrap` is the least-confusing upgrade path (`wrap` → `signwrap`), `handflow`
-the strongest standalone brand. Founder picks; docs updated after the call.
+the strongest standalone brand. Pending decision; docs updated after the call.

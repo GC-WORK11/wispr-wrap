@@ -1,4 +1,4 @@
-// flow-quick.mjs — real-run proof for the simplified Teach start (FOUNDER-SIMPLIFY-1433) on the OVERLAY daemon.
+// flow-quick.mjs — real-run proof for the simplified Teach start (simplified Teach) on the OVERLAY daemon.
 // One tap on a tile -> Record -> 3 takes through the daemon's endpointer -> training -> Ready -> the sign fires
 // the real action (Enter and Type text land in the real SinkEdit editor). Hands are synthetic kp42 clips (labelled).
 import path from 'node:path';

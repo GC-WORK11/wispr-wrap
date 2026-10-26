@@ -1,6 +1,6 @@
 """packs.py — prefilled Teach packs.
 
-One tap installs a ready-made sign: hello and i-am-govinda bind the
+One tap installs a ready-made sign: hello and thank-you bind the
 word(s) they type at the laptop cursor; namaste is the reserved
 palms-together pause gesture the daemon already owns — shown for
 information, never bindable (teach refuses reserved glosses).

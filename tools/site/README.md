@@ -20,7 +20,7 @@ ONLY="tiles quick" bash tools/site/run-all.sh
 | `flow-offline.mjs` | the laptop is stopped for real: the grid is replaced by a laptop icon and one Connect button |
 | `logo/checks-logo.py` | the logo: one blob path + two glints + one gradient, crisp at 16/64/512, all PNG sizes, favicon.ico |
 
-## Rules these flows enforce (FOUNDER-RULE-1652)
+## Rules these flows enforce (layout rules)
 Screens carry tile names and button names, never sentences. `lib.mjs` has `visibleText(page, selector)` (every string
 a person can actually see) and `isLabel(s)` (at most four words, no sentence punctuation). Assistive-tech text lives in
 `.sr-only` elements (`role="status"` / `aria-label`) and is deliberately not visible.
