@@ -227,6 +227,8 @@ export function createHand(opts = {}) {
   // v/palm hold flags
   let vHeldFired = false;
   let palmHeldFired = false;
+  let palmRef = null;         // palm centre where the still hold began
+  let palmSince = 0;
 
   // browse / cursor
   let emaCur = null;          // EMA(0.35) cursor
@@ -234,6 +236,9 @@ export function createHand(opts = {}) {
   let frameTravel = 0;        // accumulated vertical travel toward next notch
   let lastScrollAt = -1e9;
   let scrollingUntil = -1e9;
+
+  // write mode: a pinch means "I want to point" (it never clicks there)
+  let wPinchArmed = false;
 
   // click / dwell
   let pinchArmed = false;     // pinch was above 0.5
@@ -252,12 +257,18 @@ export function createHand(opts = {}) {
     lastScrollAt = -1e9; scrollingUntil = -1e9;
     pinchArmed = false; lastClickAt = -1e9;
     dwellRef = null; dwellSince = 0; dwellActive = false; dwellMovedSinceClick = true;
+    wPinchArmed = false; palmRef = null; palmSince = 0;
   }
 
   function endStroke(events) {
     writing = false;
     const pts = stroke.slice();
     events.push({ type: 'stroke-end', points: pts });
+    if (pathLength(pts) < 0.08) {          // not a letter attempt: no "try again"
+      events.push({ type: 'stroke-cancel', points: pts });
+      stroke = []; pointAnchor = null; stillRef = null; stillSince = 0;
+      return;
+    }
     const r = recognize(pts);
     if (r.letter) {
       events.push({ type: 'letter', letter: r.letter, score: r.score, points: pts });
@@ -313,6 +324,14 @@ export function createHand(opts = {}) {
       events.push({ type: 'vsign' });
     }
     if (engine.mode === 'write') {
+      // pinch: switch to pointing (the click gesture only clicks once pointing)
+      if (hasHand) {
+        if (c.pinch > 0.5 && (stablePose === 'point' || stablePose === 'other' || stablePose === 'palm')) wPinchArmed = true;
+        if (wPinchArmed && stablePose === 'pinch') {
+          wPinchArmed = false;
+          events.push({ type: 'pinch' });
+        }
+      }
 
       // stroke lifecycle
       if (!writing) {
@@ -444,10 +463,15 @@ export function createHand(opts = {}) {
     // =====================================================================
     // PALM (any mode)
     // =====================================================================
-    if (stablePose === 'palm' && !palmHeldFired && tMs - stableSince >= 500) {
-      palmHeldFired = true;
-      events.push({ type: 'palm' });
-    }
+    if (stablePose === 'palm' && hasHand) {
+      const pc = { x: (lm[0].x + lm[5].x + lm[9].x + lm[13].x + lm[17].x) / 5,
+                   y: (lm[0].y + lm[5].y + lm[9].y + lm[13].y + lm[17].y) / 5 };
+      if (!palmRef || dist(pc, palmRef) > 0.03) { palmRef = pc; palmSince = tMs; }
+      else if (!palmHeldFired && tMs - palmSince >= 600) {
+        palmHeldFired = true;
+        events.push({ type: 'palm' });
+      }
+    } else { palmRef = null; }
 
     return events;
   }
