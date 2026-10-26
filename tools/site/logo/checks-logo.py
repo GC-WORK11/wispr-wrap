@@ -44,6 +44,16 @@ check("glint strokes are >= 2 units (they hold at 16px)", bool(widths) and all(w
 stops = set(c.upper() for c in re.findall(r'stop-color="(#[0-9A-Fa-f]{6})"', svg_txt))
 check("pink family only (gradient stops)", stops <= {"#FF4CA8", "#FF309C", "#E02085"}, str(sorted(stops)))
 
+# ---- 2b. the purple and black variants (same drawing, other palette) ----
+for name, want in (("icon-purple.svg", {"#A678FF", "#9259FE", "#7B47EA"}), ("icon-black.svg", {"#2E2E33", "#0A0A0A", "#000000"})):
+    t = open(os.path.join(WEB, name)).read()
+    try:
+        ET.fromstring(t); ok = True
+    except Exception:
+        ok = False
+    st = set(c.upper() for c in re.findall(r'stop-color="(#[0-9A-Fa-f]{6})"', t))
+    check(f"{name}: valid SVG, 1 blob + 2 glints, its own palette", ok and len(re.findall(r"<path\b", t)) == 3 and st == want, str(sorted(st)))
+
 # ---- 3. mark fills 80-92% of viewBox (alpha coverage of bbox span) ----
 def bbox_alpha(path):
     im = Image.open(path).convert("RGBA")
