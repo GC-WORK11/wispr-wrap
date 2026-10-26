@@ -191,6 +191,19 @@ class WfdCase(unittest.TestCase):
         self.assertEqual(self.req("GET", "/health", auth=False)[0], 200,
                          "daemon died after oversized body")
 
+    def test_live_control_body_cap_413(self):
+        # these three authed JSON routes have no payload worth 16 KB; they
+        # must not fall through to MAX_BODY (256 MB) and allocate it.
+        for path in ("/live/mode", "/live/event", "/live/listen"):
+            with self.subTest(route=path):
+                self.need("POST", path)
+                status, _, _ = self.req("POST", path,
+                                        body=b"x" * (16 * 1024 + 1))
+                self.assertEqual(status, 413,
+                                 "oversized %s was not rejected" % path)
+        self.assertEqual(self.req("GET", "/health", auth=False)[0], 200,
+                         "daemon died after oversized control bodies")
+
     @unittest.expectedFailure   # known bug (PRD §2.1): unbounded request body
     def test_send_body_cap_413(self):
         try:
