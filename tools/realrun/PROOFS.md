@@ -1,4 +1,4 @@
-# PROOFS — the realrun gate (review gate)
+# PROOFS — the realrun gate
 
 A feature counts ONLY when it works end to end on a real run, a real OS
 effect is observed, and the proof is recorded + reproducible. Green unit

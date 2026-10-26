@@ -1,4 +1,4 @@
-// flow-air.mjs — §A proof (PRO lane): on the merged build, real daemon,
+// flow-air.mjs — §A proof: on the merged build, real daemon,
 // real Chrome @390x844, real X11:
 //   air-written C -> Chrome opens        (UI pose -> /live/event {type:'air'})
 //   air-written V -> YouTube opens
@@ -9,7 +9,7 @@
 //   SITE_ENV=<env> node --experimental-websocket tools/pro/flow-air.mjs
 
 import path from 'node:path';
-import { stack, newPage, loadClips, playAndWait, shotTo, reporter, daemon, sleep, root } from '../site/lib.mjs';
+import { stack, newPage, loadClips, playAndWait, shotTo, reporter, daemon, sleep, root } from './lib.mjs';
 import { execFileSync as sh } from 'node:child_process';
 import fs from 'node:fs';
 

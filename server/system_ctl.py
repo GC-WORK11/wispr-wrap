@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """system_ctl — deep-OS Linux system actions for the merged product.
 
-The @ picker's system set,
-each with a REAL implementation plus honest capability detection — the box
-may not have the tool, in which case we say `not available` and name what
-would provide it, instead of faking a failure later at fire time.
+The @ picker's system set, each with a REAL implementation plus honest
+capability detection — the box may not have the tool, in which case we say
+`not available` and name what would provide it, instead of faking a failure
+later at fire time.
 
 Implements the sys/media/net/clip kinds of the /act catalog
 (ops/APP_API_CONTRACT.md v2):
@@ -25,7 +25,7 @@ timeout=5; stderr is captured into ActionResult.detail so a failed action
 says WHY. Wayland is detected via XDG_SESSION_TYPE and each X11-bound action
 carries the warning in its note/detail rather than failing silently.
 
-The ActionProvider contract (server/act_iface.py, W9's lane — imported
+The ActionProvider contract (server/act_iface.py — imported
 guarded so this module works standalone and in tests):
     run(action, ctx) -> ActionResult(ok, detail, tier, confirm_id)
     TIERS = {0,1,2}; tier>=2 confirm + first-seen-argv ledger live in the
@@ -40,7 +40,7 @@ import shutil
 import subprocess
 import time
 
-try:                       # W9's lane lands concurrently — code against it
+try:                       # act_iface may not be importable standalone
     from act_iface import ActionResult, TIERS
 except ImportError:        # standalone fallback, same field contract
     TIERS = frozenset((0, 1, 2))

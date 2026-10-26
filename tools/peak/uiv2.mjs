@@ -1,4 +1,4 @@
-// uiv2.mjs — 390x844 proof shots of the spec UI (original wispr-wrap
+// uiv2.mjs — 390x844 proof shots of the target UI (original wispr-wrap
 // lotus home, composer, drawer, Go Live Text/Control, Teach), in a real
 // headless Chrome against the real daemon. Real camera device (Chrome fake
 // device), real MediaPipe; hand points from the app's own test seam.
@@ -43,6 +43,9 @@ try {
     await page.type('Hey, can you send me the build when it is ready?');
     await sleep(600);
     await shot('03-composer-with-text');
+    await page.click('#plus'); await sleep(450);
+    await shot('04-attach-menu');
+    await page.esc(); await sleep(200);
   }
   if (sets.includes('drawer')) {
     await phone();
@@ -102,18 +105,6 @@ try {
     await sleep(500);
     await page.click('#go');
     for (const [n, ms] of [['0.25s', 250], ['0.7s', 450], ['1.3s', 600]]) { await sleep(ms); await shot('16-send-burst-' + n); }
-  }
-  if (sets.includes('pages')) {
-    await phone();
-    await page.goto(S.base + '/?k=' + S.KEY, { settle: 1500 });
-    await page.click('#menu'); await sleep(600); await page.click('#dr-laptop'); await sleep(900);
-    await shot('17-connected-laptop');
-    await page.click('[data-close]').catch(() => {}); await sleep(500);
-    await page.eval(`location.hash = '#/settings'`); await sleep(900);
-    await shot('18-settings');
-    await page.eval(`location.hash = '#/signs'`); await sleep(1200);
-    await shot('19-my-signs');
-    console.log('signs-page errors:', JSON.stringify(page.errors.slice(0, 4)));
   }
   if (sets.includes('offline')) {
     // the laptop is unreachable: block /health so the app sees it as offline

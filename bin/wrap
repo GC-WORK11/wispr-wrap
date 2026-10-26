@@ -1,6 +1,7 @@
 #!/bin/bash
-# wrap — Flow Composer: phone -> laptop typing bridge
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# wrap — Sign-Flow: phone -> laptop input bridge
+SELF="$(readlink -f "$0")"
+ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
 PORT="${WF_PORT:-8741}"
 PIDFILE="$ROOT/wfd.pid"
 LOG="$ROOT/wfd.log"

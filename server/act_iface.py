@@ -81,8 +81,8 @@ APPROVED_PATH = os.path.expanduser("~/.config/wf/approved.json")
 
 # Contract tool ids (APP_API_CONTRACT v2) -> canonical type + fixed args.
 # Rows whose types act_linux does NOT implement are for the system_ctl lane —
-# they normalize fine and fail honestly ("unknown action type") until W10
-# registers a handler for them.
+# they normalize fine and fail honestly ("unknown action type") until the
+# provider registers a handler for them.
 TOOL_MAP = {
     "app.open": ("open_app", {}),
     "app.focus": ("focus_app", {}),

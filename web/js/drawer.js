@@ -1,12 +1,12 @@
-// drawer.js — sidebar gating: laptop-only controls shown only when paired.
-// PEAK owns the drawer frame (#drawer, #menu, #scrim, row markup) and
-// App.drawer. This module only decides what the rows MEAN right now:
+// drawer.js — sidebar gating.
+// The drawer frame (#drawer, #menu, #scrim, row markup) and App.drawer
+// live elsewhere; this module only decides what the rows MEAN right now:
 // nothing laptop-powered is offered while no laptop is connected —
 // the sidebar leads with one simple "Connect your laptop" row instead.
 import { App } from './app.js';
 
 const nav = App.drawer && App.drawer.nav;
-if (nav && !document.getElementById('dr-connect')) {   // PEAK's frame already has the single "Connect your laptop" row
+if (nav) {
   // the connect call-to-action — inserted above the nav rows, only while
   // the laptop link is down. Tapping it opens the Laptop page, which
   // carries the code entry.
@@ -16,7 +16,8 @@ if (nav && !document.getElementById('dr-connect')) {   // PEAK's frame already h
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
     'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
     '<rect x="4" y="5" width="16" height="11" rx="2"/><path d="M2 19h20"/></svg>' +
-    '<span class="dr-t">Connect your laptop</span>';
+    '<span class="dr-t">Connect your laptop' +
+    '<span class="dr-sub">It shows you a short code</span></span>';
   cta.onclick = () => { App.drawer.close(); App.nav('laptop'); };
 
   const teach = document.getElementById('tray-teach');

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run_all.sh — the orchestrated, recorded Wispr Wrap demo.
+# run_all.sh — the orchestrated, recorded Sign-Flow demo.
 #
 # What the recording shows (all REAL, only the camera is replaced):
 #   chrome on :97 runs the real composer; its kp42 source is the replay

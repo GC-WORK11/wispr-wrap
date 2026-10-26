@@ -3,7 +3,7 @@
 
 Identical trajectory sets are pushed through BOTH
 
-  (a) server/signbank.py        — the shipping pure-Python DTW bank (W1),
+  (a) server/signbank.py        — the shipping pure-Python DTW bank,
       via tools/e2e-live/bank_adapter.py's contract resolver, and
   (b) tools/e2e-live/refmatch.py — an independent re-implementation of
       the matcher.rs semantics (resample-32, banded DTW band=4 with the
@@ -162,7 +162,7 @@ class Parity(unittest.TestCase):
         if handle is None:
             raise unittest.SkipTest(
                 f"server/signbank.py not importable ({detail}) — parity "
-                f"suite parked until W1 lands. Reference port itself is "
+                f"suite parked until the bank lands. Reference port itself is "
                 f"exercised by tools/e2e-live/refmatch.py self-test.")
         cls.impl = handle
         cls.mod = handle.mod

@@ -1,7 +1,7 @@
 {
-  "name": "Wispr Wrap",
-  "short_name": "Wispr Wrap",
-  "description": "Dictate on your phone, type at your laptop cursor.",
+  "name": "Sign-Flow",
+  "short_name": "Sign-Flow",
+  "description": "Compose or sign on your phone; it lands at your laptop cursor.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

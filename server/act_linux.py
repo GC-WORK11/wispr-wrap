@@ -1267,7 +1267,7 @@ class LinuxX11Provider(ActionProvider):
             return ActionResult.done(f"keys: {keys}")
         return ActionPlan(fn, describe=f"press keys {keys}", guarded=True)
 
-    # -- quick actions -------------------------------------------
+    # -- quick actions -------------------------------------------------------
     # Non-destructive by design: alt-tab cycles focus, minimize hides a
     # window, show-desktop toggles the WM desktop view, scroll is wheel
     # clicks. Close is deliberately absent here — the existing

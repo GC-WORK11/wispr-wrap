@@ -2,7 +2,7 @@
 """macro — chained action steps for the merged product (contract v2,
 ops/APP_API_CONTRACT.md: kind:"macro" bound actions on bank rows).
 
-The @ picker (Devin PRO's lane) stores a step list on a bank entry; at fire
+The @ picker stores a step list on a bank entry; at fire
 time the daemon calls run_macro(steps, provider). Steps execute SERIALLY
 through the ActionProvider contract — every spawn is argv-only inside the
 provider layer; macro.py itself never spawns.
@@ -34,7 +34,7 @@ Semantics (honest, documented — the picker UI must show these):
   * Total timeout: deadline covers the WHOLE chain including wait/delay
     sleeps; on expiry remaining steps are "skipped" with error "timeout".
   * Focus guard: "type" and "keys" steps call provider.verify_focus()
-    BEFORE dispatching (review note: refuse rather than mistype
+    BEFORE dispatching (refuse rather than mistype
     into the wrong window). A provider with no focus guard => step fails
     "focus-unverified" — we never type blind.
   * Results: per-step {i, step, label, ok, detail, ms} list — JSON-able,

@@ -203,7 +203,7 @@ class _FocusStub(ai.ActionProvider):
     """A provider whose focused window is whatever the test sets."""
 
     def __init__(self, wm_class="Xfce4-terminal", instance="xfce4-terminal",
-                 title="editor — notes"):
+                 title="agent terminal"):
         self._f = ai.FocusInfo(wid=1, wm_class=wm_class,
                                instance=instance, title=title, pid=1)
 
@@ -212,8 +212,8 @@ class _FocusStub(ai.ActionProvider):
 
 
 class TestTypeAllowGuard(unittest.TestCase):
-    """WF_TYPE_ALLOW pins guarded actions to a scratch window: stray
-    type/key ops can never land in a real terminal (review note)."""
+    """WF_TYPE_ALLOW pins guarded actions to a scratch window: guarded
+    ops can never land in a foreign window."""
 
     def setUp(self):
         self._old = os.environ.get("WF_TYPE_ALLOW")
@@ -225,13 +225,13 @@ class TestTypeAllowGuard(unittest.TestCase):
             os.environ["WF_TYPE_ALLOW"] = self._old
 
     def test_allowlist_refuses_agent_terminal(self):
-        os.environ["WF_TYPE_ALLOW"] = r"wispr-wrap-merge-(sink|term)"
-        p = _FocusStub(title="editor — notes")
+        os.environ["WF_TYPE_ALLOW"] = r"signflow-(sink|term)"
+        p = _FocusStub(title="agent terminal")
         self.assertFalse(p.verify_focus())
 
     def test_allowlist_passes_scratch_sink_title(self):
-        os.environ["WF_TYPE_ALLOW"] = r"wispr-wrap-merge-(sink|term)"
-        p = _FocusStub(title="wispr-wrap-merge-sink")
+        os.environ["WF_TYPE_ALLOW"] = r"signflow-(sink|term)"
+        p = _FocusStub(title="signflow-sink")
         self.assertTrue(p.verify_focus())
 
     def test_allowlist_matches_class_or_instance_too(self):
@@ -241,7 +241,7 @@ class TestTypeAllowGuard(unittest.TestCase):
 
     def test_unset_allow_behaves_as_before(self):
         os.environ.pop("WF_TYPE_ALLOW", None)
-        p = _FocusStub(title="editor — notes")
+        p = _FocusStub(title="agent terminal")
         self.assertTrue(p.verify_focus())
 
     def test_title_only_window_matches_allowlist(self):
@@ -254,5 +254,5 @@ class TestTypeAllowGuard(unittest.TestCase):
 
     def test_bad_pattern_refuses_safe(self):
         os.environ["WF_TYPE_ALLOW"] = r"(["
-        p = _FocusStub(title="wispr-wrap-merge-sink")
+        p = _FocusStub(title="signflow-sink")
         self.assertFalse(p.verify_focus())

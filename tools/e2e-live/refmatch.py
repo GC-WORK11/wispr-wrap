@@ -376,7 +376,7 @@ class RefBank:
 # ---------------------------------------------------------------------------
 # kp42 frame -> dominant-hand centroid path.
 #
-# Mirrors W1 server/signbank.py's frame ingestion (_frame_hands/_hand_obs):
+# Mirrors server/signbank.py's frame ingestion (_frame_hands/_hand_obs):
 # score-weighted centroid of confident keys (>= min_score, need min_keys),
 # dominant hand = the one observed in MORE frames (tie -> right block).
 # The reference shares this rule so "identical inputs" in the parity test

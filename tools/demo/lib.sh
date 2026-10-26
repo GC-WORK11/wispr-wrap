@@ -159,10 +159,10 @@ chrome_wid() {
     cp=$(cat "$DEMO_STATE/pids.chrome" 2>/dev/null)
     if [ -n "$cp" ]; then
         for w in $(DISPLAY="$D" xdotool search --pid "$cp" 2>/dev/null); do
-            DISPLAY="$D" xdotool getwindowname "$w" 2>/dev/null | grep -q "Wispr Wrap" && { echo "$w"; return 0; }
+            DISPLAY="$D" xdotool getwindowname "$w" 2>/dev/null | grep -qE "Sign-Flow|Wispr Wrap" && { echo "$w"; return 0; }
         done
     fi
-    DISPLAY="$D" xdotool search --name "Wispr Wrap" 2>/dev/null | tail -1
+    DISPLAY="$D" xdotool search --name "Sign-Flow|Wispr Wrap" 2>/dev/null | tail -1
 }
 chrome_nav() { # chrome_nav '#/live' — same-doc hash nav (no reload)
     local frag="$1" wid

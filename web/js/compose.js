@@ -3,7 +3,7 @@
 //   POST /send        {text, mode:'type'}        -> {ok, into}
 //   POST /send-image  blob (sniffed)             -> {ok, into, mime, kb}
 //   POST /send-file   blob + X-File-Name         -> {ok, into, path, mb}
-// Layout per the spec: round + , white pill, black waveform (Go Live)
+// Layout per the target design: round + , white pill, black waveform (Go Live)
 // that turns into the send arrow when there is something to send. No mic.
 // The lotus (flower.js) reacts: it charges while you type and bursts on send.
 import { App } from './app.js';
@@ -35,16 +35,7 @@ function app(into) {
 }
 
 /* ---------- growing, reviewable input ---------- */
-const act = $('act'), liveBtn = $('tray-live');
-function updateReady() {
-  const ready = !!box.value.trim() || !!staged;
-  if (ready === pill.classList.contains('ready')) return;
-  pill.classList.toggle('ready', ready);
-  go.tabIndex = ready ? 0 : -1; liveBtn.tabIndex = ready ? -1 : 0;
-  go.setAttribute('aria-hidden', ready ? 'false' : 'true'); liveBtn.setAttribute('aria-hidden', ready ? 'true' : 'false');
-  act.classList.remove('act-popping'); void act.offsetWidth; act.classList.add('act-popping');             // a small spring on every change
-  clearTimeout(updateReady.t); updateReady.t = setTimeout(() => act.classList.remove('act-popping'), 480);
-}
+function updateReady() { pill.classList.toggle('ready', !!box.value.trim() || !!staged); }
 function grow() {
   box.style.height = 'auto';
   box.style.height = Math.min(box.scrollHeight, 150) + 'px';
@@ -67,7 +58,7 @@ function stageFile(blob, name) {
   } else {
     thumb.style.display = 'none'; vthumb.style.display = 'none';
   }
-  aname.textContent = (staged.isVideo || (blob.type || '').startsWith('image/')) ? '' : staged.name;   // the thumbnail says it; a file shows only its name
+  aname.textContent = staged.name + ' · ' + fmtSize(blob.size);
   attach.hidden = false;
   grow(); App.buzz(); Flower.poke(.5);
 }
@@ -77,7 +68,7 @@ function clearStaged() {
   thumb.removeAttribute('src'); vthumb.removeAttribute('src'); vthumb.load && vthumb.load();
   grow();
 }
-unattach.onclick = () => { if (sending && uploadAbort) cancelUpload('Upload cancelled'); clearStaged(); box.focus(); };
+unattach.onclick = () => { clearStaged(); box.focus(); };
 
 /* + opens a small picker: photo/video vs any file (two real inputs exist) */
 let menu = null;
@@ -103,7 +94,7 @@ function attachMenu() {
     } else if (!menu) document.removeEventListener('pointerdown', h);
   }), 0);
 }
-plus.onclick = () => fileany.click();          // one tap: the system picker offers photos, videos and files
+plus.onclick = attachMenu;
 addEventListener('keydown', e => { if (e.key === 'Escape' && menu) closeMenu(); });
 file.onchange = () => { const f = file.files[0]; if (f) stageFile(f, f.name); file.value = ''; };
 fileany.onchange = () => { const f = fileany.files[0]; if (f) stageFile(f, f.name); fileany.value = ''; };
@@ -153,27 +144,8 @@ async function squeeze(blob) {
 
 /* ---------- send ---------- */
 let sending = false;
-let uploadAbort = null;          // active upload's AbortController (null when idle)
-/* thin 2px deep-pink progress line along the bottom edge of the pill */
-function setProgress(frac) {
-  if (frac == null) { pill.classList.remove('uploading'); pill.style.removeProperty('--up'); return; }
-  pill.classList.add('uploading');
-  pill.style.setProperty('--up', Math.max(0, Math.min(1, frac)));
-}
-function cancelUpload(reason) {
-  if (!uploadAbort) return false;
-  const a = uploadAbort; uploadAbort = null;
-  try { a.abort(); } catch (e) {}
-  setProgress(null);
-  App.toast(reason || 'Upload cancelled');
-  return true;
-}
 async function send() {
-  if (sending) {
-    // a second tap while uploading means "stop sending this"
-    if (cancelUpload('Upload cancelled')) return;
-    return;
-  }
+  if (sending) return;
   const text = box.value;
   if (!text.trim() && !staged) return;
   sending = true; go.disabled = true;
@@ -182,35 +154,23 @@ async function send() {
     if (staged) {
       const st = staged;
       const isImg = (st.blob.type || '').startsWith('image/');
-      const noun = st.isVideo ? 'video' : isImg ? 'image' : 'file';
+      App.toast(st.isVideo ? 'Sending video…' : isImg ? 'Sending image…' : 'Sending file…');
       const t0 = performance.now();
       try {
         let r;
-        uploadAbort = new AbortController();
-        go.disabled = false;         // keep the arrow live so a second tap cancels the upload
-        const sizeMB = st.blob.size / 1048576;
-        const onProg = (frac) => {
-          setProgress(frac);
-        };
-        App.toast('Sending');
-        setProgress(0);
         if (st.isVideo || !isImg) {
-          r = await App.api.upload('/send-file', st.blob,
+          r = await App.api.post('/send-file', st.blob,
             { 'Content-Type': st.blob.type || 'application/octet-stream',
-              'X-File-Name': encodeURIComponent(st.name) }, onProg, uploadAbort.signal);
+              'X-File-Name': encodeURIComponent(st.name) });
         } else {
           const b = await squeeze(st.blob);
-          r = await App.api.upload('/send-image', b,
-            { 'Content-Type': b.type || 'application/octet-stream' }, onProg, uploadAbort.signal);
+          r = await App.api.post('/send-image', b,
+            { 'Content-Type': b.type || 'application/octet-stream' });
         }
-        uploadAbort = null; setProgress(null);
-        if (r.aborted) { sending = false; go.disabled = false; return; }  // cancelUpload already spoke
         imgOk = r.ok; into = r.json && r.json.into; ms = performance.now() - t0;
         if (imgOk) { clearStaged(); await App.sleep(450); }
-        else if (r.status === 0) App.toast(sizeMB > 15 ? 'That file is too big to send right now.' : 'Can’t reach your laptop.', true);
-        else if (r.status === 413) App.toast('That file is too big to send.', true);
         else App.toast(App.daemonErr(r, 'Couldn’t send. Try again.'), true);
-      } catch (e) { uploadAbort = null; setProgress(null); App.toast('Can’t reach your laptop.', true); }
+      } catch (e) { App.toast('Can’t reach your laptop.', true); }
     }
     if (text.trim()) {
       const t0 = performance.now();
@@ -226,7 +186,7 @@ async function send() {
       const kind = imgOk && txtOk ? 'Text and file' : imgOk ? 'File' : 'Text';
       App.state.lastSend = { t_ms: Date.now(), ok: true, into, kind };
       App.renderStatus();
-      App.toast('Sent');
+      App.toast(kind + ' → ' + app(into) + ' · ' + secs(ms));
       Flower.burst(); App.buzz();
     } else if (!imgOk && !txtOk && !document.querySelector('.toast.err.show')) {
       App.toast('Couldn’t send. Try again.', true);

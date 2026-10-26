@@ -16,35 +16,38 @@ Read this before judging. Everything here is a real, current limit — not a hed
 - **Headless/SSH:** the daemon serves and pairs fine headless; nothing can be
   *typed* without a display. Doctor flags it.
 
-## live sign lane (landing on `devin/live-merge`)
+## live sign lane
 
 - **Camera needs a secure context.** Phone browsers refuse `getUserMedia` on
   `http://<lan-ip>`. Live mode over LAN will not open the camera — use USB
   (`wrap bridge` → `http://localhost:8741`, which browsers trust) or
   `wrap tunnel` (https). Text/media sending is unaffected.
 - **Phone-camera ergonomics.** A held phone sees one hand — one-handed vocab
-  only, or put the phone on a stand. Two-handed signing is the laptop-webcam
-  path (optional Rust engine); that's exactly why both paths exist.
+  only, or put the phone on a stand. Two-handed signing is a laptop-webcam
+  path that does not ship in this build; that's why the phone path exists.
 - **Phone keypoints are hands-only.** ~21 points at ~15–30 fps, no body channel.
-  The endpointer and bank thresholds were tuned on whole-body kp53 — accuracy on
-  phone-rate hand keypoints is **UNMEASURED** until the eval lane reports in
-  `BENCH.md`.
-- **Per-user taught-bank recall/precision: UNMEASURED.** The mechanism is proven
-  (teach → exemplar → DTW match fires in the Rust app today); nobody has yet
-  measured recall for a user's own taught signs on held-out takes. The number
-  gets published in `BENCH.md` before any claim is made.
-- **Open-set false accepts: UNMEASURED.** "Everyday motion doesn't fire actions"
-  is a measured gate (false accepts/hour), not a launch slogan.
+  The endpointer and bank thresholds were tuned on whole-body keypoints —
+  measured numbers exist for a synthetic-motion sensor (`BENCH.md` §1–2);
+  accuracy on a human hand on a real camera is **not yet measured**.
+- **Per-user taught-bank recall/precision: measured on synthetic motion only.**
+  `BENCH.md` §1 reports it (best operating point ~95% answer at 15–22.5%
+  wrong at the default threshold — **NOT MET** vs the target bar). No
+  human-camera measurement exists yet; treat real-world recall as open.
+- **Open-set false accepts: measured on synthetic motion, NOT MET.** At the
+  shipped default threshold, simulated desk motion fires ~1 routed action
+  per 3.4 s (`BENCH.md` §2). "Everyday motion doesn't fire actions" is a
+  measured gate (false accepts/hour), not a launch slogan.
 - **One user per bank.** `~/.config/wf/signbank.json` is per-user, per-machine.
   No multi-user switching, no sync, no cloud backup — export = copy the file.
 
 ## sign-to-text lane
 
 - The CTC sign-to-text engine works but needs **~30 min of GPU enrollment per
-  user** — it is an advanced lane, not part of the self-serve judge path.
-- **No research weights ship in this repo.** Models trained on research datasets
-  stay private pending license review; the public build is code +
-  DTW matcher + the training recipe. Nothing dataset-derived is committed.
+  user** — it is an advanced lane, not part of the self-serve path.
+- **No research weights ship in this repo.** Research-trained models and
+  dataset weights stay private (license restrictions); the public build
+  ships code + the DTW matcher + recorded sign examples only. Nothing
+  dataset-derived is committed.
 
 ## transport & security
 

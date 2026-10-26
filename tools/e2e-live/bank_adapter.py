@@ -6,7 +6,7 @@ shipped to the contract the e2e lane tests against:
     bank.add(gloss, points2d)       (teach an exemplar, >=8 raw points)
     bank.match(points2d) -> MatchResult(gloss, dist, accepted, ...)
 
-The mission names that contract; until W1 lands, this module resolves it
+The mission names that contract; until the bank lands, this module resolves it
 by duck-typing across the plausible spellings so the parity suite and
 the replay harness keep working without edits. If signbank.py is
 absent, load_signbank() returns None -> callers SKIP cleanly. If it
@@ -117,7 +117,7 @@ def _normalize_result(res, reject_threshold):
 
 
 class BankHandle:
-    """Uniform face over however W1 shaped the bank. Construction tries
+    """Uniform face over however the bank is shaped. Construction tries
     the class spellings then module-level loaders."""
 
     def __init__(self, mod, path=None, reject_threshold=None):
@@ -214,5 +214,5 @@ def try_load(path=None, reject_threshold=None):
     """-> (BankHandle|None, detail). None only when the module is absent."""
     mod = load_signbank()
     if mod is None:
-        return None, "server/signbank.py not present (W1 in-flight)"
+        return None, "server/signbank.py not present (in-flight)"
     return BankHandle(mod, path=path, reject_threshold=reject_threshold), "ok"

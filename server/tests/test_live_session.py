@@ -1,5 +1,4 @@
-"""Regression tests for the live-session bugs found on the real stack
-(Devin PRO 06:4x IST):
+"""Regression tests for the live-session bugs found on the real stack:
 
   * a foreign /live/kp session used to live_reset() and silently cancel
     an in-progress teach — teach is now owned by a session and foreign

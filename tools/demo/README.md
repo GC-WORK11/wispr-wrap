@@ -1,4 +1,4 @@
-# tools/demo — the recorded Wispr Wrap demo (replayed keypoints)
+# tools/demo — the recorded Sign-Flow demo (replayed keypoints)
 
 This lane produces the honest, reproducible screen-capture demo: the **real
 shipped live-sign pipeline** running on a private X display, driven by
@@ -145,7 +145,7 @@ The `05-reject` assertion accepts any honest rejection — usually
 distance) or `reason=thin-query` when a frame dropped mid-clip left the
 segment too short to score. Both are `last_match.accepted=false`.
 
-## Verified on the merged build (2026-10-26, `devin/live-merge` @ d78d2f9 + `devin-pro/app` @ f174adf)
+## Verified on the merged build (2026-10-26, merge tip @ d78d2f9)
 
 `bash tools/demo/run_all.sh` → `VERIFIED 11 pass / 0 fail`. Chapter
 integrity checked per file: `ffprobe` reports valid h264 1280x800 with

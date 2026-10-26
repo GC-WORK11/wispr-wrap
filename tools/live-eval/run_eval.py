@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""run_eval.py — merged-product eval harness (W4, eval lane).
+"""run_eval.py — merged-product eval harness.
 
 Drives the merged product's recognition contract end to end, headless,
 before the daemon's /live/kp endpoints exist:
