@@ -665,7 +665,7 @@ function onGesture(ev) {
       break;
     case 'reject': lines.setInk(null); say('Try again', 'soft', 1800); break;
     case 'vsign': fireLetter('V'); break;
-    case 'palm': if (S.browse) { setBrowse(false); App.buzz(); } break;
+    case 'palm': setBrowse(!S.browse); App.buzz(); break;     // open palm: drawing <-> pointing
     case 'cursor': {
       S.cur = { x: ev.x, y: ev.y };
       const c = toPx(S.cur); lines.setCursor(c.x, c.y, S.dwell || 0);

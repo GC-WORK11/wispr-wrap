@@ -551,6 +551,55 @@ async function flowHands() {
   }
 }
 
+/* select + scroll on a YouTube results page already on the laptop:
+   open palm -> pointing, the finger moves the laptop cursor onto a video,
+   pinch clicks it, finger slides scroll the video page. Verified by the
+   laptop's window titles and screen pixels (no browser instrumentation). */
+const titles = () => windows().map(l => { try { return X('xprop', ['-id', l.split(' ')[0], 'WM_NAME']).split(' = ')[1] || ''; } catch (e) { return ''; } });
+function pixDiff(a, b) {
+  return +execFileSync('python3', ['-c', 'import sys;from PIL import Image,ImageChops,ImageStat;a=Image.open(sys.argv[1]).convert("L");b=Image.open(sys.argv[2]).convert("L");print(round(sum(ImageStat.Stat(ImageChops.difference(a,b)).mean),2))', a, b], { encoding: 'utf8' }).trim();
+}
+async function flowSelect() {
+  const F = 'select';
+  const TX = +(process.env.TX || 346), TY = +(process.env.TY || 340);
+  const page = await newPage({ tick: 33 });
+  try {
+    const t0 = titles().find(t => /lofi hip hop - YouTube/.test(t));
+    check(F, 'the laptop shows YouTube search results', !!t0, t0 || titles().join(' | '));
+    await home(page);
+    await goLive(page);
+    const tx = .12 + .76 * TX / 1280, ty = .10 + .62 * TY / 800;
+    const clips = { palm: raw(HS.palm(1000)), idle: raw(HS.idle(500)), hover: raw(HS.hover({ x0: .5, y0: .55, x1: tx, y1: ty, ms: 1100 })),
+      hold: raw(HS.dwellAt({ x: tx, y: ty, ms: 650 })), pinch: raw(HS.pinchAt({ x: tx, y: ty })), slideUp: raw(HS.slide({ x: .5, y0: .72, y1: .3, ms: 330 })) };
+    for (const [k, v] of Object.entries(clips)) await page.eval(`window.__clips[${JSON.stringify(k)}] = ${JSON.stringify(v)}`);
+    await page.eval(`window.__play('palm'); window.__play('idle')`);
+    await page.waitFor(`document.querySelector('#lv-view').classList.contains('browse')`, 10000, 'open palm -> pointing');
+    check(F, 'an open palm switches to pointing', true);
+    await page.eval(`window.__play('hover'); window.__play('hold')`);
+    await sleep(1500);
+    let phone = await shot(page, 'live-24-point-to-select');
+    compose(phone, xshot(path.join(RAW, 'sel-hover.png')), 'live-24b-point-phone-and-laptop', 'the finger moves the laptop cursor onto a video');
+    await page.waitFor('window.__idle()', 8000, 'hover');
+    await page.eval(`window.__play('pinch')`);
+    const vt = await until(() => titles().find(t => / - YouTube - Google Chrome/.test(t) && !/lofi hip hop - YouTube/.test(t) && !/^"YouTube - Google/.test(t)), 25000, 'the video page opened');
+    await sleep(4000);
+    phone = await shot(page, 'live-25-pinch-selected-video');
+    const lapA = xshot(path.join(RAW, 'sel-watch.png'));
+    compose(phone, lapA, 'live-25b-select-phone-and-laptop', 'pinch clicked the video: it opened');
+    check(F, 'point + pinch selects a video on the laptop', !!vt, vt);
+    for (let i = 0; i < 3; i++) { await page.eval(`window.__play('slideUp'); window.__play('idle')`); await sleep(1000); }
+    await sleep(1500);
+    phone = await shot(page, 'live-26-finger-scroll');
+    const lapB = xshot(path.join(RAW, 'sel-scrolled.png'));
+    compose(phone, lapB, 'live-26b-scroll-phone-and-laptop', 'three finger slides scrolled the video page');
+    const d = pixDiff(lapA, lapB);
+    check(F, 'one finger sliding up scrolls the real laptop page', d > 3, `screen changed by ${d} (mean abs pixel difference)`);
+    check(F, 'no page errors', page.errors.length === 0, page.errors.slice(0, 2).join(' | '));
+    await page.tap('#lv-x');
+    await sleep(800);
+  } finally { await page.close(); }
+}
+
 /* ======================================================================
    perms: blocked camera, the browser asking, an insecure link
    ====================================================================== */
@@ -699,7 +748,7 @@ async function flowEmpty() {
 }
 
 /* ---------- main ---------- */
-const FN = { seed: flowSeed, open: flowOpen, text: flowText, control: flowControl, states: flowStates, hands: flowHands, perms: flowPerms, responsive: flowResponsive, perf: flowPerf, empty: flowEmpty };
+const FN = { seed: flowSeed, open: flowOpen, text: flowText, control: flowControl, states: flowStates, hands: flowHands, select: flowSelect, perms: flowPerms, responsive: flowResponsive, perf: flowPerf, empty: flowEmpty };
 const t0 = Date.now();
 for (const f of FLOWS) {
   if (!FN[f]) { console.log('unknown flow ' + f); continue; }
