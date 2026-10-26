@@ -22,35 +22,48 @@ if (!sheet) throw new Error('live: #sheet-live missing');
 
 /* ---------- DOM (built once — index.html keeps only the mount) ---------- */
 sheet.innerHTML = `
-  <div class="sheet-head">
-    <h1>Live<span class="lv-eng" id="lv-eng"></span></h1>
-    <div class="lv-badge" id="lv-badge"><i></i><span id="lv-badge-t">off</span></div>
-    <button class="sheet-x" id="lv-x" aria-label="Close live mode">×</button>
-  </div>
-  <div class="sheet-body lv-body">
-    <div class="lv-view" id="lv-view">
-      <video id="lv-cam" playsinline muted autoplay></video>
-      <canvas id="lv-skel"></canvas>
-      <div class="lv-cover" id="lv-cover" hidden>
-        <div class="lv-card">
-          <div class="lv-card-t" id="lv-card-t"></div>
-          <div class="lv-card-m" id="lv-card-m"></div>
-          <div class="lv-card-b" id="lv-card-b"></div>
-        </div>
+  <div class="lv-view" id="lv-view">
+    <video id="lv-cam" playsinline muted autoplay></video>
+    <canvas id="lv-skel"></canvas>
+    <div class="lv-top">
+      <button class="lv-rbtn" id="lv-x" aria-label="Close Go Live">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <div class="lv-seg" id="lv-seg" role="tablist" aria-label="Go Live mode">
+        <button role="tab" id="lv-m-text" data-m="text" aria-selected="false">Text</button>
+        <button role="tab" id="lv-m-ctl" data-m="control" aria-selected="true">Control</button>
+      </div>
+      <button class="lv-rbtn" id="lv-flip" aria-label="Flip camera">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.6L4 8.5M4 4v4.5h4.5M4 13a8 8 0 0 0 14.3 4.6l1.7-2.1M20 20v-4.5h-4.5"/></svg>
+      </button>
+    </div>
+    <div class="lv-tag" id="lv-tag" hidden>Demo input · recorded hand motion</div>
+    <div class="lv-bottom">
+      <div class="lv-read">
+        <span class="lv-rlab" id="lv-rlab"></span>
+        <div class="lv-rguess dim" id="lv-guess"></div>
+        <span class="lv-rdist" id="lv-dist"></span>
+      </div>
+      <div class="lv-why" id="lv-why"></div>
+      <div class="lv-act" id="lv-act"><i></i><span id="lv-act-t"></span></div>
+      <div class="lv-pend" id="lv-pend" hidden></div>
+      <div class="lv-hold">
+        <div class="lv-hold-bar"><i id="lv-hold-i"></i></div>
+        <div class="lv-hint" id="lv-hint"></div>
+      </div>
+      <button class="lv-send" id="lv-send" aria-label="Send to laptop" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
+      </button>
+    </div>
+    <div class="lv-cover" id="lv-cover" hidden>
+      <div class="lv-card">
+        <div class="lv-card-t" id="lv-card-t"></div>
+        <div class="lv-card-m" id="lv-card-m"></div>
+        <div class="lv-card-b" id="lv-card-b"></div>
       </div>
     </div>
-    <div class="lv-read">
-      <span class="lv-rlab">Reading</span>
-      <span class="lv-rguess dim" id="lv-guess">—</span>
-      <span class="lv-rdist" id="lv-dist"></span>
-    </div>
-    <div class="lv-why" id="lv-why"></div>
-    <div class="lv-act" id="lv-act"><i></i><span id="lv-act-t"></span></div>
-    <div class="lv-pend" id="lv-pend" hidden></div>
-    <div class="lv-hold">
-      <div class="lv-hold-bar"><i id="lv-hold-i"></i></div>
-      <div class="lv-hint" id="lv-hint">hold an open palm to listen · palms together to stop</div>
-    </div>
+    <span class="lv-badge" id="lv-badge"><i></i><span id="lv-badge-t">off</span></span>
+    <span class="lv-eng" id="lv-eng"></span>
   </div>`;
 const $ = id => sheet.querySelector('#' + id);
 const video = $('lv-cam'), skel = $('lv-skel'), cover = $('lv-cover'),
@@ -59,9 +72,14 @@ const video = $('lv-cam'), skel = $('lv-skel'), cover = $('lv-cover'),
       guessEl = $('lv-guess'), distEl = $('lv-dist'), whyEl = $('lv-why'),
       actEl = $('lv-act'), actT = $('lv-act-t'), pendEl = $('lv-pend'),
       holdI = $('lv-hold-i'), hint = $('lv-hint'), xbtn = $('lv-x'),
-      viewEl = $('lv-view');
+      viewEl = $('lv-view'), sendBtn = $('lv-send'), flipBtn = $('lv-flip'),
+      segText = $('lv-m-text'), segCtl = $('lv-m-ctl'), tagEl = $('lv-tag');
 
-const HINT_DEF = 'Hold an open palm to start listening · palms together to stop';
+const HINTS = {
+  control: { idle: 'Hold an open palm to start. Then sign a command.', on: 'Listening. Sign a command.' },
+  text:    { idle: 'Hold an open palm to start. Then sign words.',   on: 'Listening. Each sign becomes a word.' },
+};
+let HINT_DEF = HINTS.control.idle;
 const KP_MS = 83;        // ~12 Hz keypoint frames (spec: 10-15 Hz)
 const ST_MS = 167;       // ~6 Hz state poll while open
 
@@ -151,6 +169,8 @@ const S = {
   eng: { up: false, name: '', laptopCam: false },
   seenAct: undefined, seenMatch: undefined,
   remote: false, open: false,
+  mode: (() => { try { return localStorage.getItem('wf.livemode') === 'text' ? 'text' : 'control'; } catch (e) { return 'control'; } })(),
+  words: [], seenEv: new Set(), evBase: false, fires: {},
 };
 
 function setBadge(cls, txt) {
@@ -214,55 +234,109 @@ function engDown() {
   setBadge('err', 'offline');
 }
 
-/* ---------- reading strip ---------- */
-const fmt = v => (typeof v === 'number' ? +v.toFixed(3) : v);
+/* ---------- captions: what you signed, what it did ---------- */
+const pretty = t => String(t || '').replace(/[-_]+/g, ' ').trim().replace(/^./, c => c.toUpperCase());
+const hostOf = u => { try { return new URL(/^[a-z]+:/i.test(u) ? u : 'https://' + u).host.replace(/^www\./, ''); } catch (e) { return u || 'a page'; } };
+/* a short, human sentence for a bound action (never argv, never ids) */
+function doneText(a) {
+  if (!a) return 'Done';
+  const t = a.tool || a.type || '', ar = a.args || {};
+  if (a.kind === 'app' || t === 'app.open' || t === 'open_app') {
+    const nm = String(a.label || '').replace(/^open\s+/i, '') || ar.app || ar.id || a.id || 'the app';
+    return 'Opened ' + nm;
+  }
+  switch (t) {
+    case 'type.text': case 'type_text': return 'Typed “' + String(ar.text || '').slice(0, 36) + '”';
+    case 'app.focus': case 'focus_app': return 'Switched to ' + (ar.app || a.app || 'the app');
+    case 'app.close': case 'close_window': return 'Closed ' + (ar.app || a.app || 'the window');
+    case 'open.url': case 'open_url': return 'Opened ' + hostOf(ar.url);
+    case 'key.press': case 'key_press': return 'Pressed ' + (ar.keys || 'a key');
+    case 'command': case 'run_argv': return 'Ran your command';
+    case 'sys.screenshot': return 'Took a screenshot';
+    case 'sys.lock': return 'Locked the screen';
+    case 'macro': return 'Ran your macro';
+  }
+  return a.label ? pretty(a.label) : 'Done';
+}
+
+function setWords() {
+  if (S.mode !== 'text') { sendBtn.hidden = true; return; }
+  const txt = S.words.join(' ');
+  if (txt) { guessEl.textContent = txt; guessEl.classList.remove('dim'); }
+  sendBtn.hidden = !S.words.length;
+}
 function showMatch(m, viaPoll) {
   if (!m) return;
   const id = (m.at_ms || m.at || '') + '|' + (m.gloss || '') + '|' + (m.accepted ? 'A' : 'R');
   if (id === S.seenMatch) return;
   S.seenMatch = id;
   const label = m.label || m.gloss || '';
+  if (m.mode) {                         // palm-open / palms-together events: the hint says it
+    if (!viaPoll) App.pollState();
+    return;
+  }
   if (m.accepted && label) {
-    guessEl.textContent = label;
-    guessEl.classList.remove('dim');
-    const d = m.dist != null ? m.dist : m.d;
-    distEl.textContent = d == null ? '' : 'd=' + fmt(d);
-    const bits = [];
-    if (m.second) bits.push('next: ' + m.second + (m.margin != null ? ' +' + fmt(m.margin) : ''));
-    if (m.reason) bits.push(m.reason);
-    whyEl.textContent = bits.join(' · ');
-    // last-action flash comes from the same row — pending/routed/fired
-    const a = m.action || {};
-    if (m.mode) {
-      actFlash(m.label === 'listening' ? 'Listening' : (m.label || m.gloss));
-    } else if (a.fired || a.routed) {
-      actFlash((a.pending ? 'Waiting for your OK · ' : 'Ran · ') + (a.label || m.label || m.gloss));
-    } else if (a.routed === false && !m.mode) {
-      actFlash((m.label || m.gloss) + ' · no action bound yet');
+    if (S.mode === 'text') {
+      S.words.push(label); setWords();
+      App.emit('text:append', label);
+    } else {
+      guessEl.textContent = pretty(label);
+      guessEl.classList.remove('dim');
+      guessEl.classList.remove('pop'); void guessEl.offsetWidth; guessEl.classList.add('pop');
+      const a = m.action || {};
+      if (a.fired || a.routed) actFlash(a.pending ? 'Waiting for your OK on the laptop' : doneText(a));
+      else if (a.routed === false) actFlash('No action on this sign yet', 'soft');
     }
-  } else if (label || m.reason) {
-    guessEl.textContent = label || '—';
-    guessEl.classList.add('dim');
+    // developer detail only with ?dev
     const d = m.dist != null ? m.dist : m.d;
     distEl.textContent = d == null ? '' : 'd=' + fmt(d);
+    whyEl.textContent = [m.second ? 'next: ' + m.second : '', m.reason || ''].filter(Boolean).join(' · ');
+  } else if (label || m.reason) {
+    actFlash('Didn’t catch that', 'soft');
     whyEl.textContent = m.reason || 'rejected';
   }
   if (!viaPoll) App.pollState();
 }
-function actFlash(txt) {
+function actFlash(txt, kind) {
   actT.textContent = txt;
-  actEl.classList.add('show');
+  actEl.className = 'lv-act show' + (kind ? ' ' + kind : '');
   App.buzz();
   clearTimeout(actEl._t);
-  actEl._t = setTimeout(() => actEl.classList.remove('show'), 2600);
+  actEl._t = setTimeout(() => actEl.classList.remove('show'), 2800);
+}
+/* the daemon's own event feed tells us what actually ran */
+function feedEvents(j) {
+  const evs = Array.isArray(j.feed) ? j.feed : null;
+  if (!evs) return;
+  for (const ev of evs) {
+    const key = ev.type + '|' + ev.t_ms + '|' + (ev.gloss || (ev.glosses || []).join(','));
+    if (S.seenEv.has(key)) continue;
+    S.seenEv.add(key);
+    if (ev.type === 'fire' && ev.action) for (const g of ev.glosses || []) S.fires[g] = ev.action;
+    if (!S.evBase) continue;                            // first poll after opening = history, not news
+    if (ev.type === 'fired' && S.mode === 'control') {
+      const g = (ev.glosses || [])[0], act = S.fires[g];
+      const r = ev.result || {};
+      if (g) { guessEl.textContent = pretty((act && act.label) || g); guessEl.classList.remove('dim'); guessEl.classList.remove('pop'); void guessEl.offsetWidth; guessEl.classList.add('pop'); }
+      if (ev.ok === false || r.fired === false) actFlash('Couldn’t run it' + (r.detail ? ': ' + r.detail : ''), 'soft');
+      else actFlash(doneText(act));
+    }
+  }
+  S.evBase = true;
+  if (S.seenEv.size > 300) { const keep = [...S.seenEv].slice(-120); S.seenEv.clear(); keep.forEach(k => S.seenEv.add(k)); }
 }
 function renderState(j) {
   const listening = !!(j.listening || j.mode === 'listening' || j.state === 'listening');
   if (cover.hidden) setBadge(listening ? 'listen' : '', listening ? 'listening' : 'idle');
-  if (j.last_match) showMatch(j.last_match, true);
+  viewEl.classList.toggle('listening', listening);
+  if (j.last_match) {
+    if (!S.matchBase) { S.seenMatch = (j.last_match.at_ms || j.last_match.at || '') + '|' + (j.last_match.gloss || '') + '|' + (j.last_match.accepted ? 'A' : 'R'); }
+    else showMatch(j.last_match, true);
+  }
+  S.matchBase = true;
+  feedEvents(j);
   const pend = Array.isArray(j.pending) ? j.pending : [];
   renderPending(pend);
-  if (!listening && !S.seenMatch) { guessEl.textContent = '—'; guessEl.classList.add('dim'); distEl.textContent = ''; whyEl.textContent = ''; }
   checkPendingHint(listening);
 }
 function renderPending(rows) {
@@ -274,7 +348,7 @@ function renderPending(rows) {
     row.className = 'lv-pend-row';
     const t = document.createElement('span');
     t.className = 'lv-pend-t';
-    t.textContent = (p.label || p.gloss || 'Action') + ' · waiting for your OK';
+    t.textContent = pretty(p.label || p.gloss || 'Action') + ' is waiting for your OK';
     const yes = mkBtn('Run it', async () => {
       const r = await App.api.post('/act/confirm', { id: p.id }).catch(() => null);
       if (r && r.ok) actFlash('Ran · ' + (p.label || p.gloss)); else App.toast('confirm failed', true);
@@ -326,7 +400,7 @@ function feedHold(pts, t) {
   holdI.style.width = Math.min(100, Math.max(GM.palmT / HOLD, GM.namT / NHOLD) * 100) + '%';
 }
 function checkPendingHint(listening) {
-  hint.textContent = listening ? 'Listening — sign a command' : HINT_DEF;
+  hint.textContent = listening ? HINTS[S.mode].on : HINT_DEF;
 }
 
 /* ---------- kp response handler (matches/teach ride the POST response) ---------- */
@@ -334,7 +408,7 @@ function onKpResp(j) {
   if (j.mode) {
     const on = j.mode === 'PALM-OPEN' || /palm/i.test(j.mode);
     setBadge(on ? 'listen' : '', on ? 'listening' : 'idle');
-    hint.textContent = on ? 'Listening — sign a command' : HINT_DEF;
+    hint.textContent = on ? HINTS[S.mode].on : HINT_DEF;
     holdI.style.width = '0';
   }
   if (j.match) showMatch(j.match);
@@ -353,14 +427,7 @@ async function boot() {
       S.engine = rep;
       S.front = false;                      // replayed frames aren't mirrored
       viewEl.classList.add('replay');
-      let tag = viewEl.querySelector('.lv-replay');
-      if (!tag) {
-        tag = document.createElement('div');
-        tag.className = 'lv-replay';
-        viewEl.appendChild(tag);
-      }
-      tag.textContent = 'demo input · recorded hand motion';
-      tag.hidden = false;
+      tagEl.hidden = false;
       hideCard();
       setBadge('', 'idle');
       S.link.start(video, S.engine, {
@@ -373,7 +440,7 @@ async function boot() {
       });
       return;
     }
-    viewEl.classList.remove('replay');
+    viewEl.classList.remove('replay'); tagEl.hidden = true;
   } catch (e) { /* probe failed — camera path */ }
   card('Allow the camera', 'Your browser is asking to use it. Video stays on this device. Only hand points are sent.');
   try {
@@ -443,6 +510,10 @@ async function useLaptop() {
 async function open() {
   S.open = true;
   S.seenAct = undefined; S.seenMatch = undefined;
+  S.seenEv.clear(); S.evBase = false; S.matchBase = false; S.words = []; setWords();
+  guessEl.textContent = ''; guessEl.classList.add('dim'); actEl.classList.remove('show');
+  document.body.classList.add('live-open');
+  setMode(S.mode, false);
   S.link.reset();
   hideCard();
   probe();
@@ -457,6 +528,9 @@ async function open() {
 }
 async function close() {
   S.open = false;
+  document.body.classList.remove('live-open');
+  // text mode sets the daemon to observe-only: never leave it that way
+  if (S.mode === 'text') App.api.post('/live/mode', { mode: 'live' }).catch(() => {});
   S.link.stop();
   clearInterval(S.stT); S.stT = null;
   if (S.engine) { try { S.engine.close(); } catch (e) {} S.engine = null; }
@@ -471,6 +545,48 @@ async function close() {
   holdI.style.width = '0';
   whyEl.textContent = '';
 }
+
+/* ---------- Text | Control ---------- */
+function setMode(m, persist = true) {
+  S.mode = m === 'text' ? 'text' : 'control';
+  if (persist) { try { localStorage.setItem('wf.livemode', S.mode); } catch (e) {} }
+  segText.setAttribute('aria-selected', S.mode === 'text' ? 'true' : 'false');
+  segCtl.setAttribute('aria-selected', S.mode === 'control' ? 'true' : 'false');
+  viewEl.classList.toggle('mode-text', S.mode === 'text');
+  HINT_DEF = HINTS[S.mode].idle;
+  hint.textContent = viewEl.classList.contains('listening') ? HINTS[S.mode].on : HINT_DEF;
+  if (S.mode !== 'text') { S.words = []; setWords(); }
+  // Control: signs fire real actions. Text: observe only (match, never execute); each sign becomes a word.
+  App.api.post('/live/mode', { mode: S.mode === 'text' ? 'observe' : 'live' }).catch(() => {});
+  if (persist) { guessEl.textContent = ''; guessEl.classList.add('dim'); actEl.classList.remove('show'); }
+}
+segText.onclick = () => setMode('text');
+segCtl.onclick = () => setMode('control');
+
+/* ---------- flip camera ---------- */
+let flipping = false;
+flipBtn.onclick = async () => {
+  if (flipping || S.remote || !S.stream) return;
+  flipping = true;
+  try {
+    const want = !S.front;
+    for (const t of S.stream.getTracks()) t.stop();
+    const c = await Pose.openCamera(video, want);
+    S.stream = c.stream; S.front = c.front;
+    video.classList.toggle('rear', !S.front);
+  } catch (e) {
+    App.toast('No other camera on this device', true);
+    try { const c = await Pose.openCamera(video, S.front); S.stream = c.stream; S.front = c.front; video.classList.toggle('rear', !S.front); } catch (e2) { camFail(e2); }
+  } finally { flipping = false; }
+};
+
+/* Text mode: send what you have signed to the laptop (the composer owns the text) */
+sendBtn.onclick = () => { App.emit('text:send'); };
+App.on('sent', r => {
+  if (!S.open) return;
+  if (r && r.ok) { S.words = []; setWords(); guessEl.textContent = ''; guessEl.classList.add('dim'); actFlash('Sent to ' + (r.into || 'your laptop')); }
+  else actFlash('Couldn’t send', 'soft');
+});
 
 xbtn.onclick = () => App.back();
 addEventListener('keydown', e => { if (e.key === 'Escape' && S.open) App.back(); });

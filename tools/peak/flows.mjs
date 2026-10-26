@@ -62,7 +62,7 @@ const TRACKER = `(() => {
   window.__idle = () => window.__q.length === 0;
 })()`;
 
-async function newPage(viewport = [1280, 800, false, 1]) {
+async function newPage(viewport = [390, 844, true, 2]) {
   const profile = '/tmp/peak-chrome-flows';
   fs.rmSync(profile, { recursive: true, force: true });
   const page = await launchChrome({ port: cdpPort, profile, origin: S.base });
@@ -83,48 +83,53 @@ const playAndWait = async (page, clip, timeout = 30000) => {
   await page.waitFor('window.__idle()', timeout, 'clip ' + clip + ' finished');
 };
 const shot = (page, dir, n) => page.shot(path.join(out, dir, n + '.png'));
+const viaDrawer = async (page, sel) => { await page.click('#menu'); await sleep(600); await page.click(sel); await sleep(500); };
+const toast = page => page.eval(`document.querySelector('#toast').textContent`);
+const waitToast = (page, re, what) => page.waitFor(`/${re}/.test(document.querySelector('#toast').textContent)`, 15000, what);
 
 // ======================================================================
 async function flowSend() {
   const dir = 'send';
   const page = await newPage();
   try {
-    await page.goto(S.base + '/?k=' + S.KEY, { settle: 1500 });
+    await page.goto(S.base + '/?k=' + S.KEY, { settle: 3000 });
     await shot(page, dir, '01-home');
     // focus the real editor on the laptop so xdotool has somewhere to type
     sh('xdotool', ['windowfocus', S.TERM_WID]); await sleep(300);
     const before = sink().length;
     await page.focus('#box');
     await page.type('Hello from the phone, typed for real');
-    await shot(page, dir, '02-typed');
+    await sleep(300);
+    await shot(page, dir, '02-typed-send-arrow');
+    check('the waveform becomes the send arrow once there is text', await page.eval(`document.querySelector('#pill').classList.contains('ready')`));
     await page.click('#go');
-    await page.waitFor(`document.querySelectorAll('#feed .msg.ok').length >= 1`, 8000, 'text delivered');
-    await sleep(600);
+    await waitToast(page, '→', 'text delivered');
     await shot(page, dir, '03-text-delivered');
     check('text lands in the real editor', sink().slice(before).includes('Hello from the phone, typed for real'), 'sink.txt got the text');
-    const meta = await page.eval(`document.querySelector('#feed .msg.ok .msg-m').textContent`);
-    check('feed shows delivery + latency', /Typed into/.test(meta) && /(ms|s)$/.test(meta.trim()), meta.trim());
+    const t1 = await toast(page);
+    check('status line shows target + latency', /Text → .+ · \d+ ms|Text → .+ · [\d.]+ s/.test(t1), t1);
 
-    // photo (a generated PNG: no people), video (tiny generated webm), file
+    // photo (generated PNG: no people), video (tiny generated webm), file
     const dirTmp = '/tmp/peak-send'; fs.mkdirSync(dirTmp, { recursive: true });
-    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=0x15493f:s=640x400', '-frames:v', '1', dirTmp + '/photo.png']);
+    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=0xc2185b:s=640x400', '-frames:v', '1', dirTmp + '/photo.png']);
     execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=320x200:d=1', '-c:v', 'libvpx', '-b:v', '100k', dirTmp + '/clip.webm']);
     fs.writeFileSync(dirTmp + '/notes.txt', 'peak proof file\n');
-    for (const [label, input, f, nth] of [['photo', '#file', dirTmp + '/photo.png', 2], ['video', '#file', dirTmp + '/clip.webm', 3], ['file', '#fileany', dirTmp + '/notes.txt', 4]]) {
+    let n = 4;
+    for (const [label, input, f] of [['photo', '#file', dirTmp + '/photo.png'], ['video', '#file', dirTmp + '/clip.webm'], ['file', '#fileany', dirTmp + '/notes.txt']]) {
+      await page.eval(`document.querySelector('#toast').textContent = ''`);
       await page.setFiles(input, [f]);
       await page.waitFor(`!document.querySelector('#attach').hidden`, 4000, label + ' staged');
-      await shot(page, dir, `0${nth + 1}-${label}-staged`);
+      await sleep(400);
+      await shot(page, dir, `0${n}-${label}-staged`);
       sh('xdotool', ['windowfocus', S.TERM_WID]); await sleep(200);
       await page.click('#go');
-      await page.waitFor(`document.querySelectorAll('#feed .msg.ok').length >= ${nth}`, 15000, label + ' delivered');
-      await sleep(500);
-      await shot(page, dir, `0${nth + 1}-${label}-delivered`);
-      const m = await page.eval(`[...document.querySelectorAll('#feed .msg.ok .msg-m')].pop().textContent`);
-      check(label + ' delivered', true, m.trim());
+      await waitToast(page, '→', label + ' delivered');
+      await shot(page, dir, `0${n + 1}-${label}-delivered`);
+      check(label + ' delivered', true, (await toast(page)).trim());
+      n += 2; await sleep(2300);
     }
-    const up = fs.readdirSync(S.WFHOME + '/wf-uploads').filter(n => /clip|notes|photo/i.test(n));
+    const up = fs.readdirSync(S.WFHOME + '/wf-uploads').filter(x => /clip|notes|photo/i.test(x));
     check('files saved in ~/wf-uploads on the laptop', up.length >= 1, up.slice(0, 3).join(', '));
-    await shot(page, dir, '09-feed');
     check('no page errors', page.errors.length === 0, page.errors.slice(0, 2).join(' | '));
   } finally { await page.close(); }
 }
@@ -137,7 +142,7 @@ async function flowTeach() {
   try {
     await page.goto(S.base + '/?k=' + S.KEY, { settle: 1200 });
     await loadClips(page, ['teach-TYPE-HELLO', 'palm-hold', 'perform-TYPE-HELLO', 'idle']);
-    await page.click('#tray-teach'); await sleep(600);
+    await viaDrawer(page, '#tray-teach');
     await shot(page, dir, '01-name');
     await page.focus('#tw-name'); await page.type('type hello'); await sleep(300);
     await shot(page, dir, '02-named');
@@ -213,19 +218,23 @@ async function flowLive() {
     }
     await page.waitFor(`/type hello/i.test(document.querySelector('#lv-guess').textContent)`, 12000, 'sign read');
     await sleep(500);
+    await sleep(400);
     await shot(page, dir, '03-sign-read-and-ran');
     const guess = await page.eval(`document.querySelector('#lv-guess').textContent`);
     check('the taught sign is read', /type hello/i.test(guess), guess);
     await sleep(800);
     check('the real OS action ran (typed into the laptop editor)', sink().slice(before).includes('hello-from-peak'), 'sink.txt got hello-from-peak');
+    const cap = await page.eval(`document.querySelector('#lv-act-t').textContent`);
+    check('the caption says what it did', /Typed/.test(cap), cap);
     await playAndWait(page, 'reject');
     await sleep(900);
     await shot(page, dir, '04-unknown-rejected');
     const after = sink().slice(before);
     check('an untaught motion does not fire anything', (after.match(/hello-from-peak/g) || []).length === 1, 'exactly one typed');
-    await page.click('#tray-compose'); await sleep(1800);
-    await shot(page, dir, '05-feed-shows-the-sign');
-    check('the sign shows up in the home feed', await page.eval(`!![...document.querySelectorAll('#feed .msg.sys')].length`), 'sys message present');
+    check('and says so, quietly', /catch/i.test(await page.eval(`document.querySelector('#lv-act-t').textContent`)), 'Didn’t catch that');
+    await page.click('#lv-x'); await sleep(900);
+    await shot(page, dir, '05-back-home');
+    check('closing Go Live returns to the lotus home', await page.eval(`document.querySelector('#sheet-live').hidden && !document.body.classList.contains('sheet-open')`));
     check('no page errors', page.errors.length === 0, page.errors.slice(0, 2).join(' | '));
   } finally { await page.close(); }
 }

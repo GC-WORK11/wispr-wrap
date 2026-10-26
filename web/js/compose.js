@@ -1,43 +1,49 @@
 // compose.js — the composer: text/image/video/file to the laptop cursor.
-// Transports (unchanged):
+// Transports (unchanged from the original wispr-wrap):
 //   POST /send        {text, mode:'type'}        -> {ok, into}
 //   POST /send-image  blob (sniffed)             -> {ok, into, mime, kb}
 //   POST /send-file   blob + X-File-Name         -> {ok, into, path, mb}
-// New in the peak pass: a feed that shows what landed (and what your signs
-// ran), a greeting that gives way to it, drag-and-drop, suggestion pills.
+// Layout per the founder spec: round + , white pill, black waveform (Go Live)
+// that turns into the send arrow when there is something to send. No mic.
+// The lotus (flower.js) reacts: it charges while you type and bursts on send.
 import { App } from './app.js';
+import { Flower } from './flower.js';
 
 const $ = id => document.getElementById(id);
 const box = $('box'), go = $('go'), plus = $('plus'), file = $('file'),
       fileany = $('fileany'), attach = $('attach'), thumb = $('thumb'),
       vthumb = $('vthumb'), aname = $('aname'), unattach = $('unattach'),
-      feed = $('feed'), stage = $('stage'), pill = $('pill'), suggest = $('suggest');
+      stage = $('stage'), pill = $('pill'), composer = $('composer');
 if (!box) throw new Error('compose: #box missing');
-if (matchMedia('(max-width: 720px)').matches) box.placeholder = 'Type or dictate…';
 
 let staged = null;
-
 const fmtSize = b => b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+const secs = ms => ms < 1000 ? Math.max(1, Math.round(ms)) + ' ms' : (ms / 1000).toFixed(1) + ' s';
 
 const ICON = {
-  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
-  warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.01"/></svg>',
-  file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>',
-  hand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 11.5V6a1.5 1.5 0 0 1 3 0v5m0-1.5a1.5 1.5 0 0 1 3 0V11m0-.5a1.5 1.5 0 0 1 3 0v1m0-.5a1.5 1.5 0 0 1 3 0v4.5c0 3-2.5 5.5-6 5.5s-5-1.5-6.5-4l-2-3.6c-.6-1 .8-2.1 1.7-1.3l1.3 1.1"/></svg>',
-  photo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="9" cy="10.5" r="1.6"/><path d="m21 16-5-4.5L8 19"/></svg>',
+  file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>',
+  photo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="9" cy="10.5" r="1.6"/><path d="m21 16-5-4.5L8 19"/></svg>',
 };
 
-/* ---------- growing, reviewable input ---------- */
-function updateReady() {
-  pill.classList.toggle('ready', !!box.value.trim() || !!staged);
+/* the daemon reports window classes as X gave them ("sinkedit"); prefer the
+   focused-window name the status poll already knows */
+function app(into) {
+  if (!into) return 'the focused app';
+  const f = App.state.focus;
+  if (f && f.toLowerCase() === String(into).toLowerCase()) return f;
+  return String(into).charAt(0).toUpperCase() + String(into).slice(1);
 }
+
+/* ---------- growing, reviewable input ---------- */
+function updateReady() { pill.classList.toggle('ready', !!box.value.trim() || !!staged); }
 function grow() {
   box.style.height = 'auto';
-  box.style.height = Math.min(box.scrollHeight, 148) + 'px';
-  box.style.overflowY = box.scrollHeight > 148 ? 'auto' : 'hidden';
+  box.style.height = Math.min(box.scrollHeight, 150) + 'px';
+  box.style.overflowY = box.scrollHeight > 150 ? 'auto' : 'hidden';
   updateReady();
+  Flower.measure();
 }
-box.addEventListener('input', grow);
+box.addEventListener('input', () => { grow(); Flower.poke(.22); });
 addEventListener('resize', grow);
 
 /* ---------- attach ---------- */
@@ -54,14 +60,13 @@ function stageFile(blob, name) {
   }
   aname.textContent = staged.name + ' · ' + fmtSize(blob.size);
   attach.hidden = false;
-  updateReady();
-  App.buzz();
+  grow(); App.buzz(); Flower.poke(.5);
 }
 function clearStaged() {
   if (staged) URL.revokeObjectURL(staged.url);
   staged = null; attach.hidden = true;
   thumb.removeAttribute('src'); vthumb.removeAttribute('src'); vthumb.load && vthumb.load();
-  updateReady();
+  grow();
 }
 unattach.onclick = () => { clearStaged(); box.focus(); };
 
@@ -71,19 +76,17 @@ function closeMenu() { if (menu) { menu.remove(); menu = null; } plus.setAttribu
 function attachMenu() {
   if (menu) { closeMenu(); return; }
   menu = document.createElement('div');
-  menu.className = 'attach-menu';
-  menu.setAttribute('role', 'menu');
+  menu.className = 'attach-menu'; menu.setAttribute('role', 'menu');
   const mk = (icon, label, fn) => {
     const b = document.createElement('button');
     b.className = 'attach-item'; b.setAttribute('role', 'menuitem');
-    b.innerHTML = icon + '<span></span>';
-    b.lastChild.textContent = label;
+    b.innerHTML = icon + '<span></span>'; b.lastChild.textContent = label;
     b.onclick = () => { closeMenu(); fn(); };
     menu.appendChild(b);
   };
   mk(ICON.photo, 'Photo or video', () => file.click());
-  mk(ICON.file, 'Any file', () => fileany.click());
-  pill.appendChild(menu);
+  mk(ICON.file, 'File', () => fileany.click());
+  composer.appendChild(menu);
   plus.setAttribute('aria-expanded', 'true');
   setTimeout(() => document.addEventListener('pointerdown', function h(e) {
     if (menu && !menu.contains(e.target) && !plus.contains(e.target)) {
@@ -96,14 +99,6 @@ addEventListener('keydown', e => { if (e.key === 'Escape' && menu) closeMenu(); 
 file.onchange = () => { const f = file.files[0]; if (f) stageFile(f, f.name); file.value = ''; };
 fileany.onchange = () => { const f = fileany.files[0]; if (f) stageFile(f, f.name); fileany.value = ''; };
 
-/* suggestion pills under the greeting */
-suggest.addEventListener('click', e => {
-  const b = e.target.closest('.sugg');
-  if (!b) return;
-  const g = b.dataset.go;
-  if (g === 'photo') file.click(); else App.nav(g);
-});
-
 /* copy an image on the phone, paste in the composer -> it stages */
 document.addEventListener('paste', e => {
   const items = (e.clipboardData || {}).items || [];
@@ -114,7 +109,7 @@ document.addEventListener('paste', e => {
   }
 });
 
-/* drop a file anywhere on the home screen */
+/* drop a file anywhere on the home screen (laptop browsers) */
 let dragDepth = 0;
 const hasFiles = e => e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files');
 stage.addEventListener('dragenter', e => { if (hasFiles(e)) { dragDepth++; stage.classList.add('drop'); e.preventDefault(); } });
@@ -147,76 +142,6 @@ async function squeeze(blob) {
   } catch (e) { return blob; }
 }
 
-/* ---------- the feed ---------- */
-const MAX_FEED = 24;
-const feedUrls = [];
-function dock() {
-  if (stage.classList.contains('has-feed')) return;
-  const before = pill.getBoundingClientRect();
-  stage.classList.add('has-feed');
-  const after = pill.getBoundingClientRect();
-  const dy = before.top - after.top;
-  if (Math.abs(dy) > 1 && pill.animate) {
-    pill.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }],
-                 { duration: 560, easing: 'cubic-bezier(.2,.8,.2,1)' });
-  }
-}
-function scrollFeed() { requestAnimationFrame(() => feed.scrollTo({ top: feed.scrollHeight, behavior: 'smooth' })); }
-
-/* build a message; returns {el, ok(metaText), fail(metaText)} */
-function addMsg(kind, opts) {
-  dock();
-  const el = document.createElement('div');
-  el.className = 'msg pending' + (kind === 'sys' ? ' sys' : '');
-  let body;
-  if (opts.media) {
-    body = document.createElement('div'); body.className = 'msg-media';
-    const m = document.createElement(opts.isVideo ? 'video' : 'img');
-    if (opts.isVideo) { m.muted = true; m.playsInline = true; m.preload = 'metadata'; m.controls = true; }
-    m.src = opts.media; m.alt = '';
-    body.appendChild(m);
-  } else if (opts.fileName) {
-    body = document.createElement('div'); body.className = 'msg-file';
-    body.innerHTML = '<span class="fi">' + ICON.file + '</span><span><b></b><small></small></span>';
-    body.querySelector('b').textContent = opts.fileName;
-    body.querySelector('small').textContent = opts.fileSize || '';
-  } else {
-    body = document.createElement('div'); body.className = 'msg-b';
-    if (opts.icon) body.innerHTML = opts.icon + '<span></span>';
-    (opts.icon ? body.lastChild : body).textContent = opts.text || '';
-  }
-  const meta = document.createElement('div'); meta.className = 'msg-m';
-  meta.innerHTML = '<i class="spin"></i><span></span>';
-  meta.lastChild.textContent = opts.pending || 'Sending…';
-  el.append(body, meta);
-  feed.appendChild(el);
-  while (feed.children.length > MAX_FEED) {
-    const old = feed.firstElementChild;
-    const u = old && old.dataset.url; if (u) URL.revokeObjectURL(u);
-    old.remove();
-  }
-  scrollFeed();
-  const set = (cls, icon, text) => {
-    el.classList.remove('pending'); el.classList.add(cls);
-    meta.innerHTML = icon + '<span></span>';
-    meta.lastChild.textContent = text;
-  };
-  return {
-    el,
-    ok: t => set('ok', ICON.check, t),
-    fail: t => set('err', ICON.warn, t),
-  };
-}
-const secs = ms => ms < 1000 ? Math.max(1, Math.round(ms)) + ' ms' : (ms / 1000).toFixed(1) + ' s';
-/* the daemon reports window classes in whatever case X gave it ("sinkedit");
-   prefer the focused-window name the status poll already knows */
-function app(into) {
-  if (!into) return 'the focused app';
-  const f = App.state.focus;
-  if (f && f.toLowerCase() === String(into).toLowerCase()) return f;
-  return String(into).charAt(0).toUpperCase() + String(into).slice(1);
-}
-
 /* ---------- send ---------- */
 let sending = false;
 async function send() {
@@ -224,16 +149,12 @@ async function send() {
   const text = box.value;
   if (!text.trim() && !staged) return;
   sending = true; go.disabled = true;
-  let into = null, imgOk = false, txtOk = false;
+  let into = null, imgOk = false, txtOk = false, ms = 0;
   try {
     if (staged) {
       const st = staged;
       const isImg = (st.blob.type || '').startsWith('image/');
-      const url = URL.createObjectURL(st.blob);
-      const m = addMsg('out', isImg || st.isVideo
-        ? { media: url, isVideo: st.isVideo, pending: st.isVideo ? 'Sending video…' : 'Sending image…' }
-        : { fileName: st.name, fileSize: fmtSize(st.blob.size), pending: 'Sending file…' });
-      m.el.dataset.url = url;
+      App.toast(st.isVideo ? 'Sending video…' : isImg ? 'Sending image…' : 'Sending file…');
       const t0 = performance.now();
       try {
         let r;
@@ -246,47 +167,32 @@ async function send() {
           r = await App.api.post('/send-image', b,
             { 'Content-Type': b.type || 'application/octet-stream' });
         }
-        imgOk = r.ok; into = r.json && r.json.into;
-        if (imgOk) {
-          clearStaged();
-          m.ok((isImg ? 'Pasted into ' : 'Saved on your laptop · path pasted into ') + app(into) + ' · ' + secs(performance.now() - t0));
-        } else {
-          m.fail('Laptop said no (' + r.status + ')' + (r.json && r.json.error ? ' — ' + r.json.error : ''));
-        }
-        if (r.ok) await App.sleep(300);
-      } catch (e) {
-        m.fail('Couldn’t reach your laptop — is wrap running?');
-        App.toast('laptop unreachable — run: wrap start', true);
-      }
+        imgOk = r.ok; into = r.json && r.json.into; ms = performance.now() - t0;
+        if (imgOk) { clearStaged(); await App.sleep(450); }
+        else App.toast('The laptop said no (' + r.status + ')' + (r.json && r.json.error ? ': ' + r.json.error : ''), true);
+      } catch (e) { App.toast('Can’t reach your laptop. Run: wrap start', true); }
     }
     if (text.trim()) {
-      const m = addMsg('out', { text: text.trim(), pending: 'Typing on your laptop…' });
       const t0 = performance.now();
       try {
         const r = await App.api.post('/send', { text, mode: 'type' });
         txtOk = r.ok;
-        if (r.ok) {
-          box.value = ''; grow(); into = into || (r.json && r.json.into);
-          m.ok('Typed into ' + app(r.json && r.json.into) + ' · ' + secs(performance.now() - t0));
-        } else {
-          m.fail(r.status === 409 || (r.json && r.json.error)
-            ? ((r.json && r.json.error) || 'Laptop focus changed — not typed')
-            : 'Laptop said no (' + r.status + ')');
-        }
-      } catch (e) {
-        m.fail('Couldn’t reach your laptop — is wrap running?');
-      }
+        if (r.ok) { box.value = ''; grow(); into = into || (r.json && r.json.into); ms = performance.now() - t0; }
+        else App.toast((r.json && r.json.error) || ('The laptop said no (' + r.status + ')'), true);
+      } catch (e) { App.toast('Can’t reach your laptop. Run: wrap start', true); }
     }
+    App.emit('sent', { ok: imgOk || txtOk, into });
     if (imgOk || txtOk) {
-      const kind = [imgOk && 'file', txtOk && 'text'].filter(Boolean).join(' + ');
+      const kind = imgOk && txtOk ? 'Text and file' : imgOk ? 'File' : 'Text';
       App.state.lastSend = { t_ms: Date.now(), ok: true, into, kind };
       App.renderStatus();
-      App.buzz();
-    } else {
-      App.toast('send failed — run: wrap start', true);
+      App.toast(kind + ' → ' + app(into) + ' · ' + secs(ms));
+      Flower.burst(); App.buzz();
+    } else if (!imgOk && !txtOk && !document.querySelector('.toast.err.show')) {
+      App.toast('Send failed. Run: wrap start', true);
     }
   } finally {
-    sending = false; go.disabled = false;
+    sending = false; go.disabled = false; box.focus();
   }
 }
 go.onclick = send;
@@ -294,35 +200,12 @@ box.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
 });
 
-/* ---------- signs that ran an action show up in the same feed ----------
-   The daemon keeps a rolling event feed (match / reject / fire / fired) in
-   /live/state. First poll after load is the baseline (history is not replayed);
-   every later `fired` event becomes a message: what you signed, what it did. */
-const seenEv = new Set();
-let evBaseline = false;
-const labelOf = {};                       // gloss -> human label, learned from match/fire events
-const pretty = t => String(t || '').replace(/[-_]+/g, ' ').replace(/^./, c => c.toUpperCase());
-App.on('livestate', j => {
-  const feedEv = (j && Array.isArray(j.feed)) ? j.feed : null;
-  if (!feedEv) return;
-  const fresh = [];
-  for (const ev of feedEv) {
-    const key = ev.type + '|' + ev.t_ms + '|' + (ev.gloss || (ev.glosses || []).join(','));
-    if (seenEv.has(key)) continue;
-    seenEv.add(key);
-    if (ev.gloss && ev.label) labelOf[ev.gloss] = ev.label;
-    if (ev.type === 'fire' && ev.action && ev.action.label) for (const g of ev.glosses || []) labelOf[g] = labelOf[g] || ev.action.label;
-    if (evBaseline && ev.type === 'fired') fresh.push(ev);
-  }
-  evBaseline = true;
-  if (seenEv.size > 400) { const keep = [...seenEv].slice(-200); seenEv.clear(); keep.forEach(k => seenEv.add(k)); }
-  for (const ev of fresh) {
-    const g = (ev.glosses || [])[0];
-    const x = addMsg('sys', { text: pretty(labelOf[g] || g || 'Sign'), icon: ICON.hand, pending: 'Running…' });
-    const r = ev.result || {};
-    if (ev.ok === false || r.fired === false) x.fail(r.detail ? 'Didn’t run · ' + r.detail : 'Didn’t run on your laptop');
-    else x.ok('Ran on your laptop' + (r.detail ? ' · ' + r.detail : ''));
-  }
+App.on('text:send', () => send());
+/* Go Live's Text mode appends each recognised sign (a word) to the message */
+App.on('text:append', w => {
+  if (!w) return;
+  box.value += (box.value && !/\s$/.test(box.value) ? ' ' : '') + w;
+  grow(); Flower.poke(.3);
 });
 
 /* ---------- dictation bridge (Wispr Flow on Android) ---------- */
@@ -333,15 +216,28 @@ function armDictation() {
 }
 addEventListener('load', () => {
   grow();
-  if (!App.key) return;              // unpaired page doesn't steal focus
-  /* a phone keyboard would cover the greeting — only auto-focus where there
-     is a hardware keyboard (or the Android shell that drives Wispr) */
+  if (!App.key) return;                // unpaired page doesn't steal focus
+  /* a phone keyboard would cover the lotus: auto-focus only where there is a
+     hardware keyboard, or in the Android shell that drives Wispr Flow */
   const touch = matchMedia('(pointer: coarse)').matches;
   if (!touch || App.wispr.has()) box.focus();
-  setTimeout(armDictation, 900);
+  setTimeout(armDictation, 1100);      // let the flower open first, then summon the keyboard
 });
 
-/* re-focus when the keyboard dismissed itself but the user is composing */
+/* visual viewport: lift the composer above the soft keyboard (iOS does not
+   resize the layout viewport) and let the lotus re-measure */
+const vv = window.visualViewport;
+function fitKb() {
+  if (!vv) return;
+  const kb = Math.max(0, innerHeight - (vv.height + vv.offsetTop));
+  composer.style.transform = kb > 60 ? `translateY(${-kb}px)` : '';
+  Flower.measure();
+  clearTimeout(fitKb.t); fitKb.t = setTimeout(Flower.measure, 300);
+}
+if (vv) { vv.addEventListener('resize', fitKb); vv.addEventListener('scroll', fitKb); }
+composer.addEventListener('transitionend', Flower.measure);
+
+/* back on the home screen: re-focus where a keyboard is expected */
 App.on('route', name => {
   if (!name && !matchMedia('(pointer: coarse)').matches) setTimeout(() => box.focus(), 350);
 });

@@ -52,8 +52,8 @@ export const Skel = {
     const { x, W, H } = f;
     const o = opts || {};
     const minS = o.minScore == null ? 0.28 : o.minScore;
-    const accent = o.accent || 'rgba(142, 238, 200, .96)';
-    const dim = o.dim || 'rgba(255, 255, 255, .72)';
+    const accent = o.accent || 'rgba(255, 255, 255, .95)';
+    const dim = o.dim || 'rgba(255, 255, 255, .62)';
     const mirror = !!o.mirror;
     x.clearRect(0, 0, W, H);
     // object-fit:cover mapping so points land exactly on the video image;
