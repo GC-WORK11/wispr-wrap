@@ -467,5 +467,5 @@ applyRoute();
 // the lotus: opens when the laptop link is up, closes to a bud when it is not,
 // and sleeps while a full-screen page covers it
 Flower.init({ field: document.getElementById('field'), anchor: document.getElementById('composer'), top: 64 });
-on('statusbar', () => Flower.setOnline(connected()));
+on('statusbar', () => Flower.setOnline(connected() || !state.checked));
 on('route', name => { Flower.pause(name !== ''); if (!name) setTimeout(Flower.measure, 60); });

@@ -22,8 +22,42 @@
 <link rel="stylesheet" href="css/library.css">
 <link rel="stylesheet" href="css/panes.css">
 <link rel="stylesheet" href="css/drawer.css">
+<link rel="stylesheet" href="css/packs.css">
+<link rel="stylesheet" href="css/boot.css">
+<!-- BOOT stage: critical splash styles, inline so the loading screen paints
+     before any stylesheet loads (zero layout shift, no flash of blank page). -->
+<style>
+#boot{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;
+align-items:center;justify-content:center;gap:18px;background:#fafaf9;
+-webkit-user-select:none;user-select:none;
+animation:boot-away 0s linear 3s forwards}
+#boot .boot-mark{width:72px;height:72px;color:#c2185b;display:block}
+#boot .boot-word{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,
+system-ui,sans-serif;font-weight:600;font-size:19px;letter-spacing:.2px;color:#111;margin:0}
+#boot .boot-bar{width:128px;height:2px;border-radius:2px;background:rgba(17,17,17,.09);
+overflow:hidden;position:relative}
+#boot .boot-bar>i{position:absolute;inset:0 auto 0 0;width:100%;border-radius:2px;
+background:#c2185b;transform:scaleX(.06);transform-origin:left center}
+@keyframes boot-away{to{opacity:0;visibility:hidden;pointer-events:none}}
+</style>
 </head>
 <body>
+  <!-- BOOT stage: in-app loading screen. First child of <body> so it paints
+       immediately; a clean 5-petal lotus mark + wordmark + hairline progress.
+       boot.js drives the bar off real readiness and fades it into the lotus bloom. -->
+  <div id="boot" role="status" aria-label="Loading Wispr Wrap">
+    <svg class="boot-mark" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 2.4c-1.5 2-2.3 4-2.3 6 0 1.6.8 3 2.3 4.4 1.5-1.4 2.3-2.8 2.3-4.4 0-2-.8-4-2.3-6z"/>
+      <path d="M12 13.2c-1.1-1.9-2.6-3.3-4.5-4.1-.2 2.1.2 3.9 1.3 5.4.9 1.2 2 1.9 3.2 2.3.1-1.3 0-2.5-0-3.6z"/>
+      <path d="M12 13.2c1.1-1.9 2.6-3.3 4.5-4.1.2 2.1-.2 3.9-1.3 5.4-.9 1.2-2 1.9-3.2 2.3-.1-1.3 0-2.5 0-3.6z"/>
+      <path d="M12 15.4c-1.9-1-4-1.3-6.3-.8.8 1.9 2.1 3.2 3.8 4 1.1.5 2.2.7 3.3.7-.3-1.4-.6-2.7-.8-3.9z"/>
+      <path d="M12 15.4c1.9-1 4-1.3 6.3-.8-.8 1.9-2.1 3.2-3.8 4-1.1.5-2.2.7-3.3.7.3-1.4.6-2.7.8-3.9z"/>
+    </svg>
+    <p class="boot-word">Wispr Wrap</p>
+    <div class="boot-bar"><i></i></div>
+  </div>
+  <script src="js/boot.js"></script>
+
   <!-- the ASCII lotus: three tiers of one deep-pink gradient -->
   <div class="field" id="field" aria-hidden="true"><pre id="f0"></pre><pre id="f1"></pre><pre id="f2"></pre></div>
 
@@ -147,5 +181,6 @@
   <script type="module" src="js/laptop.js"></script>
   <script type="module" src="js/settings.js"></script>
   <script type="module" src="js/drawer.js"></script>
+  <script type="module" src="js/sfx.js"></script>
 </body>
 </html>
