@@ -186,7 +186,7 @@ const S = {
   link: new KpLink(), stT: null, polling: false, linkUp: false, wantListen: true,
   mode: (() => { try { return localStorage.getItem('wf.livemode') === 'text' ? 'text' : 'control'; } catch (e) { return 'control'; } })(),
   textLocal: false, modeAt: 0,
-  listening: false, listenAt: 0, userPaused: false,
+  listening: false, listenAt: 0, listenBusy: false, listenDone: 0, userPaused: false,
   words: [], seen: new Set(), base: false,
   bank: new Map(), bankSize: null, fireAct: {},
   pendKey: '', energy: 0, hands: 0, prev: null, lastFrame: 0,
@@ -426,9 +426,12 @@ function feed(evs) {
   }
   if (S.seen.size > 600) { const keep = [...S.seen].slice(-250); S.seen.clear(); keep.forEach(x => S.seen.add(x)); }
 }
-function renderState(j) {
-  if (typeof j.listening === 'boolean' && j.listening !== S.listening &&
-      performance.now() - S.listenAt > 900) setListening(j.listening);
+function renderState(j, sent) {
+  /* follow the laptop's listening flag, but never with a reply to a poll that
+     left before our own last listen change was confirmed (a slow link would
+     otherwise flick the button back for a moment) */
+  if (typeof j.listening === 'boolean' && j.listening !== S.listening && !S.listenBusy &&
+      (sent == null || sent > S.listenDone)) setListening(j.listening);
   if (typeof j.bank_size === 'number' && j.bank_size !== S.bankSize) {
     const first = S.bankSize == null;
     S.bankSize = j.bank_size;
@@ -448,10 +451,11 @@ async function poll() {
   if (!S.open || S.polling) return;
   S.polling = true;
   try {
+    const sent = performance.now();
     const r = await App.api.get('/live/state');
     if (!S.open) return;
     if (r.status === 404 || r.status === 405) { outdated(); return; }
-    if (r.ok && r.json) renderState(r.json);
+    if (r.ok && r.json) renderState(r.json, sent);
   } catch (e) { /* offline: the net line says so */ }
   finally { S.polling = false; }
   if (performance.now() - S.lastFrame > 450 && (S.energy > .01 || S.hands)) { S.energy *= .4; S.hands = 0; setBars(); }
@@ -529,14 +533,16 @@ function setListening(on) {
 function listenFromLaptop(on) {
   S.userPaused = !on;                      // an open palm / palms together is you deciding
   if (on === S.listening) return;
-  S.listenAt = performance.now();
+  S.listenAt = S.listenDone = performance.now();
   setListening(on);
   App.buzz();
 }
 async function listen(on) {
   S.listenAt = performance.now();
   setListening(on);
+  S.listenBusy = true;
   const r = await App.api.post('/live/listen', { on }).catch(() => null);
+  S.listenBusy = false; S.listenDone = performance.now();
   if (!r || !r.ok) { setListening(!on); say('Couldn’t reach your laptop', ''); miss(); }
 }
 listenBtn.onclick = () => { S.wantListen = false; S.userPaused = S.listening; listen(!S.listening); };
