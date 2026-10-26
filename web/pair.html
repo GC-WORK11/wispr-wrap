@@ -60,7 +60,7 @@ function finish(url,key){
 
 document.getElementById('go').onclick=async()=>{
   err.textContent='';
-  let a=addr.value.trim(); if(!a) return bad('enter the address shown by wrap start');
+  let a=addr.value.trim(); if(!a) return bad('Enter the address.');
   if(!/^https?:\/\//.test(a)) a='http://'+a;
   if(!a.endsWith('/')) a+='/';
   try{

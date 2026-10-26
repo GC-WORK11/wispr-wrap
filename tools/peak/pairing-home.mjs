@@ -54,7 +54,7 @@ try {
   await page.eval(`document.querySelector('#onb-go').click()`);
   await sleep(60);
   await page.eval(`document.querySelector('#onb-go').disabled=false; document.querySelector('#onb-go').click()`);
-  const got429 = await page.waitFor(`/try per second|give it a moment/i.test(document.querySelector('#onb-err').textContent)`, 6000, '429 message').then(() => true).catch(() => false);
+  const got429 = await page.waitFor(`/try per second|give it a moment|wait a second/i.test(document.querySelector('#onb-err').textContent)`, 6000, '429 message').then(() => true).catch(() => false);
   check('rapid retries surface the one-try-per-second (429) message', got429, await onbErr());
   await shot('03-rate-limited');
   await sleep(1300);   // let the limiter cool down

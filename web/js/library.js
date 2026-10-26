@@ -156,13 +156,13 @@ async function refresh() {
     rows = Array.isArray(r.json.signs) ? r.json.signs : (Array.isArray(r.json) ? r.json : []);
     teachBtn.disabled = false;
   } else if (r && r.status === 404) {
-    bannerShow('the laptop runs an older wrap — update it to manage signs (git pull && npm run wrap)');
+    bannerShow('Update the laptop to manage signs');
     teachBtn.disabled = true;
   } else if (r && r.status === 403) {
-    bannerShow('unpaired — rescan the QR shown by wrap start');
+    bannerShow('Not connected');
     teachBtn.disabled = true;
   } else {
-    bannerShow('laptop unreachable — run: wrap start', true);
+    bannerShow('Laptop unreachable', true);
     teachBtn.disabled = true;
   }
   render();
