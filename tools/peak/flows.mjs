@@ -36,6 +36,8 @@ const check = (name, ok, detail = '') => {
 };
 const sh = (cmd, args) => execFileSync(cmd, args, { env: { ...process.env, DISPLAY: S.D }, encoding: 'utf8' });
 const sink = () => fs.readFileSync(S.SINK, 'utf8');
+// typing finishes a beat after the HTTP reply: poll the real editor's file
+const sinkHas = async (since, text, ms = 4000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (sink().slice(since).includes(text)) return true; await sleep(100); } return false; };
 const api = async (method, p, body) => {
   const r = await fetch(S.base + p, { method, headers: { 'X-WF-Key': S.KEY, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
   let j = null; const t = await r.text();
@@ -105,7 +107,7 @@ async function flowSend() {
     await page.click('#go');
     await waitToast(page, '→', 'text delivered');
     await shot(page, dir, '03-text-delivered');
-    check('text lands in the real editor', sink().slice(before).includes('Hello from the phone, typed for real'), 'sink.txt got the text');
+    check('text lands in the real editor', await sinkHas(before, 'Hello from the phone, typed for real'), 'sink.txt got the text');
     const t1 = await toast(page);
     check('status line shows target + latency', /Text → .+ · \d+ ms|Text → .+ · [\d.]+ s/.test(t1), t1);
 
@@ -222,8 +224,7 @@ async function flowLive() {
     await shot(page, dir, '03-sign-read-and-ran');
     const guess = await page.eval(`document.querySelector('#lv-guess').textContent`);
     check('the taught sign is read', /type hello/i.test(guess), guess);
-    await sleep(800);
-    check('the real OS action ran (typed into the laptop editor)', sink().slice(before).includes('hello-from-peak'), 'sink.txt got hello-from-peak');
+    check('the real OS action ran (typed into the laptop editor)', await sinkHas(before, 'hello-from-peak'), 'sink.txt got hello-from-peak');
     const cap = await page.eval(`document.querySelector('#lv-act-t').textContent`);
     check('the caption says what it did', /Typed/.test(cap), cap);
     await playAndWait(page, 'reject');

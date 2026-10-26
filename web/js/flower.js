@@ -92,12 +92,16 @@ function drawFlower(t, tb) {
   const top = topPad, base = P.t + 2, avail = base - top;
   if (avail < 90) return;
   const R = Math.min(.3 * Math.min(innerWidth, 560), avail / 3.6), vital = online ? 1 : .5, TILT = .92;
-  const hx = P.cx + Math.sin(t * .7) * .045 * R + Math.sin(t * 1.9) * .012 * R, hy = top + R * 1.12;
+  const hx = P.cx + Math.sin(t * .7) * .045 * R + Math.sin(t * 1.9) * .012 * R, hyFull = top + R * 1.12;
   const fl = tb > .38 && tb < 3 ? Math.exp(-(tb - .38) * 3.2) : 0;   // flare once the stem pulse lands
   const B = bloom * (1 + .08 * fl + .04 * charge), rot = t * .06 + charge * .2, rd = R * .2 * (.55 + .45 * Math.min(1, bloom));
 
-  // stem: grows from the composer up to the head; a pulse rides it on send
-  const yTop = hy + rd * .5, sLen = base - yTop, yGrow = base - sLen * Math.min(1, bloom * 1.7),
+  // sprout: the stem grows from the composer and the head rides its tip up to
+  // the final height while it opens (the original left the bud floating).
+  const sLenFull = base - (hyFull + rd * .5), yTip = base - sLenFull * Math.min(1, bloom * 1.7);
+  const hy = Math.max(hyFull, yTip - rd * .5);
+  // stem: a pulse rides it on send
+  const yTop = hy + rd * .5, sLen = base - yTop, yGrow = yTop,
         bend = .09 * R * Math.sin(t * .45 + 1.3), sp = tb >= 0 && tb < .6 ? tb / .42 : -1;
   const xs = s => P.cx + (hx - P.cx) * Math.pow(s, 1.5) + bend * Math.sin(Math.PI * s);
   if (sLen > R * .7) {
@@ -105,7 +109,7 @@ function drawFlower(t, tb) {
     leaf(xs(.3), base - sLen * .3, 2.55 + .06 * Math.sin(t * .8), R * .5 * lg, R * .14);
     leaf(xs(.52), base - sLen * .52, .62 + .06 * Math.sin(t * .8 + 2), R * .46 * lg, R * .13);
   }
-  for (let j = Math.max(0, Math.floor(yGrow / lh)); j <= Math.min(rows - 1, Math.floor(base / lh)); j++) {
+  if (sLen > 1) for (let j = Math.max(0, Math.floor(yGrow / lh)); j <= Math.min(rows - 1, Math.floor(base / lh)); j++) {
     const y = (j + .5) * lh; if (y < yGrow || y > base) continue;
     const s = (base - y) / sLen, x = xs(s), i = Math.floor(x / cw); if (i < 0 || i >= cols) continue;
     const tx = xs(Math.min(1, s + .02)) - x, ty = -.02 * sLen, idx = j * stride + i;

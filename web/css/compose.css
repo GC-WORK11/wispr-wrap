@@ -9,7 +9,7 @@
 .conn-hint {
   appearance: none; border: none; background: none; cursor: pointer;
   display: flex; align-items: center; gap: 8px; margin: 0 0 14px; padding: 6px 10px;
-  font: inherit; font-size: 14px; color: var(--muted-2); border-radius: 10px;
+  font: inherit; font-size: 14px; color: var(--muted-2); border-radius: 10px; background: var(--bg);
   animation: msg-in var(--t-3) var(--ease-out);
 }
 .conn-hint i { width: 8px; height: 8px; border-radius: 50%; border: 1.6px solid var(--muted); }
