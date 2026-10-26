@@ -175,6 +175,10 @@ async function startCapture() {
   if (window.WFFakeTrack && typeof window.WFFakeTrack.start === 'function') {
     recEl.classList.add('on');
     W.link.start(vid, null, { onFrame, onResp, onStatus });
+    /* the seam replaces the detections only — still show the real camera */
+    Pose.openCamera(vid, true).then(c => {
+      W.stream = c.stream; W.front = c.front; vid.classList.toggle('rear', !W.front);
+    }).catch(() => {});
     return;
   }
   /* dev seam: a loopback kp42 replay service (tools/demo-rec) stands in for
