@@ -206,8 +206,8 @@ perform_expect "$CLIPS/perform-OPEN-NOTES.json" "$MARKERS/open-notes" \
 note "TYPE-HELLO -> xdotool types into the real SinkEdit editor"
 # wake the Tk sink — an occluded editor's event loop can lag far behind
 # the 20s probe on a loaded box (observed: text lands but flushes late)
-xdotool search --class SinkEdit 2>/dev/null | tail -1 | xargs -r xdotool windowactivate 2>/dev/null || true
-sleep 0.3; chrome_wid | xargs -r xdotool windowactivate 2>/dev/null || true
+DISPLAY="$D" xdotool search --class SinkEdit 2>/dev/null | tail -1 | xargs -r env DISPLAY="$D" xdotool windowactivate 2>/dev/null || true
+sleep 0.3; chrome_wid | xargs -r env DISPLAY="$D" xdotool windowactivate 2>/dev/null || true
 # probe = sink.txt containing the typed string (not just mtime)
 sink_probe() { grep -q "hello" "$SINK" 2>/dev/null; }
 for i in 1 2 3; do

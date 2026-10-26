@@ -33,7 +33,7 @@ call POST /teach/end '{}' >/dev/null
 ok "$G taught via the real /teach flow (3 takes)"
 
 # bind AFTER teaching (PUT preserves exemplars, adds the argv)
-call PUT /bank "{\"gloss\":\"$G\",\"argv\":[\"bash\",\"-c\",\"wmctrl -a 'LibreOffice Writer' && sleep 0.4 && xdotool type --clearmodifiers --delay 30 'hello ' \"],\"tier\":0,\"label\":\"hello\"}" >/dev/null
+call PUT /bank "{\"gloss\":\"$G\",\"argv\":[\"bash\",\"-c\",\"export DISPLAY=$D; wmctrl -a 'LibreOffice Writer' && sleep 0.4 && xdotool type --clearmodifiers --delay 30 'hello ' \"],\"tier\":0,\"label\":\"hello\"}" >/dev/null
 ok "$G bound -> raise Writer + type at cursor"
 
 ACT0=$(grep -c "act $G" /tmp/wf-realrun/daemon.log 2>/dev/null || echo 0)

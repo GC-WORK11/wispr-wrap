@@ -20,6 +20,17 @@ if [ -z "$SINK" ] && [ -f /tmp/wf-realrun/env ]; then
 fi
 [ -n "$SINK" ] || SINK=/tmp/wf-realrun/sink.txt
 
+# Pin the target display: the daemon env already carries it, but a stray
+# inherited DISPLAY from the caller's shell must never steer keystrokes
+# to the wrong screen. The realrun env file holds the owned display.
+D="${WF_DISPLAY:-${DISPLAY:-}}"
+if [ -f /tmp/wf-realrun/env ]; then
+    _D=$(. /tmp/wf-realrun/env 2>/dev/null; printf '%s' "$D")
+    [ -n "$_D" ] && D="$_D"
+fi
+[ -n "$D" ] || { echo "type_into_sink: no target display" >&2; exit 1; }
+export DISPLAY="$D"
+
 WID=""
 for _ in 1 2 3 4 5 6 7 8 9 10; do
     WID=$(xdotool search --class SinkEdit 2>/dev/null | tail -1)
