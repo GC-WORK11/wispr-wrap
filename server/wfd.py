@@ -1983,11 +1983,31 @@ def authed(headers):
 
 
 class Handler(BaseHTTPRequestHandler):
+    def _cors_origin(self):
+        """Reflect the Origin only when its netloc is exactly our Host.
+        The app is served by this daemon, so legitimate calls are
+        same-origin and need no CORS header at all; a foreign page that
+        fetches us gets no ACAO and the browser hides the response —
+        that is what keeps /pair-info's key off a hostile site."""
+        hdrs = getattr(self, "headers", None)
+        if hdrs is None:
+            return None
+        o = hdrs.get("Origin")
+        if not o:
+            return None
+        try:
+            netloc = urllib.parse.urlparse(o).netloc
+        except Exception:
+            return None
+        return o if netloc == hdrs.get("Host", "") else None
+
     def _reply(self, code, body=b"", ctype="text/plain", extra=None):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
+        aco = self._cors_origin()
+        if aco:
+            self.send_header("Access-Control-Allow-Origin", aco)
         self.send_header("Access-Control-Allow-Headers", "*")
         self.send_header("Access-Control-Allow-Methods",
                          "GET, POST, PUT, DELETE, OPTIONS")
@@ -2071,7 +2091,18 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/pair-info":
             proxied = any(h.lower().startswith(("cf-", "x-forwarded"))
                           for h in self.headers)
-            if self.client_address[0] != "127.0.0.1" or proxied:
+            # DNS-rebinding guard: a hostile hostname resolving to
+            # 127.0.0.1 still carries its own Host header — require an
+            # IP literal or 'localhost' so the key only leaves via the
+            # real loopback path.
+            host = (self.headers.get("Host") or "").split(":")[0].lower()
+            try:
+                import ipaddress
+                host_lit = bool(ipaddress.ip_address(host))
+            except ValueError:
+                host_lit = host in ("localhost", "localhost.")
+            if (self.client_address[0] != "127.0.0.1" or proxied
+                    or not host_lit):
                 return self._reply(403, b"localhost only")
             out = json.dumps({"ip": lan_ip(), "ips": all_ips(), "port": BOUND_PORT,
                               "key": SECRET, "code": PAIR_CODE,

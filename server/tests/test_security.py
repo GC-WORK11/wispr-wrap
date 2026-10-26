@@ -165,6 +165,25 @@ class WfdCase(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(body)["key"], self.key)
 
+    def test_pair_info_rejects_dns_rebinding_host(self):
+        # a hostile site resolving to 127.0.0.1 keeps its own Host — refuse
+        status, _, _ = self.raw("GET", "/pair-info",
+                                headers={"Host": "evil.example:%d" % self.port})
+        self.assertEqual(status, 403)
+
+    def test_cors_origin_must_match_host(self):
+        # foreign Origins get no ACAO — the browser hides the response,
+        # which is what keeps /pair-info's key off a hostile page.
+        _, h, _ = self.raw("GET", "/health",
+                           headers={"Origin": "https://evil.example"})
+        hl = {k.lower(): v for k, v in h.items()}
+        self.assertNotIn("access-control-allow-origin", hl)
+        _, h, _ = self.raw("GET", "/health",
+                           headers={"Origin": "http://127.0.0.1:%d" % self.port})
+        hl = {k.lower(): v for k, v in h.items()}
+        self.assertEqual(hl.get("access-control-allow-origin"),
+                         "http://127.0.0.1:%d" % self.port)
+
     def test_proxied_rejected_on_sensitive_routes(self):
         """Bank/teach/act = how-you-move data; tunnels must not reach them."""
         routes = [("GET", "/bank"), ("PUT", "/bank"), ("GET", "/act"),
