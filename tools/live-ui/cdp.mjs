@@ -36,8 +36,14 @@ export async function launchChrome({ port, profile, origin, extra = [], env = {}
   ];
   const proc = spawn('google-chrome', args, { stdio: 'ignore', env: { ...process.env, ...env } });
   await getJson(`http://127.0.0.1:${port}/json/version`);
-  const targets = await getJson(`http://127.0.0.1:${port}/json/list`);
-  const t = targets.find(x => x.type === 'page');
+  // under load Chrome can answer /json/version before its first tab exists
+  let t = null;
+  for (let i = 0; i < 100 && !t; i++) {
+    const targets = await getJson(`http://127.0.0.1:${port}/json/list`).catch(() => []);
+    t = (targets || []).find(x => x.type === 'page' && x.webSocketDebuggerUrl);
+    if (!t) await sleep(200);
+  }
+  if (!t) throw new Error('Chrome started but opened no page');
   const page = new Page(t.webSocketDebuggerUrl, origin);
   await page.ready;
   page.proc = proc;

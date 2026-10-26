@@ -294,8 +294,8 @@ function miss(el) {
 }
 function hint() {
   if (S.booting) return { s: 'Getting ready' };
-  if (App.state && App.state.online === false) return { s: 'Not connected' };
-  if (S.mode === 'control' && !laptopOn()) return { s: 'No laptop connected', cta: 'Connect your laptop' };
+  // both modes need the laptop: one way to fix it, nothing else
+  if (!laptopOn()) return { s: 'No laptop connected', cta: 'Connect your laptop' };
   if (S.bankSize === 0 && S.mode === 'text') return { s: 'No signs yet', cta: 'Teach a sign' };
   if (!S.listening) return { s: 'Paused' };
   if (S.mode === 'text' && S.textLocal && S.words.length) return { s: '', cta: 'Send to laptop' };
