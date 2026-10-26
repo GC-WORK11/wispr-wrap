@@ -15,7 +15,7 @@ if (!sheet) throw new Error('library: #sheet-signs missing');
 
 sheet.innerHTML = `
   <div class="sheet-head">
-    <h1>your signs</h1>
+    <h1>My signs</h1>
     <span class="sub" id="lib-count"></span>
     <button class="sheet-x" id="lib-x" aria-label="Close">×</button>
   </div>
@@ -36,7 +36,7 @@ sheet.innerHTML = `
     </div>
   </div>
   <div class="sheet-foot">
-    <button class="btn btn-primary btn-block" id="lib-teach">+ teach a sign</button>
+    <button class="btn btn-primary btn-block" id="lib-teach">Teach a sign</button>
   </div>`;
 const $ = id => sheet.querySelector('#' + id);
 const listEl = $('lib-list'), emptyEl = $('lib-empty'), countEl = $('lib-count'),
@@ -69,8 +69,8 @@ function render() {
     const tier = s.tier || 0;
     card.innerHTML =
       `<div class="lib-top"><span class="lib-gl">${esc(s.gloss)}</span>` +
-      `<span class="lib-name">${esc(s.label && s.label !== s.gloss ? s.label : '')}</span>` +
-      `<span class="chip">${n} exemplar${n === 1 ? '' : 's'}</span></div>` +
+      `<span class="lib-name">${esc(s.label && s.label !== s.gloss ? s.label : String(s.gloss || '').toLowerCase().replace(/[-_]+/g, ' '))}</span>` +
+      `<span class="chip">${n} take${n === 1 ? '' : 's'}</span></div>` +
       `<div class="lib-act"><span class="lib-act-v">${esc(actSummary(s))}</span>` +
       (tier >= 2 ? '<span class="chip warn">confirm</span>' : '') +
       (s.taught === false ? '<span class="chip accent">bound</span>' : '') +

@@ -114,6 +114,9 @@ try {
     await page.click('[data-close]').catch(() => {}); await sleep(500);
     await page.eval(`location.hash = '#/settings'`); await sleep(900);
     await shot('18-settings');
+    await page.eval(`location.hash = '#/signs'`); await sleep(1200);
+    await shot('19-my-signs');
+    console.log('signs-page errors:', JSON.stringify(page.errors.slice(0, 4)));
   }
   if (sets.includes('offline')) {
     // the laptop is unreachable: block /health so the app sees it as offline
