@@ -30,8 +30,9 @@ done
 load_env
 
 VERIFIERS=(
-    pair_send live_sign open_app focus_app close_window tile workspace
-    volume screenshot macro context picker observe record confirm auth
+    pair_send send_media live_sign open_app focus_app close_window tile
+    workspace volume screenshot macro context picker observe record
+    confirm auth
 )
 
 declare -A STATUS WHY
