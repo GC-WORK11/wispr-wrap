@@ -93,18 +93,43 @@ def scrub(s):
         c = s.count(p)
         if c: rewrites[p] = rewrites.get(p, 0) + c; s = s.replace(p, "~")
     return s
-start = scrub(rd("start"))
+def mask(s):
+    # never commit a live pairing key or one-shot code
+    s = re.sub(r"\?k=\S+", "?k=•••", s)
+    s = re.sub(r"(code\s+)\S+", r"\g<1>XXXXXXXX", s)
+    return s
+start = mask(scrub(rd("start")))
 lines = start.split("\n")
 idx = next((i for i, l in enumerate(lines) if "scan with your phone camera" in l), None)
 m = re.search(r"http://\S+", start)
 if idx is None or not m:
     sys.exit("validation failed: no scan line / http link in start output")
-qr = lines[:idx]
+# the QR is the contiguous block of ANSI-art lines ending just above idx;
+# any preamble above it (usb bridge, firewall note) is kept
+def is_qr_line(l): return "\x1b[" in l or any(ch in l for ch in "▀▄█")
+qend = idx
+while qend > 0 and not lines[qend - 1].strip(): qend -= 1
+q0 = qend
+while q0 > 0 and is_qr_line(lines[q0 - 1]): q0 -= 1
+if qend - q0 < 10:
+    sys.exit("validation failed: no QR block in start output")
+preamble = lines[:q0]
+link = next(re.search(r"http://\S+\?k=\S+", l).group(0) for l in lines if re.search(r"or open on phone:\s+http://\S+\?k=\S+", l))
+# the printed QR encodes the real key — re-render it for the masked link so
+# nothing scannable leaks. qrprint.py emits the same ANSI half-block art.
+import subprocess
+qr_script = os.path.join(os.path.dirname(os.path.abspath(out)), "..", "..", "..", "server", "qrprint.py")
+qr_script = os.path.normpath(qr_script)
+raw_link = next(re.search(r"http://\S+\?k=\S+", l).group(0) for l in mask(scrub(rd("start"))).split("\n") if "or open on phone:" in l)
+masked_link = re.sub(r"\?k=\S+", "?k=%E2%80%A2%E2%80%A2%E2%80%A2", raw_link)
+qr_new = subprocess.run([sys.executable, qr_script, masked_link], capture_output=True, text=True).stdout.rstrip("\n")
+if qr_new.count("\n") < 10 or "█" not in qr_new and "▀" not in qr_new:
+    sys.exit("validation failed: QR re-render empty")
+qr = qr_new.split("\n")
 while qr and not qr[-1].strip(): qr.pop()
 while qr and not qr[0].strip(): qr.pop(0)
-if len(qr) < 10 or not any("\x1b[" in l for l in qr) and not any(ch in "".join(qr) for ch in "▀▄█"):
-    sys.exit("validation failed: no QR block in start output")
-link = next(re.search(r"http://\S+\?k=\S+", l).group(0) for l in lines if re.search(r"or open on phone:\s+http://\S+\?k=\S+", l))
+# swap the QR block inside the start output too (preamble kept, key gone)
+start = "\n".join(preamble + qr + [""] + lines[idx:])
 steps = [
   ("clone",   "git clone https://github.com/GC-WORK11/wispr-wrap.git", "git clone --progress <local worktree> wispr-wrap"),
   ("install", "npm install", "npm install"),

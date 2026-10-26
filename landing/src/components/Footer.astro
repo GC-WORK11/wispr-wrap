@@ -1,0 +1,196 @@
+---
+// Footer — the Sign-Flow mark giant and cropped by the end of the page,
+// re-skinned in its own materials in hard cuts (paper -> pink -> ASCII
+// lotus -> the mark's soft gradient). Above: icon, wordmark letter reveal,
+// links. No JS or reduced motion: everything visible, nothing moves.
+import fs from 'node:fs';
+const iconSvg = fs.readFileSync('public/icon.svg', 'utf8');
+const markPath = iconSvg.match(/<path fill="url\(#wwg\)" d="([^"]+)"/)?.[1] ?? '';
+const mark = `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><path d='${markPath}'/></svg>`)}")`;
+const vars = `--mark: ${mark}`;
+
+// tonal ASCII fill for one material state — the lotus ramp as characters
+const chars = ' .,:-=+*#%@';
+const ascii = Array.from({ length: 26 }, (_, r) =>
+  Array.from({ length: 40 }, (_, c) => chars[(r * 7 + c * 3) % chars.length]).join(''),
+).join('\n');
+
+const links = [
+  { href: '#try', label: 'Try' },
+  { href: '#how', label: 'Set up' },
+  { href: 'https://github.com/GC-WORK11/wispr-wrap', label: 'GitHub' },
+];
+---
+
+<footer class="footer" data-footer style={vars}>
+  <div class="top" data-top>
+    <a class="brand" href="/" aria-label="Sign-Flow, home">
+      <span class="icon"><img src="/icon.svg" width="44" height="44" alt="" /></span>
+      <span class="word" aria-hidden="true">{[...'Sign-Flow'].map((ch, i) => <span style={`--i:${i}`}>{ch}</span>)}</span>
+    </a>
+    <nav class="links" aria-label="Footer">
+      {links.map((l) => <a href={l.href}>{l.label}</a>)}
+      <span class="legal">© 2026 Sign-Flow</span>
+    </nav>
+  </div>
+
+  <div class="stage" data-stage data-m="grad" aria-hidden="true">
+    <div class="c">
+      <div class="mat mat-paper"></div>
+      <div class="mat mat-pink"></div>
+      <div class="mat mat-ascii"><pre>{ascii}</pre></div>
+      <div class="mat mat-grad"></div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  const footer = document.querySelector('[data-footer]');
+  const stage = footer?.querySelector('[data-stage]');
+  const top = footer?.querySelector('[data-top]');
+  if (footer && stage && top && 'IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const seq = ['paper', 'pink', 'ascii', 'grad'];
+    footer.classList.add('is-armed');
+    stage.dataset.m = seq[0];
+    const play = () => {
+      stage.classList.add('is-playing');
+      seq.forEach((m, i) => setTimeout(() => (stage.dataset.m = m), i * 700));
+    };
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          if (e.target === top) footer.classList.add('is-in');
+          if (e.target === stage) play();
+          io.unobserve(e.target);
+        }
+      },
+      { threshold: 0.45 },
+    );
+    io.observe(top);
+    io.observe(stage);
+  }
+</script>
+
+<style>
+  .footer { margin-top: clamp(110px, 12vw, 190px); }
+
+  .top {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 32px;
+    padding: 0 var(--pad);
+    max-width: 1300px;
+    margin: 0 auto;
+  }
+  .brand { display: inline-flex; align-items: center; gap: clamp(14px, 1.5vw, 24px); color: var(--text); }
+  .icon {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: clamp(52px, 5.4vw, 80px);
+    aspect-ratio: 1;
+    border-radius: 24%;
+    background: var(--surface);
+    box-shadow: var(--shadow-soft), 0 0 0 1px var(--border);
+  }
+  .icon img { width: 64%; height: 64%; }
+  .word {
+    display: inline-flex;
+    font-size: clamp(44px, 5.4vw, 88px);
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -0.05em;
+    padding-bottom: 0.05em;
+  }
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 10px clamp(20px, 2.5vw, 40px);
+    font-size: 17px;
+    padding-bottom: 0.4em;
+  }
+  .links a:hover { text-decoration: underline; text-underline-offset: 0.25em; }
+  .legal { font-size: 14px; color: var(--faint); }
+
+  :global(.js) .is-armed .word span { opacity: 0; filter: blur(8px); transform: translateY(0.1em); }
+  :global(.js) .is-armed.is-in .word span {
+    opacity: 1; filter: none; transform: none;
+    transition: opacity 0.5s var(--ease-out), filter 0.6s var(--ease-out), transform 0.8s var(--ease-out);
+    transition-delay: calc(var(--i) * 60ms + 120ms);
+  }
+
+  /* the stage: giant mark cropped by the page end */
+  .stage {
+    --S: min(78vw, 1100px);
+    --H: clamp(300px, 36vw, 560px);
+    --bg: var(--surface);
+    position: relative;
+    height: var(--H);
+    margin: clamp(44px, 5vw, 76px) 12px 0;
+    border-radius: var(--r-block) var(--r-block) 0 0;
+    overflow: hidden;
+    isolation: isolate;
+    background: var(--bg);
+    box-shadow: 0 -1px 0 0 var(--border), inset 0 0 0 1px var(--border);
+    transition: background 0.3s;
+  }
+  .c {
+    position: absolute;
+    left: 50%;
+    top: calc(var(--H) * 0.16 - var(--S) * 0.09);
+    width: var(--S);
+    aspect-ratio: 1;
+    transform: translateX(-50%);
+  }
+  .mat {
+    position: absolute;
+    inset: 0;
+    -webkit-mask: var(--mark) center / 100% 100% no-repeat;
+    mask: var(--mark) center / 100% 100% no-repeat;
+    visibility: hidden;
+  }
+  .mat-paper {
+    background:
+      repeating-linear-gradient(-58deg, rgb(0 0 0 / 0.035) 0 1px, transparent 1px 7px),
+      radial-gradient(60% 48% at 30% 20%, #fff, transparent 75%),
+      #f3f2f0;
+  }
+  .mat-pink {
+    background:
+      repeating-linear-gradient(-62deg, #d81b7a 0 2px, #ff309c 2px 5px, #f1549f 5px 8px, #ff6fb8 8px 9px);
+  }
+  .mat-ascii { overflow: hidden; }
+  .mat-ascii pre {
+    margin: 0;
+    padding: 4% 0 0 3%;
+    font-family: var(--mono);
+    font-size: calc(var(--S) * 0.021);
+    line-height: 0.95;
+    letter-spacing: 0.08em;
+    white-space: pre;
+    background: linear-gradient(115deg, #c2185b 0%, #e91e8c 30%, #ff309c 55%, #ff6fb8 80%, #ffb3d9 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    user-select: none;
+  }
+  .mat-grad {
+    background: radial-gradient(58% 60% at 39% 30%, #ff4ca8, #ff309c 55%, #e02085 100%);
+  }
+
+  .stage[data-m='paper'] .mat-paper,
+  .stage[data-m='pink'] .mat-pink,
+  .stage[data-m='ascii'] .mat-ascii,
+  .stage[data-m='grad'] .mat-grad { visibility: visible; }
+
+  @media (max-width: 760px) {
+    .top { flex-direction: column; align-items: flex-start; gap: 26px; }
+    .links { justify-content: flex-start; font-size: 16px; }
+    .legal { flex-basis: 100%; }
+    .stage { --S: 112vw; --H: 74vw; }
+  }
+</style>

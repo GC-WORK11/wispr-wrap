@@ -1,0 +1,47 @@
+---
+// Teach — three real screens: pick the action, record three takes, done.
+const shots = [
+  { src: '/media/screens/teach-pick.webp', alt: 'Teach a sign: pick what it does — Type text is chosen' },
+  { src: '/media/screens/teach-take.webp', alt: 'Recording a take: the camera reads your hands, take two of three' },
+  { src: '/media/screens/teach-done.webp', alt: 'The sign is saved and live' },
+];
+---
+
+<section class="teach" aria-labelledby="teach-t">
+  <h2 id="teach-t" class="h2">Teach a sign in ten seconds.</h2>
+  <div class="row">
+    {shots.map((s) => (
+      <figure>
+        <img src={s.src} width="390" height="844" alt={s.alt} loading="lazy" decoding="async" />
+      </figure>
+    ))}
+  </div>
+</section>
+
+<style>
+  .teach {
+    padding: clamp(80px, 10vw, 150px) var(--pad) 0;
+    max-width: 1160px;
+    margin: 0 auto;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: clamp(14px, 2.4vw, 32px);
+    margin-top: clamp(28px, 4vw, 56px);
+  }
+  figure {
+    margin: 0;
+    border-radius: 20px;
+    overflow: hidden;
+    background: var(--surface);
+    box-shadow: var(--shadow-lift), 0 0 0 1px var(--border);
+  }
+  figure img { width: 100%; height: auto; }
+  figure:nth-child(2) { translate: 0 clamp(10px, 2vw, 28px); }
+  @media (max-width: 760px) {
+    .row { grid-template-columns: 1fr 1fr; }
+    figure:nth-child(2) { translate: 0; }
+    figure:last-child { grid-column: 1 / -1; max-width: 60%; margin: 0 auto; }
+  }
+</style>
