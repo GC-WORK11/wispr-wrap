@@ -24,7 +24,15 @@ let cols = 0, rows = 0, cw = 6, lh = 11, stride = 1, bufs = [], tmpl = null, P =
 let bloom = 0, charge = 0, burstAt = -99, online = true, paused = false;   // blooms fully on every load; closes to a bud only if the first health check fails
 const RM = matchMedia('(prefers-reduced-motion: reduce)');
 
-const put = (i, l, ch) => { bufs[0][i] = l === 0 ? ch : SP; bufs[1][i] = l === 1 ? ch : SP; bufs[2][i] = l === 2 ? ch : SP; };
+// five tonal layers, deep -> light (css --r0..--r4). A cell's tone comes from depth: the core is deepest, outlines strong,
+// fills soften toward the rim, the back petals and veins are the lightest. Asleep (offline) shifts everything one step lighter.
+const NT = 5;
+let off = 0;
+const put = (i, l, ch, tone) => {
+  let t = tone == null ? (l === 2 ? 1 : l === 1 ? 2 : 3) : tone;
+  t = t + off; if (t > NT - 1) t = NT - 1; else if (t < 0) t = 0;
+  for (let k = 0; k < NT; k++) bufs[k][i] = k === t ? ch : SP;
+};
 const ramp = b => RAMP[b <= 0 ? 0 : b >= 1 ? 10 : Math.round(b * 10)];
 // glyph for a line whose normal is (nx,ny) in screen space
 function dirc(nx, ny, under) {
@@ -57,7 +65,7 @@ function grid() {
   cols = Math.ceil(W / cw) + 1; rows = Math.ceil(H / lh) + 1; stride = cols + 1;
   tmpl = new Uint8Array(rows * stride).fill(SP);
   for (let j = 0; j < rows; j++) tmpl[j * stride + cols] = 10;
-  bufs = [0, 1, 2].map(() => new Uint8Array(tmpl.length));
+  bufs = Array.from({ length: NT }, () => new Uint8Array(tmpl.length));
   measure();
 }
 
@@ -81,9 +89,9 @@ function leaf(ax, ay, ang, len, wid) {
       const idx = j * stride + i, dh = wid * .8 * Math.pow(sn, -.2) * Math.cos(Math.PI * u / len) * Math.PI / len,
             sv = v < 0 ? -1 : 1, gx = -sv * dy - dh * dx, gy = sv * dx - dh * dy, gm = Math.hypot(gx, gy) || 1;
       G.x = gx / gm; G.y = gy / gm;
-      if ((half - av) / gm < band(G)) put(idx, 1, dirc(G.x, G.y, true));
-      else if (av < cw * .5) put(idx, 1, dirc(-dy, dx, false));
-      else put(idx, 0, ramp(.3 + .4 * (1 - av / half)));
+      if ((half - av) / gm < band(G)) put(idx, 1, dirc(G.x, G.y, true), 2);
+      else if (av < cw * .5) put(idx, 1, dirc(-dy, dx, false), 3);
+      else put(idx, 0, ramp(.3 + .4 * (1 - av / half)), 4);
     }
   }
 }
@@ -113,7 +121,7 @@ function drawFlower(t, tb) {
     const y = (j + .5) * lh; if (y < yGrow || y > base) continue;
     const s = (base - y) / sLen, x = xs(s), i = Math.floor(x / cw); if (i < 0 || i >= cols) continue;
     const tx = xs(Math.min(1, s + .02)) - x, ty = -.02 * sLen, idx = j * stride + i;
-    if (sp >= 0 && Math.abs(s - sp) < .08) put(idx, 2, HASH); else put(idx, online ? 1 : 0, dirc(-ty, tx, false));
+    if (sp >= 0 && Math.abs(s - sp) < .08) put(idx, 2, HASH, 0); else put(idx, 1, dirc(-ty, tx, false), s > .5 ? 1 : 2);
   }
 
   // head: disc + front petals + offset back petals, outlined with directional glyphs
@@ -127,25 +135,25 @@ function drawFlower(t, tb) {
     for (let i = i0; i <= i1; i++) {
       const x = (i + .5) * cw, dx = x - hx, dy = (y - hy) / TILT, r = Math.hypot(dx, dy); if (r > Rmax) continue;
       const idx = j * stride + i, th = Math.atan2(dy, dx);
-      if (r < rd) { const u = r / rd; put(idx, u < .8 ? 2 : 1, u < .42 ? AT : u < .8 ? OO : STAR); continue; }
+      if (r < rd) { const u = r / rd; put(idx, u < .8 ? 2 : 1, u < .42 ? AT : u < .8 ? OO : STAR, u < .8 ? 0 : 1); continue; }
       const rf = R * B * petalR(th - rot, NF, LF, t, .025), q = PQ;
       if (r < rf) {
         const e = rf - r;
-        if (e < lh * 1.1) { const g = grad(Ff, x, y); if (e / g.m < band(g)) { put(idx, 2, dirc(g.x, g.y, true)); continue; } }
+        if (e < lh * 1.1) { const g = grad(Ff, x, y); if (e / g.m < band(g)) { put(idx, 2, dirc(g.x, g.y, true), 1); continue; } }
         const tt = r / rf, aq = Math.abs(q);
-        if (aq < .1 && tt > .28 && tt < .88) { put(idx, 0, dirc(-dy, dx, false)); continue; }   // vein
-        put(idx, fl > .55 ? 2 : online ? 1 : 0, ramp((.08 + .3 * tt + .12 * (1 - aq)) * vital + .28 * fl + .07 * charge));
+        if (aq < .1 && tt > .28 && tt < .88) { put(idx, 0, dirc(-dy, dx, false), 3); continue; }   // vein
+        put(idx, 1, ramp((.08 + .3 * tt + .12 * (1 - aq)) * vital + .28 * fl + .07 * charge), Math.max(0, (tt < .4 ? 1 : tt < .7 ? 2 : 3) - (fl > .55 ? 1 : 0)));
         continue;
       }
       const rb = R * B * 1.12 * petalR(th - rot - Math.PI / NF, NF, LB, t, .02);
       if (r < rb) {
         const e = rb - r;
-        if (e < lh * 1.1) { const g = grad(Fb, x, y); if (e / g.m < band(g)) { put(idx, 1, dirc(g.x, g.y, true)); continue; } }
-        put(idx, 0, ramp((.1 + .3 * r / rb) * vital)); continue;
+        if (e < lh * 1.1) { const g = grad(Fb, x, y); if (e / g.m < band(g)) { put(idx, 1, dirc(g.x, g.y, true), 3); continue; } }
+        put(idx, 0, ramp((.1 + .3 * r / rb) * vital), 4); continue;
       }
       if (fl > 0) { // pollen ring blasting outward after a send
         const ringR = R * (1.08 + (tb - .38) * 1.5);
-        if (Math.abs(r - ringR) < lh * .9 && hash(i, j + (tb * 12 | 0)) < .5 * fl) put(idx, fl > .5 ? 2 : 1, hash(i + 5, j) > .6 ? STAR : PLUS);
+        if (Math.abs(r - ringR) < lh * .9 && hash(i, j + (tb * 12 | 0)) < .5 * fl) put(idx, 1, hash(i + 5, j) > .6 ? STAR : PLUS, fl > .5 ? 2 : 3);
       }
     }
   }
@@ -160,16 +168,17 @@ function frame(now) {
   bloom += ((online ? 1 : .42) - bloom) * (1 - Math.exp(-dt * 1.6));
   charge *= Math.exp(-dt * .9);
   const tb = t - burstAt;
+  off = online ? 0 : 1;
   for (const b of bufs) b.set(tmpl);
   drawFlower(t, tb);
-  for (let k = 0; k < 3; k++) LY[k].textContent = dec.decode(bufs[k]);
+  for (let k = 0; k < NT; k++) LY[k].textContent = dec.decode(bufs[k]);
 }
 
 export const Flower = {
   /** init({field, anchor, top}) — field holds three <pre>, anchor is the composer row */
   init(o) {
     field = o.field; anchor = o.anchor; topPad = o.top || 64;
-    LY = [0, 1, 2].map(i => field.querySelector('#f' + i));
+    LY = Array.from({ length: NT }, (_, i) => field.querySelector('#f' + i));
     grid();
     addEventListener('resize', grid);
     addEventListener('load', measure);

@@ -145,3 +145,9 @@
 .lib-empty { font-size: 17px; color: var(--muted); padding: 0; }
 .lib-empty-g { margin-bottom: 14px; }
 .lib-act .chip.accent { display: none; }
+
+/* FOUNDER-RULE-1652: a sign is its name. Counts, summaries and sub-labels are not drawn. */
+.lib-count, #lib-count, .sheet-head .sub { display: none; }
+.lib-top .chip, .lib-act { display: none; }
+.lib-top { min-height: 56px; }
+.lib-name { font-size: 20px; }

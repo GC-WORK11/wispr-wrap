@@ -21,7 +21,7 @@ sheet.innerHTML = `
       <span class="st-t">Replayed gestures<span class="st-s">For demos and recordings only — hands move themselves</span></span>
       <input type="checkbox" id="st-replay" class="st-sw">
     </label>
-    <p class="hint st-note">Camera video never leaves this phone.</p>
+    
   </div>`;
 
 sheet.querySelector('#st-x').onclick = App.back;

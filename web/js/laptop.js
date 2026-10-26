@@ -57,7 +57,7 @@ function render() {
   const name = (s.laptop && s.laptop.name) || App.store.getItem('wfname') || '';
   stateEl.textContent = ok ? 'Connected' : 'Not connected';
   stateEl.classList.toggle('on', ok);
-  subEl.textContent = ok ? name : 'Enter the code your laptop shows.';
+  subEl.textContent = '';
   rowsEl.textContent = '';
   if (ok) {
     if (s.confirms.length)

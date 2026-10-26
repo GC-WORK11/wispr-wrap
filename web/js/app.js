@@ -251,7 +251,7 @@ const toastEl = document.getElementById('toast');
 let toastT;
 function toast(msg, isErr) {
   toastEl.textContent = msg;
-  toastEl.className = 'toast show' + (isErr ? ' err' : '');
+  toastEl.className = isErr ? 'toast show err' : 'toast quiet';   // success/progress: announced to assistive tech, not drawn (the lotus + progress line carry it)
   clearTimeout(toastT);
   toastT = setTimeout(() => toastEl.classList.remove('show'), 2000);
 }
@@ -285,17 +285,17 @@ function renderConfirms(rows) {
     row.className = 'confirm-row';
     const txt = document.createElement('span');
     txt.className = 'confirm-txt';
-    txt.textContent = (p.label || p.gloss || 'action') + ' — held for confirm';
+    txt.textContent = p.label || p.gloss || 'Action';
     const yes = document.createElement('button');
-    yes.className = 'confirm-yes'; yes.textContent = 'run it';
+    yes.className = 'confirm-yes'; yes.textContent = 'Run it';
     const no = document.createElement('button');
-    no.className = 'confirm-no'; no.textContent = 'cancel';
+    no.className = 'confirm-no'; no.textContent = 'Cancel';
     yes.onclick = async () => {
       yes.disabled = no.disabled = true;
       const r = await req('POST', '/act/confirm', { id: p.id }).catch(() => null);
-      if (r && r.ok && r.json && r.json.fired) toast('fired ' + (p.label || p.gloss));
-      else if (r && r.ok) toast('done');
-      else toast('confirm failed' + (r ? ' (' + r.status + ')' : ''), true);
+      if (r && r.ok && r.json && r.json.fired) toast('Done');
+      else if (r && r.ok) toast('Done');
+      else toast('Couldn’t run it', true);
       pollState();
     };
     no.onclick = async () => {
@@ -364,7 +364,7 @@ async function autoPair() {
 }
 async function pairWithCode() {
   const code = onbCode.value.trim();
-  if (code.length < 4) { onbErr.textContent = 'Type the code your laptop is showing.'; return; }
+  if (code.length < 4) { onbErr.textContent = 'Enter the code.'; return; }
   onbGo.disabled = true; onbGo.textContent = 'Connecting…'; onbErr.textContent = '';
   try {
     const r = await fetch('/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -376,10 +376,10 @@ async function pairWithCode() {
       setTimeout(() => location.replace(location.pathname + location.hash), 350);
       return;
     }
-    onbErr.textContent = r.status === 429 ? 'One try per second — give it a moment.'
-      : r.status === 403 ? 'That code isn’t right. Check your laptop screen.'
-      : 'Couldn’t pair (' + r.status + ').';
-  } catch (e) { onbErr.textContent = 'Can’t reach your laptop from here.'; }
+    onbErr.textContent = r.status === 429 ? 'Wait a second, then try again.'
+      : r.status === 403 ? 'That code isn’t right.'
+      : 'Couldn’t connect.';
+  } catch (e) { onbErr.textContent = 'Can’t reach your laptop.'; }
   onbGo.disabled = false; onbGo.textContent = 'Connect';
 }
 onbGo.onclick = pairWithCode;

@@ -4,35 +4,41 @@
    and the flower. No glow, no decorative gradients, no capsules or boxed
    cards. Sheets in the lane css files only consume these tokens. */
 :root {
-  --bg: #fafaf9;
+  /* FOUNDER-COLOR-1658: palette sampled from the founder's reference */
+  --bg: #fcfcfc;
   --surface: #ffffff;
-  --ink: #111111;
-  --ink-2: #3a3a3a;
-  --muted-2: #6b6b6b;
-  --muted: #a3a3a3;
-  --hairline: #e7e5e4;
-  --hairline-2: #f1f0ef;
-  /* the one accent: deep pink lotus */
-  --accent: #c2185b;
-  --accent-hi: #d81b60;
-  --accent-lo: #a3134a;
+  --surface-2: #eeeef0;
+  --ink: #0a0a0a;              /* text + primary buttons (glyph core #000) */
+  --ink-2: #3d3d3d;
+  --muted-2: #888888;          /* secondary text, placeholders */
+  --muted: #bdbdbd;            /* faint: timestamps, hints */
+  --hairline: #ebebeb;         /* the 1px rim under pills and round buttons */
+  --hairline-2: #f3f3f3;
+  /* sign-flow pink: the one accent */
+  --accent: #f12f92;
+  --accent-hi: #ff309c;
+  --accent-lo: #c2185b;
   --accent-ink: #ffffff;
-  --accent-soft: #fce8ef;
-  --accent-line: #f3bdd0;
-  --ring: rgba(194, 24, 91, .16);
-  --lotus-hi: #e91e63;
+  --accent-soft: #ffeaf5;
+  --accent-line: #ffb3d9;
+  --ring: rgba(241, 47, 146, .22);
+  --purple: #9259fe;
+  --badge: #fc9400;
+  /* the ASCII lotus ramp, deep -> light */
+  --r0: #c2185b; --r1: #e91e8c; --r2: #ff309c; --r3: #ff6fb8; --r4: #ffb3d9;
+  --lotus-hi: #ff309c;
   --lotus-lo: #c2185b;
   /* semantic */
-  --live: #e11d48;
-  --ok: #1f8f55;
+  --live: #ff309c;
+  --ok: #1f9d57;
   --warn: #8a5a00;
   --warn-soft: #fdf4df;
-  --danger: #c2301f;
+  --danger: #d64530;
   --danger-soft: #fdeceb;
-  /* depth: neutral, barely there */
-  --sh-1: 0 1px 2px rgba(0, 0, 0, .04), 0 4px 16px rgba(0, 0, 0, .04);
-  --sh-2: 0 0 0 1px rgba(0, 0, 0, .03), 0 2px 6px rgba(0, 0, 0, .05), 0 14px 36px rgba(0, 0, 0, .07);
-  --sh-pop: 0 0 0 1px rgba(0, 0, 0, .05), 0 4px 10px rgba(0, 0, 0, .06), 0 24px 56px rgba(0, 0, 0, .14);
+  /* depth: one soft shadow, never a glow */
+  --sh-1: 0 2px 8px rgba(0, 0, 0, .06), 0 1px 2px rgba(0, 0, 0, .04);
+  --sh-2: 0 4px 16px rgba(0, 0, 0, .08), 0 1px 3px rgba(0, 0, 0, .05);
+  --sh-pop: 0 10px 32px rgba(0, 0, 0, .12), 0 2px 6px rgba(0, 0, 0, .06);
   /* motion */
   --ease-out: cubic-bezier(.2, .8, .2, 1);
   --ease-spring: cubic-bezier(.34, 1.36, .5, 1);
@@ -68,24 +74,19 @@ button { font-family: inherit; color: inherit; }
 .field pre {
   position: absolute; left: 0; top: 0; margin: 0; white-space: pre; font-family: inherit;
   font-size: var(--fs, 10px); line-height: var(--lh, 11px); letter-spacing: 0;
-  background: linear-gradient(180deg, var(--lotus-hi) 0%, var(--lotus-lo) 62%);
-  -webkit-background-clip: text; background-clip: text;
-  color: transparent; -webkit-text-fill-color: transparent;
 }
-#f0 { opacity: .36; }
-#f1 { opacity: .72; }
-#f2 { opacity: 1; }
+#f0 { color: var(--r0); } #f1 { color: var(--r1); } #f2 { color: var(--r2); } #f3 { color: var(--r3); } #f4 { color: var(--r4); }
 
 /* ---------- top bar: just the hamburger ---------- */
-.top { position: fixed; z-index: 4; left: 0; top: 0; padding: calc(var(--safe-t) + 8px) 8px 0; }
+.top { position: fixed; z-index: 4; left: 0; top: 0; padding: calc(var(--safe-t) + 12px) 16px 0; }
 .hamb {
-  width: 48px; height: 48px; border: none; background: transparent; border-radius: 50%; cursor: pointer;
+  width: 44px; height: 44px; border: none; background: var(--surface); box-shadow: var(--sh-1); border-radius: 50%; cursor: pointer;
   display: grid; place-items: center; color: var(--ink);
   transition: background var(--t-1), transform var(--t-1);
 }
-.hamb:hover { background: var(--hairline-2); }
+.hamb:hover { background: #fff; box-shadow: var(--sh-2); }
 .hamb:active { transform: scale(.92); }
-.hamb svg { width: 26px; height: 26px; }
+.hamb svg { width: 22px; height: 22px; }
 body.sheet-open .top { display: none; }
 
 /* ---------- main view + stage ---------- */
@@ -114,11 +115,11 @@ body.sheet-open .top { display: none; }
 .sheet-head h1 { font-size: 20px; font-weight: 600; letter-spacing: -.02em; color: var(--ink); }
 .sheet-head .sub { font-size: 13px; color: var(--muted); }
 .sheet-x {
-  margin-left: auto; flex: none; width: 40px; height: 40px; border-radius: 50%;
-  border: none; background: transparent; color: var(--ink-2); font-size: 22px; line-height: 1; cursor: pointer;
+  margin-left: auto; flex: none; width: 44px; height: 44px; border-radius: 50%;
+  border: none; background: var(--surface); box-shadow: var(--sh-1); color: var(--ink); font-size: 22px; line-height: 1; cursor: pointer;
   transition: background var(--t-1), transform var(--t-1);
 }
-.sheet-x:hover { background: var(--hairline-2); }
+.sheet-x:hover { background: #fff; box-shadow: var(--sh-2); }
 .sheet-x:active { transform: scale(.9); }
 .sheet-body { flex: 1; overflow-y: auto; padding: 4px 20px 24px; -webkit-overflow-scrolling: touch; }
 .sheet-body::-webkit-scrollbar { width: 10px; }
@@ -237,3 +238,10 @@ body.sheet-open .top { display: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001s !important; animation-iteration-count: 1 !important; transition-duration: .001s !important; }
 }
+
+/* FOUNDER-RULE-1652: no helper text or secondary labels on screen. They stay in the DOM for screen readers only. */
+.dr-item .dr-sub, .dr-count { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.onb-field { position: relative; display: block; width: 100%; }
+.onb-field svg { position: absolute; left: 20px; top: 50%; width: 24px; height: 24px; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.onb .onb-code { padding-left: 52px; }
+.onb-mark { margin-bottom: 32px; }

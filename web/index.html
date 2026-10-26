@@ -69,7 +69,7 @@ background:#c2185b;transform:scaleX(var(--boot-p,.06));transform-origin:left cen
     <path d="M15 51.5C22 58.5 42 58.5 49 51.5" fill="none" stroke="#C2185B" stroke-width="3" stroke-linecap="round"/>
   </symbol></svg>
   <!-- the ASCII lotus: three tiers of one deep-pink gradient -->
-  <div class="field" id="field" aria-hidden="true"><pre id="f0"></pre><pre id="f1"></pre><pre id="f2"></pre></div>
+  <div class="field" id="field" aria-hidden="true"><pre id="f0"></pre><pre id="f1"></pre><pre id="f2"></pre><pre id="f3"></pre><pre id="f4"></pre></div>
 
   <header class="top">
     <button class="hamb" id="menu" aria-label="Menu" aria-haspopup="true" aria-expanded="false">
@@ -97,14 +97,13 @@ background:#c2185b;transform:scaleX(var(--boot-p,.06));transform-origin:left cen
                       autocorrect="off" autocapitalize="sentences" enterkeyhint="send" aria-label="Message"></textarea>
             <input id="file" type="file" accept="image/*,video/*" style="display:none">
             <input id="fileany" type="file" style="display:none">
-            <span class="act">
-              <!-- black waveform = Go Live; becomes the send arrow once there is something to send -->
-              <button class="live-btn" id="tray-live" aria-label="Go Live">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4.5 10v4M8.5 7v10M12.5 4v16M16.5 8v8M20.5 10.5v3"/></svg>
-              </button>
-              <button class="go" id="go" aria-label="Send to laptop" tabindex="-1">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
-              </button>
+            <span class="act" id="act">
+              <!-- one black pill: the waveform (Go Live) flows into the send arrow as soon as there is text, and back when empty -->
+              <svg class="act-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+                <line class="b1" x1="4.5" y1="10" x2="4.5" y2="14"/><line class="b2" x1="8.5" y1="7" x2="8.5" y2="17"/><line class="b3" x1="12.5" y1="4" x2="12.5" y2="20"/><line class="b4" x1="16.5" y1="8" x2="16.5" y2="16"/><line class="b5" x1="20.5" y1="10.5" x2="20.5" y2="13.5"/>
+              </svg>
+              <button class="live-btn" id="tray-live" aria-label="Go Live"></button>
+              <button class="go" id="go" aria-label="Send to laptop" tabindex="-1"></button>
             </span>
           </div>
         </div>
@@ -159,10 +158,11 @@ background:#c2185b;transform:scaleX(var(--boot-p,.06));transform-origin:left cen
   <div class="onb" id="onb" hidden>
     <div class="onb-in">
       <svg class="onb-mark" viewBox="0 0 64 64" aria-hidden="true"><use href="#wl-mark"/></svg>
-      <h1>Connect your laptop</h1>
-      <p>Enter the code your laptop shows.</p>
-      <input class="onb-code" id="onb-code" maxlength="8" placeholder="········" inputmode="text"
-             autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" aria-label="Pairing code">
+      <label class="onb-field">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="2"/><path d="M2 19h20"/></svg>
+        <input class="onb-code" id="onb-code" maxlength="8" placeholder="········" inputmode="text"
+               autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" aria-label="Laptop pairing code">
+      </label>
       <button class="btn btn-primary" id="onb-go">Connect</button>
       <div class="onb-err" id="onb-err" role="alert"></div>
       <button class="onb-skip" id="onb-skip" hidden>Not now</button>

@@ -30,7 +30,6 @@ sheet.innerHTML = `
           <path d="M12 5v14M5 12h14"/>
         </svg>
       </span>
-      No signs yet
     </div>
   </div>
   <div class="sheet-foot">
