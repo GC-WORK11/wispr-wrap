@@ -45,6 +45,50 @@ async function req(method, path, body, extraHeaders) {
   return { ok: r.ok, status: r.status, json: j };
 }
 
+/* Upload a blob with real progress + cancel. fetch(Blob) gives neither, and a
+   phone video is 20-200 MB, so the composer needs both. XHR carries the same
+   X-WF-Key auth, the same lenient JSON parse (bare Infinity/NaN from older
+   daemons), and raises the same 'unpaired' event on 403 as req() above.
+   onProgress(fraction 0..1, {loaded, total}) fires while the body uploads;
+   abortSignal (an AbortController's .signal) cancels the transfer.
+   Resolves {ok, status, json, aborted} — aborted uploads never throw. */
+function upload(path, blob, extraHeaders, onProgress, abortSignal) {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    let aborted = false;
+    xhr.open('POST', path, true);
+    xhr.setRequestHeader('X-WF-Key', K);
+    const h = extraHeaders || {};
+    for (const k of Object.keys(h)) if (h[k] != null) xhr.setRequestHeader(k, h[k]);
+    if (xhr.upload && onProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(e.total ? e.loaded / e.total : 0, { loaded: e.loaded, total: e.total });
+      };
+    }
+    xhr.onload = () => {
+      let j = null; const txt = xhr.responseText || '';
+      if (txt) {
+        try { j = JSON.parse(txt); }
+        catch (e) {
+          try { j = JSON.parse(txt.replace(/([:\[,]\s*)-?(?:Infinity|NaN)(?=\s*[,}\]])/g, '$1null')); }
+          catch (e2) { /* plain-text reply */ }
+        }
+      }
+      if (xhr.status === 403) App.emit('unpaired');
+      resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, json: j });
+    };
+    xhr.onerror = () => resolve({ ok: false, status: 0, json: null });
+    xhr.ontimeout = () => resolve({ ok: false, status: 0, json: null, timeout: true });
+    xhr.onabort = () => { aborted = true; resolve({ ok: false, status: 0, json: null, aborted: true }); };
+    if (abortSignal) {
+      if (abortSignal.aborted) { try { xhr.abort(); } catch (e) {} }
+      else abortSignal.addEventListener('abort', () => { try { xhr.abort(); } catch (e) {} }, { once: true });
+    }
+    try { xhr.send(blob); }
+    catch (e) { resolve({ ok: false, status: 0, json: null }); }
+  });
+}
+
 // ---------- tiny event bus ----------
 const listeners = {};
 function on(evt, fn) { (listeners[evt] = listeners[evt] || []).push(fn); return () => off(evt, fn); }
@@ -275,7 +319,7 @@ on('confirms', renderConfirms);
 export const App = {
   key: K,
   store,
-  api: { get: p => req('GET', p), post: (p, b, h) => req('POST', p, b, h), del: p => req('DELETE', p), put: (p, b) => req('PUT', p, b) },
+  api: { get: p => req('GET', p), post: (p, b, h) => req('POST', p, b, h), del: p => req('DELETE', p), put: (p, b) => req('PUT', p, b), upload },
   on, off, emit,
   state, renderStatus, pollState, pollEngine, pollStatus, connected, canAct,
   connect: () => { showOnboarding(''); onbSkip.hidden = false; },
