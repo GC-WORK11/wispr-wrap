@@ -50,6 +50,8 @@ ENGINE_FILE = os.path.expanduser("~/.config/wf/engine")
 # request bodies are capped BEFORE reading (was: unbounded rfile.read)
 MAX_BODY = int(os.environ.get("WF_MAX_BODY", str(256 * 1024 * 1024)))
 BODY_CAPS = {"/pair": 16 * 1024, "/live/kp": 256 * 1024,
+             "/live/event": 16 * 1024, "/live/listen": 16 * 1024,
+             "/live/mode": 16 * 1024,
              "/send": 8 * 1024 * 1024, "/teach/begin": 64 * 1024,
              "/teach/end": 64 * 1024, "/act/confirm": 64 * 1024,
              "/bank": 256 * 1024}
