@@ -51,7 +51,7 @@
 
 .tw-namelbl { font-size: 13px; font-weight: 550; color: var(--muted-2); margin-top: 6px; letter-spacing: -.005em; }
 .tw-step[data-step="name"] .input { font-size: 18px; padding: 15px 18px; border-radius: 16px; box-shadow: var(--sh-1); letter-spacing: -.01em; }
-.tw-step[data-step="name"] .input:focus { box-shadow: 0 0 0 4px var(--ring), var(--sh-1); }
+.tw-step[data-step="name"] .input:focus { box-shadow: 0 0 0 4px rgba(0, 0, 0, .06), var(--sh-1); }
 .tw-gloss { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 .tw-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
@@ -155,3 +155,15 @@
   .tw-foot .btn { flex: 1; }
   .tw-stage { max-height: 44dvh; border-radius: 24px; }
 }
+
+/* --- training view: the paths you drew, drawn on --- */
+.tw-trails { display: flex; justify-content: center; gap: 16px; min-height: 92px; }
+.tw-trail { position: relative; width: 92px; height: 92px; margin: 0; border-radius: 22px; background: var(--hairline-2); animation: msg-in var(--t-3) var(--ease-out) both; }
+.tw-trail:nth-child(2) { animation-delay: .12s; }
+.tw-trail:nth-child(3) { animation-delay: .24s; }
+.tw-trail canvas { display: block; width: 92px; height: 92px; }
+.tw-trail-ok { position: absolute; right: 6px; bottom: 6px; width: 20px; height: 20px; border-radius: 50%; background: var(--ink); transform: scale(0); transition: transform var(--t-3) var(--ease-spring); }
+.tw-trail-ok::after { content: ""; position: absolute; left: 7px; top: 3.5px; width: 4px; height: 8px; border: solid #fff; border-width: 0 1.8px 1.8px 0; transform: rotate(45deg); }
+.tw-trail-ok.on { transform: none; }
+.tw-prev .tkv canvas { background: var(--hairline-2); }
+@media (prefers-reduced-motion: reduce) { .tw-trail { animation: none; } .tw-trail-ok { transition: none; } }
