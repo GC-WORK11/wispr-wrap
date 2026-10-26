@@ -9,7 +9,7 @@
 //   SITE_ENV=<env> node --experimental-websocket tools/pro/flow-air.mjs
 
 import path from 'node:path';
-import { stack, newPage, loadClips, playAndWait, shotTo, reporter, daemon, sleep, root } from '../site/lib.mjs';
+import { stack, newPage, loadClips, playAndWait, shotTo, reporter, daemon, sleep, root } from './lib.mjs';
 import { execFileSync as sh } from 'node:child_process';
 import fs from 'node:fs';
 

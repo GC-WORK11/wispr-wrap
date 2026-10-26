@@ -8,7 +8,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import { execFileSync as sh, spawn } from 'node:child_process';
-import { stack, reporter, daemon, sleep, root } from '../site/lib.mjs';
+import { stack, reporter, daemon, sleep, root } from './lib.mjs';
 
 const S = stack(process.env.SITE_ENV || '/tmp/wf-rr-pro/env');
 const OUT = path.join(root, 'proofs/ui-v2/act-tiles');
