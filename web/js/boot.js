@@ -23,6 +23,7 @@
   var finished = false;
   var started = (window.performance && performance.now) ? performance.now() : Date.now();
   var MAX_MS = 2500; // never block longer than this
+  var MIN_MS = 1000; // ...nor hide the lotus mark before it finished blooming
 
   function bar() {
     var i = el.querySelector('.boot-bar > i');
@@ -50,9 +51,11 @@
     if (finished) return;
     finished = true;
     render();
-    // let the full bar paint for a beat, then fade into the bloom
-    var hold = reduce ? 0 : 60;
+    // let the full bar paint for a beat (and the mark finish blooming: MIN_MS since navigation start), then fade into the ASCII lotus
+    var now = (window.performance && performance.now) ? performance.now() : Date.now();
+    var hold = reduce ? 0 : Math.max(60, MIN_MS - (now - started));
     setTimeout(function () {
+      try { window.dispatchEvent(new Event('wl:boot-done')); } catch (e) {}   // app.js replays the ASCII lotus from a bud right now
       el.classList.add('boot-done');
       if (reduce) {
         el.classList.add('boot-gone');
