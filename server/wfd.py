@@ -55,6 +55,12 @@ BODY_CAPS = {"/pair": 16 * 1024, "/live/kp": 256 * 1024,
              "/bank": 256 * 1024}
 # live pipeline knobs — env-tunable, not hidden constants
 LIVE_MAX_FPS = int(os.environ.get("WF_LIVE_MAX_FPS", "45"))
+# One camera stream is 15-30 fps; allow a 2x burst per identity so two
+# coalesced consumers/tabs at 40 fps do not 429 each other. A single
+# abusive identity is still capped (90 fps default), and the whole daemon
+# has a 2x-global hard cap. env-tunable, not hidden.
+LIVE_BURST = max(1, int(os.environ.get("WF_LIVE_BURST", "2")))
+LIVE_MAX_CLIENTS = max(1, int(os.environ.get("WF_LIVE_MAX_CLIENTS", "16")))
 LIVE_IDLE_S = float(os.environ.get("WF_LIVE_IDLE_S", "120"))
 CONFIRM_TTL_S = float(os.environ.get("WF_CONFIRM_TTL", "120"))
 PALM_SIGN = os.environ.get("WF_PALM_SIGN", "PALM-OPEN")
@@ -285,7 +291,8 @@ def send_file(data, name, ctype):
 
 LIVE_LOCK = threading.RLock()
 LIVE = {"session": None, "listening": False, "ep": None,
-        "last_match": None, "seen": 0.0, "rate": deque(),
+        "last_match": None, "seen": 0.0,
+        "rates": {}, "rate_all": deque(),
         "observe": False, "last_action": None,
         "feed": deque(maxlen=64)}
 TEACH = {"active": False, "name": "", "takes": 0, "got": 0,
@@ -471,7 +478,8 @@ def live_reset():
     A dangling teach is cancelled — a rotated session means the composer
     was re-opened."""
     LIVE.update(session=None, listening=False, last_match=None, seen=0.0)
-    LIVE["rate"].clear()
+    # rate counters are per-identity and self-prune; keeping them across a
+    # session change means a new tab cannot reset the limiter for free.
     LIVE["feed"].clear()
     LIVE["ep"] = endpointer.Endpointer(
         palm_sign=PALM_SIGN, namaste_sign=NAMASTE_SIGN) if endpointer else None
@@ -867,7 +875,34 @@ def _norm_points(pts):
     return out
 
 
-def live_kp(data):
+def _rate_limited(key, now):
+    """Per-identity token window + a global hard cap. Appends the current
+    frame and returns True when THIS frame must be rejected.
+
+    Identity = the stream's session id when present, else the peer address
+    (two raw clients on one host share one budget). Rejected frames are not
+    counted twice; the caller only appends once. Bounded client table.
+    """
+    rates = LIVE["rates"]
+    dq = rates.get(key)
+    if dq is None:
+        if len(rates) >= LIVE_MAX_CLIENTS:
+            old = min(rates, key=lambda k: rates[k][-1] if rates[k] else 0.0)
+            rates.pop(old, None)
+        dq = rates[key] = deque()
+    dq.append(now)
+    while dq and now - dq[0] > 1.0:
+        dq.popleft()
+    if len(dq) > LIVE_MAX_FPS * LIVE_BURST:
+        return True
+    allq = LIVE["rate_all"]
+    allq.append(now)
+    while allq and now - allq[0] > 1.0:
+        allq.popleft()
+    return len(allq) > LIVE_MAX_FPS * LIVE_BURST * 2
+
+
+def live_kp(data, client=None):
     """POST /live/kp: append one keypoint frame to the session buffer."""
     if not isinstance(data, dict):
         return 400, {"ok": False, "error": "json object required"}
@@ -885,11 +920,9 @@ def live_kp(data):
         if (sid and sid != LIVE["session"]) or \
            (LIVE["seen"] and now - LIVE["seen"] > LIVE_IDLE_S):
             live_reset()
-        rate = LIVE["rate"]
-        rate.append(now)
-        while rate and now - rate[0] > 1.0:
-            rate.popleft()
-        if len(rate) > LIVE_MAX_FPS:
+        key = ("sid:" + str(sid)[:64]) if sid else \
+              ("ip:" + str(client or "local"))
+        if _rate_limited(key, now):
             return 429, {"ok": False, "error": "rate limited"}
         if LIVE["ep"] is None:
             if endpointer is None:
@@ -1621,7 +1654,7 @@ class Handler(BaseHTTPRequestHandler):
                 data = json.loads(raw)
             except Exception:
                 return self._jreply(400, {"ok": False, "error": "bad json"})
-            code, obj = live_kp(data)
+            code, obj = live_kp(data, client=self.client_address[0])
             return self._jreply(code, obj)
         if p == "/teach/begin":
             try:
