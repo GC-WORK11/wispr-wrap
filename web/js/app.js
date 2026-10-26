@@ -24,7 +24,19 @@ async function req(method, path, body, extraHeaders) {
   }
   const r = await fetch(path, opt);
   let j = null;
-  try { j = await r.json(); } catch (e) { /* endpoints may return plain text */ }
+  /* Older wfd builds print Python's bare Infinity/NaN (a one-sign bank has no
+     runner-up, so margin=Infinity). That is not JSON: JSON.parse throws and
+     the live reading strip silently froze. Parse strictly first, then retry
+     with those literals turned into null. */
+  let txt = '';
+  try { txt = await r.text(); } catch (e) { /* network cut mid-body */ }
+  if (txt) {
+    try { j = JSON.parse(txt); }
+    catch (e) {
+      try { j = JSON.parse(txt.replace(/([:\[,]\s*)-?(?:Infinity|NaN)(?=\s*[,}\]])/g, '$1null')); }
+      catch (e2) { /* endpoints may return plain text */ }
+    }
+  }
   if (r.status === 403) App.emit('unpaired');
   return { ok: r.ok, status: r.status, json: j };
 }

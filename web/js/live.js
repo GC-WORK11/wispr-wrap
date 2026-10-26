@@ -111,7 +111,12 @@ export class KpLink {
   send(pts, t) {
     if (this.inflight) { this.pend = { pts, t }; return; }
     this.inflight = true;
-    const body = { t_ms: Math.round(t), points: pts };
+    /* t_ms is wall-clock based, not performance.now(): that restarts at 0 on
+       every page load, so after a reload the daemon saw time run BACKWARDS
+       (negative gap -> "dup-fire" suppressed the first sign of a gloss it had
+       just fired before the reload; older frames can also be ignored).
+       timeOrigin + now() only ever grows across reloads. */
+    const body = { t_ms: Math.round(performance.timeOrigin + t - 1.78e12), points: pts };
     if (this.session) body.session = this.session;
     // real video aspect lets the daemon map normalized kp to portrait sensors
     // (Kiro B: engines assume 16:9 otherwise). Replayed streams have no video.

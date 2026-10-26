@@ -294,20 +294,35 @@ box.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
 });
 
-/* ---------- signs that ran an action show up in the same feed ---------- */
-let seenMatch;
+/* ---------- signs that ran an action show up in the same feed ----------
+   The daemon keeps a rolling event feed (match / reject / fire / fired) in
+   /live/state. First poll after load is the baseline (history is not replayed);
+   every later `fired` event becomes a message: what you signed, what it did. */
+const seenEv = new Set();
+let evBaseline = false;
+const labelOf = {};                       // gloss -> human label, learned from match/fire events
+const pretty = t => String(t || '').replace(/[-_]+/g, ' ').replace(/^./, c => c.toUpperCase());
 App.on('livestate', j => {
-  const m = j && j.last_match;
-  if (!m) return;
-  const id = (m.at_ms || m.at || '') + '|' + (m.gloss || '') + '|' + (m.accepted ? 'A' : 'R');
-  if (seenMatch === undefined) { seenMatch = id; return; }   // baseline: ignore history
-  if (id === seenMatch) return;
-  seenMatch = id;
-  const a = m.action || {};
-  if (!m.accepted || m.mode || !(a.fired || a.pending)) return;
-  const label = m.label || m.gloss;
-  const x = addMsg('sys', { text: label, icon: ICON.hand, pending: 'Running…' });
-  x.ok(a.pending ? 'Waiting for your OK on the laptop' : (a.label ? 'Did: ' + a.label : 'Done on your laptop'));
+  const feedEv = (j && Array.isArray(j.feed)) ? j.feed : null;
+  if (!feedEv) return;
+  const fresh = [];
+  for (const ev of feedEv) {
+    const key = ev.type + '|' + ev.t_ms + '|' + (ev.gloss || (ev.glosses || []).join(','));
+    if (seenEv.has(key)) continue;
+    seenEv.add(key);
+    if (ev.gloss && ev.label) labelOf[ev.gloss] = ev.label;
+    if (ev.type === 'fire' && ev.action && ev.action.label) for (const g of ev.glosses || []) labelOf[g] = labelOf[g] || ev.action.label;
+    if (evBaseline && ev.type === 'fired') fresh.push(ev);
+  }
+  evBaseline = true;
+  if (seenEv.size > 400) { const keep = [...seenEv].slice(-200); seenEv.clear(); keep.forEach(k => seenEv.add(k)); }
+  for (const ev of fresh) {
+    const g = (ev.glosses || [])[0];
+    const x = addMsg('sys', { text: pretty(labelOf[g] || g || 'Sign'), icon: ICON.hand, pending: 'Running…' });
+    const r = ev.result || {};
+    if (ev.ok === false || r.fired === false) x.fail(r.detail ? 'Didn’t run · ' + r.detail : 'Didn’t run on your laptop');
+    else x.ok('Ran on your laptop' + (r.detail ? ' · ' + r.detail : ''));
+  }
 });
 
 /* ---------- dictation bridge (Wispr Flow on Android) ---------- */
