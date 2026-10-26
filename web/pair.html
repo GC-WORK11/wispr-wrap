@@ -40,8 +40,7 @@
 <body>
   <div class="card">
     <svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" transform="rotate(-58 32 46) translate(32 46) scale(.82) translate(-32 -46)" fill="#E91E63"/><path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" transform="rotate(58 32 46) translate(32 46) scale(.82) translate(-32 -46)" fill="#E91E63"/><path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" transform="rotate(-30 32 46)" fill="#D81B60"/><path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" transform="rotate(30 32 46)" fill="#D81B60"/><path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" fill="#C2185B"/><path d="M15 51.5C22 58.5 42 58.5 49 51.5" fill="none" stroke="#C2185B" stroke-width="3" stroke-linecap="round"/></svg>
-    <h1>Connect your laptop</h1>
-    <input id="addr" placeholder="Laptop address, e.g. 10.0.0.2:8741" inputmode="url" autocapitalize="none" autocorrect="off" autocomplete="off">
+    <input id="addr" placeholder="Address" inputmode="url" autocapitalize="none" autocorrect="off" autocomplete="off">
     <input id="code" class="code" placeholder="Code" maxlength="8" autocapitalize="characters" autocorrect="off" autocomplete="off">
     <button id="go">Connect</button>
     <div class="err" id="err"></div>
@@ -61,7 +60,7 @@ function finish(url,key){
 
 document.getElementById('go').onclick=async()=>{
   err.textContent='';
-  let a=addr.value.trim(); if(!a) return bad('enter the address shown by wrap start');
+  let a=addr.value.trim(); if(!a) return bad('Enter the address.');
   if(!/^https?:\/\//.test(a)) a='http://'+a;
   if(!a.endsWith('/')) a+='/';
   try{

@@ -1,5 +1,5 @@
 // panes.js — plain, working defaults for the two sidebar pages that would
-// otherwise be blank: "Connected laptop" (#/laptop) and "Settings" (#/settings).
+// otherwise be blank: "Laptop" (#/laptop) and "Settings" (#/settings).
 // Devin PRO owns the richer versions (js/laptop.js, js/settings.js): they load
 // AFTER this file and register the same routes, so theirs win. Real data only.
 import { App } from './app.js';
@@ -16,15 +16,12 @@ const lap = App.el.sheetLaptop;
 function renderLaptop() {
   const s = App.state, ok = App.connected(), l = s.laptop || {};
   const name = l.name || localStorage.getItem('wfname') || 'Your laptop';
-  lap.innerHTML = head('Connected laptop') + `<div class="sheet-body pn-body">` + (ok
-    ? `<div class="pn-hero"><i class="pn-dot on"></i><div><div class="pn-name">${esc(name)}</div><div class="pn-sub">Connected</div></div></div>
-       ${row('Typing into', esc(s.focus || 'Nothing focused yet'))}
-       ${row('Can run actions', l.canAct === false ? 'No' : 'Yes')}
-       ${row('Signs it knows', s.bankSize != null ? esc(s.bankSize) : '—')}
-       <button class="btn btn-ghost pn-btn" id="pn-unpair">Disconnect this phone</button>`
-    : `<div class="pn-hero"><i class="pn-dot"></i><div><div class="pn-name">Not connected</div><div class="pn-sub">${s.online ? 'Your laptop is there, but this phone needs its code.' : 'Your laptop is not answering.'}</div></div></div>
-       <p class="hint pn-p">Run <code>wrap start</code> on your laptop, then enter the code it shows. Text, photos and files go to your laptop; signs and the @ picker turn on once it is connected.</p>
-       <button class="btn btn-primary pn-btn" id="pn-code">Enter a code</button>`) + `</div>`;
+  lap.innerHTML = head('Laptop') + `<div class="sheet-body pn-body">` + (ok
+    ? `<div class="pn-hero"><i class="pn-dot on"></i><div class="pn-name">${esc(name)}</div></div>
+       ${row('Typing into', esc(s.focus || '—'))}
+       <button class="btn btn-ghost pn-btn" id="pn-unpair">Forget this laptop</button>`
+    : `<div class="pn-hero"><i class="pn-dot"></i></div>
+       <button class="btn btn-primary pn-btn" id="pn-code">Connect</button>`) + `</div>`;
   lap.querySelector('[data-close]').onclick = () => App.back();
   const un = lap.querySelector('#pn-unpair');
   if (un) un.onclick = () => unpair();
@@ -37,11 +34,11 @@ function unpair() {
   location.replace(location.pathname);
 }
 let lapT;
-App.route('laptop', {
+const lapRoute = {
   el: lap,
   open() { renderLaptop(); App.pollStatus(); lapT = setInterval(renderLaptop, 2500); },
   close() { clearInterval(lapT); },
-});
+};
 
 /* ---------- Settings ---------- */
 const set = App.el.sheetSettings;
@@ -50,13 +47,10 @@ const put = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
 function renderSettings() {
   const haptics = get('wf.haptics', '1') !== '0', mode = get('wf.livemode', 'control');
   set.innerHTML = head('Settings') + `<div class="sheet-body pn-body">
-    <div class="pn-group">Feel</div>
     <button class="pn-row pn-tap" id="pn-hap" role="switch" aria-checked="${haptics}"><span class="pn-k">Vibrate on send</span><span class="pn-sw" aria-hidden="true"></span></button>
-    <div class="pn-group">Go Live</div>
-    <div class="pn-row"><span class="pn-k">Open in</span>
+    <div class="pn-row"><span class="pn-k">Go Live</span>
       <span class="pn-seg" role="tablist"><button role="tab" data-m="control" aria-selected="${mode !== 'text'}">Control</button><button role="tab" data-m="text" aria-selected="${mode === 'text'}">Text</button></span></div>
-    <div class="pn-group">This phone</div>
-    <button class="btn btn-ghost pn-btn" id="pn-unpair2">Disconnect from this laptop</button>
+    <button class="btn btn-ghost pn-btn" id="pn-unpair2">Forget this laptop</button>
   </div>`;
   set.querySelector('[data-close]').onclick = () => App.back();
   set.querySelector('#pn-hap').onclick = e => {
@@ -69,4 +63,13 @@ function renderSettings() {
   };
   set.querySelector('#pn-unpair2').onclick = unpair;
 }
-App.route('settings', { el: set, open: renderSettings, close() {} });
+const setRoute = { el: set, open: renderSettings, close() {} };
+
+// laptop.js / settings.js load after this file and own these routes. Register the plain defaults only when,
+// once every module has run, nobody did. (Registering first left this file's timer repainting over the real
+// Laptop page on a reload at #/laptop.)
+const afterModules = f => document.readyState === 'loading' ? addEventListener('DOMContentLoaded', f, { once: true }) : setTimeout(f, 0);
+afterModules(() => {
+  if (!App.routes.laptop) App.route('laptop', lapRoute);
+  if (!App.routes.settings) App.route('settings', setRoute);
+});
