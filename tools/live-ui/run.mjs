@@ -413,11 +413,11 @@ async function flowStates() {
    ====================================================================== */
 const ZERO = Array.from({ length: 42 }, () => ({ x: 0, y: 0, z: 0, score: 0 }));
 const raw = frames => frames.map(f => ({ points: f.lm ? HS.toKp42(f.lm) : ZERO }));
-function palmMove({ x0 = .42, y0 = .5, x1 = .58, y1 = .44, ms = 1600 } = {}) {
+function palmMove({ x0 = .46, y0 = .62, x1 = .54, y1 = .56, ms = 1600 } = {}) {
   const n = Math.round(ms / 33), out = [];
   for (let i = 0; i < n; i++) {
     const u = i / (n - 1), e = u * u * (3 - 2 * u);
-    out.push({ t_ms: i * 33, lm: HS.handPose('palm', { x: x0 + (x1 - x0) * e, y: y0 + (y1 - y0) * e + .04 * Math.sin(u * 6.28) }) });
+    out.push({ t_ms: i * 33, lm: HS.handPose('palm', { x: x0 + (x1 - x0) * e, y: y0 + (y1 - y0) * e + .04 * Math.sin(u * 6.28) }, { scale: .09 }) });
   }
   return out;
 }
@@ -428,6 +428,9 @@ async function laptopChrome() {                       // the laptop Chrome's Dev
   const pg = new Page(t.webSocketDebuggerUrl, 'https://www.youtube.com');
   await pg.ready;
   return pg;
+}
+async function lapPages() {
+  try { return (await (await fetch('http://127.0.0.1:8962/json/list')).json()).filter(x => x.type === 'page'); } catch (e) { return []; }
 }
 async function lapEval(expr) {
   const pg = await laptopChrome(); if (!pg) return null;
@@ -486,7 +489,7 @@ async function flowHands() {
     await shot(page, 'live-21-air-C-ignites');
     await until(() => windows().filter(l => /google-chrome/i.test(l)).length > before, 20000, 'a Chrome window on the laptop');
     // "Opened Google Chrome" is a 3 s caption; after it the browse hint shows
-    await page.waitFor(`/opened google chrome|point to move/i.test(document.querySelector('#lv-act-t').textContent)`, 8000, 'Opened Google Chrome');
+    await page.waitFor(`document.querySelector('#lv-view').classList.contains('browse')`, 8000, 'browse mode after Chrome opened');
     await sleep(4500);
     let phone = await shot(page, 'live-22-air-C-chrome-opened');
     compose(phone, xshot(path.join(RAW, 'hands-chrome.png')), 'live-22b-air-C-phone-and-laptop', 'air-written C opened Google Chrome');
@@ -495,7 +498,7 @@ async function flowHands() {
     await sleep(1800);
     await page.eval(`window.__play('vsign')`);
     await page.waitFor(`/opened youtube/i.test(document.querySelector('#lv-act-t').textContent) || /youtube/i.test(document.querySelector('#lv-guess').textContent)`, 15000, 'Opened YouTube');
-    const yt = await until(async () => { try { return await lapEval(`location.host.endsWith('youtube.com') && document.readyState === 'complete' && location.href`); } catch (e) { return null; } }, 30000, 'YouTube loaded on the laptop');
+    const yt = await until(async () => { const pg = (await lapPages()).find(x => /youtube\.com/.test(x.url)); return pg && pg.url; }, 40000, 'YouTube loaded on the laptop');
     await sleep(5000);
     phone = await shot(page, 'live-23-V-youtube-opened');
     compose(phone, xshot(path.join(RAW, 'hands-youtube.png')), 'live-23b-V-phone-and-laptop', 'V sign opened YouTube');
@@ -519,7 +522,7 @@ async function flowHands() {
     compose(phone, xshot(path.join(RAW, 'hands-hover.png')), 'live-24b-point-phone-and-laptop', 'the finger moves the laptop cursor onto a video');
     await page.waitFor('window.__idle()', 8000, 'hover');
     await page.eval(`window.__play('pinch')`);
-    const watch = await until(() => lapEval(`location.pathname === '/watch' && location.href.split('&')[0]`), 20000, 'the video page opened');
+    const watch = await until(async () => { const pg = (await lapPages()).find(x => /youtube\.com\/watch/.test(x.url)); return pg && pg.url.split('&')[0]; }, 25000, 'the video page opened');
     await sleep(4000);
     phone = await shot(page, 'live-25-pinch-selected-video');
     compose(phone, xshot(path.join(RAW, 'hands-watch.png')), 'live-25b-select-phone-and-laptop', 'pinch clicked: the video opened');
@@ -684,7 +687,8 @@ async function flowEmpty() {
   try {
     await home(page);
     await goLive(page);
-    await page.waitFor(`/taught any signs/i.test(document.querySelector('#lv-act-t').textContent)`, 8000, 'no-signs hint');
+    await page.tap('#lv-m-text');
+    await page.waitFor(`/no signs yet/i.test(document.querySelector('#lv-act-t').textContent)`, 8000, 'no-signs hint');
     await sleep(600);
     await shot(page, 'live-16-no-signs-yet');
     check(F, 'no signs yet: says so and offers Teach a sign', await visible(page, '#lv-cta'), await text(page, '#lv-cta'));

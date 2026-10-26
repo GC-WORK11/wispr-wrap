@@ -176,7 +176,7 @@ export class KpLink {
 
 /* ---------- session state ---------- */
 const S = {
-  open: false, gen: 0, openAt: 0,
+  open: false, gen: 0, openAt: 0, tipUntil: 0,
   stream: null, front: true, engine: null, replay: null, remote: false, booting: false, hidden: false,
   link: new KpLink(), stT: null, polling: false, linkUp: false, wantListen: true,
   mode: (() => { try { return localStorage.getItem('wf.livemode') === 'text' ? 'text' : 'control'; } catch (e) { return 'control'; } })(),
@@ -274,14 +274,19 @@ function say(text, kind = '', ms = 3200) {
 function hint() {
   if (S.booting) return { t: 'Getting ready…', kind: 'wait' };
   if (App.state && App.state.online === false) return { t: '' };
-  if (S.bankSize === 0) return { t: 'You haven’t taught any signs yet', cta: 'Teach a sign' };
-  if (!S.listening) return { t: 'Paused. Show an open palm to resume' };
-  if (S.mode === 'text') {
-    if (S.textLocal && S.words.length) return { t: 'Added to your message', cta: 'Send to laptop' };
-    return { t: S.words.length ? 'Typed on your laptop' : 'Sign, and the words type on your laptop' };
-  }
-  if (S.browse) return { t: 'Point to move, pinch to click, slide to scroll' };
-  return { t: 'Draw C for Chrome, V for YouTube' };
+  if (S.mode === 'control' && !laptopOn()) return { t: '', cta: 'Connect your laptop' };
+  if (S.bankSize === 0 && S.mode === 'text') return { t: 'No signs yet', cta: 'Teach a sign' };
+  if (!S.listening) return { t: 'Paused' };
+  if (performance.now() > S.tipUntil) return { t: '' };      // how-to tips fade; the camera stays clean
+  if (S.mode === 'text') return { t: S.textLocal && S.words.length ? '' : 'Sign to type', cta: S.textLocal && S.words.length ? 'Send to laptop' : '' };
+  if (S.browse) return { t: 'Point, pinch to click' };
+  return { t: 'Draw C or V' };
+}
+/* show the how-to tip for a few seconds after opening or switching */
+function tip() { S.tipUntil = performance.now() + 4500; clearTimeout(tip.t); tip.t = setTimeout(renderSub, 4600); renderSub(); }
+/* laptop control only while a laptop is connected (spec: otherwise one "Connect" row) */
+function laptopOn() {
+  try { return App.connected ? !!App.connected() : !!(App.state.online && App.state.paired); } catch (e) { return false; }
 }
 let subShown = '';
 function renderSub() {
@@ -299,6 +304,7 @@ function renderSub() {
 }
 ctaBtn.onclick = () => {
   if (ctaBtn.textContent === 'Send to laptop') App.emit('text:send');
+  else if (ctaBtn.textContent === 'Connect your laptop') App.nav('laptop');
   else App.nav('teach');
 };
 
@@ -327,7 +333,7 @@ function onWord(word, gloss, t) {
   if (S.words.length > 60) S.words.splice(0, S.words.length - 60);
   renderWords();
   if (S.textLocal) App.emit('text:append', word);
-  say(S.textLocal ? 'Added to your message' : 'Typed on your laptop', 'ok', 2600);
+  say(S.textLocal ? 'Added' : 'Typed', 'ok', 1800);
   hit();
 }
 function showSign(g, label) {
@@ -395,6 +401,7 @@ function feed(evs) {
     if (!S.base) continue;                  // the first poll after opening is history, not news
     if (ev.type === 'type' && S.mode === 'text') onWord(ev.text, (ev.glosses || [])[0], ev.t_ms);
     else if (ev.type === 'fired' && S.mode === 'control') onFired(ev);
+    else if (ev.type === 'air-letter') onAirResult(ev);
     /* the laptop started a fresh session (it slept, the link dropped for a while,
        or it restarted) and stopped listening: you didn't pause, so keep going */
     else if (ev.type === 'session' && ev.reset && !S.userPaused && S.linkUp) setTimeout(() => {
@@ -463,7 +470,7 @@ function renderPending(rows) {
   const b = document.createElement('b');
   b.textContent = askText(act, signName(p.gloss, p.label)) + '?';
   const s = document.createElement('span');
-  s.textContent = rows.length > 1 ? rows.length + ' signs are waiting for your OK' : 'This sign asks before it runs';
+  s.textContent = rows.length > 1 ? rows.length + ' waiting' : '';
   t.append(b, s);
   const btns = document.createElement('div');
   btns.className = 'lv-ask-b';
@@ -533,7 +540,7 @@ function setMode(m, persist = true) {
   guessEl.textContent = '';
   T.until = 0;
   H.reset(); lines.setInk(null); setBrowse(false);
-  renderSub();
+  tip();
   return syncMode(true);
 }
 /* tell the laptop; an older laptop without text mode falls back to "words go
@@ -656,13 +663,13 @@ function onGesture(ev) {
       lines.ignite(ev.letter, pxs(ev.points));
       fireLetter(ev.letter);
       break;
-    case 'reject': lines.setInk(null); say('Didn’t catch that letter', 'soft', 2200); break;
+    case 'reject': lines.setInk(null); say('Try again', 'soft', 1800); break;
     case 'vsign': fireLetter('V'); break;
     case 'palm': if (S.browse) { setBrowse(false); App.buzz(); } break;
     case 'cursor': {
       S.cur = { x: ev.x, y: ev.y };
       const c = toPx(S.cur); lines.setCursor(c.x, c.y, S.dwell || 0);
-      pointer({ op: 'move', x: lapX(ev.x), y: lapY(ev.y) }, true);
+      pointer({ type: 'pointer', x: lapX(ev.x), y: lapY(ev.y) }, true);
       break;
     }
     case 'dwell': {
@@ -670,12 +677,12 @@ function onGesture(ev) {
       if (S.cur) { const c = toPx(S.cur); lines.setCursor(c.x, c.y, ev.p); }
       break;
     }
-    case 'scroll': pointer({ op: 'scroll', dy: ev.dy }); if (!T.text.startsWith('Scroll')) say('Scrolling', '', 900); break;
+    case 'scroll': pointer({ type: 'scroll', dy: ev.dy }); break;
     case 'click': {
       S.dwell = 0;
       const c = toPx({ x: ev.x, y: ev.y }); lines.pulse(c.x, c.y); lines.setCursor(c.x, c.y, 0);
-      pointer({ op: 'click', x: lapX(ev.x), y: lapY(ev.y) });
-      say('Clicked', 'ok', 1200); hit();
+      pointer({ type: 'click', x: lapX(ev.x), y: lapY(ev.y) });
+      hit();
       break;
     }
   }
@@ -685,34 +692,38 @@ function setBrowse(on) {
   H.setMode(S.browse ? 'browse' : 'write');
   viewEl.classList.toggle('browse', S.browse);
   if (!S.browse) { lines.setCursor(null); S.cur = null; S.dwell = 0; }
-  renderSub();
+  tip();
 }
-/* the laptop's own browser, from its app list (Chrome, else Chromium) */
-function browserAction() {
-  for (const id of ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser']) {
-    if (APPS.has(id)) return { kind: 'app', tool: 'app.open', type: 'open_app', args: { id }, id, label: 'open ' + APPS.get(id), tier: 1 };
-  }
-  return { kind: 'builtin', tool: 'open.url', type: 'open_url', args: { url: 'https://www.google.com' }, label: 'open Chrome', tier: 1 };
-}
-const YT = { kind: 'builtin', tool: 'open.url', type: 'open_url', args: { url: 'https://www.youtube.com' }, label: 'open YouTube', tier: 1 };
+/* an air letter: the laptop runs what it is bound to (C -> Chrome, V -> YouTube
+   unless you bound AIR-C / AIR-V to something else). POST /live/event queues it;
+   the real result comes back on the live feed as an 'air-letter' event. */
+const AIR_NAME = { C: 'Chrome', V: 'YouTube' };
 async function fireLetter(letter) {
   if (S.firing) return;
   S.firing = true; setTimeout(() => { S.firing = false; }, 1600);
-  const a = letter === 'C' ? browserAction() : YT;
-  const name = letter === 'C' ? 'Chrome' : 'YouTube';
+  const name = AIR_NAME[letter] || letter;
   showSign('AIR-' + letter, 'open ' + name);
-  say('Opening ' + name + '…', 'wait', 8000);
-  const r = await App.api.post('/act/run', { action: a, label: a.label }).catch(() => null);
+  if (!laptopOn()) { say('Connect your laptop to use this', 'soft', 2600); return; }
+  say('Opening ' + name + '…', 'wait', 9000);
+  S.airWait = { letter, name };
+  const r = await App.api.post('/live/event', { type: 'air', letter }).catch(() => null);
   if (!S.open) return;
-  const j = (r && r.json) || {};
-  if (r && r.ok && (j.ok || j.fired)) { say(doneText(a), 'ok'); setBrowse(true); }
-  else if (j.pending) say('Waiting for your OK', 'wait', 8000);
-  else if (r && (r.status === 404 || r.status === 405)) say('Update your laptop’s Wispr Wrap for this', 'soft', 3000);
-  else say('Couldn’t open ' + name + ' on your laptop', 'soft', 3000);
+  if (r && r.ok) { setBrowse(true); return; }
+  S.airWait = null;
+  say(r && r.status === 404 ? 'Nothing is set for ' + letter + ' yet' : 'Couldn’t reach your laptop', 'soft', 3000);
+}
+function onAirResult(ev) {
+  const r = ev.result || {};
+  const name = (S.airWait && S.airWait.letter === ev.letter && S.airWait.name) || AIR_NAME[ev.letter] || cap(human(ev.label || 'it'));
+  S.airWait = null;
+  if (r.pending) say('Waiting for your OK', 'wait', 8000);
+  else if (r.fired || (r.routed && !r.refused)) { say('Opened ' + name, 'ok'); hit(); }
+  else say('Couldn’t open ' + name + ' on your laptop', 'soft', 3200);
 }
 /* pointer ops to the laptop: moves are latest-wins (~20/s), clicks and scrolls queue */
 const PTR = { q: [], move: null, busy: false, last: 0 };
 function pointer(body, isMove) {
+  if (!laptopOn()) return;
   if (isMove) PTR.move = body; else PTR.q.push(body);
   pumpPointer();
 }
@@ -726,7 +737,7 @@ async function pumpPointer() {
   }
   if (!next) return;
   PTR.busy = true; PTR.last = performance.now();
-  try { await App.api.post('/act/pointer', next); } catch (e) { /* the net line says so */ }
+  try { await App.api.post('/live/event', next); } catch (e) { /* the net line says so */ }
   PTR.busy = false;
   if (PTR.q.length || PTR.move) pumpPointer();
 }
