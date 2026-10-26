@@ -36,6 +36,15 @@
   transition: box-shadow var(--t-2) var(--ease-out), border-color var(--t-1);
 }
 .pill:focus-within { border-color: #d3d0cd; box-shadow: var(--sh-2); }
+
+/* upload progress: a thin 2px deep-pink line along the bottom edge of the pill.
+   no box, no capsule — width tracks --up (0..1) set by compose.js. */
+.pill.uploading::after {
+  content: ""; position: absolute; left: 0; bottom: 0; height: 2px;
+  width: calc(var(--up, 0) * 100%); max-width: 100%;
+  background: var(--accent); border-radius: 0 2px 2px 0;
+  transition: width .18s linear; pointer-events: none;
+}
 .row { display: flex; align-items: flex-end; gap: 8px; width: 100%; }
 
 #box {
