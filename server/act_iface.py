@@ -66,6 +66,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import shlex
 import tempfile
@@ -611,6 +612,19 @@ class ActionProvider:
         f = self.focused_app()
         if f is None or not (f.wm_class or f.instance):
             return False                       # can't see focus -> refuse
+        # WF_TYPE_ALLOW=<regex>: test rigs pin every guarded action
+        # (keystrokes, typed text, window ops) to a dedicated scratch
+        # window. Match runs against class/instance/title so a titled
+        # sink like "wispr-wrap-merge-sink" is enough. Unset on real
+        # laptops -> behavior unchanged. Bad pattern refuses safe.
+        allow = os.environ.get("WF_TYPE_ALLOW", "").strip()
+        if allow:
+            hay = " ".join(x for x in (f.wm_class, f.instance, f.title) if x)
+            try:
+                if not re.search(allow, hay, re.I):
+                    return False
+            except re.error:
+                return False
         if expect_wm_class is None:
             return True
         return wm_match(expect_wm_class, f.wm_class, f.instance) is not None
