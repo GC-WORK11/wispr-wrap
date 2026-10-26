@@ -77,6 +77,8 @@ try {
   const typeOwn = async (val) => {
     await page.eval(`(() => { const i=document.querySelector('.act-own-in'); i.value=${JSON.stringify(val)}; i.dispatchEvent(new Event('input',{bubbles:true})); })()`);
     await sleep(250);
+    await page.eval(`document.querySelector('.act-own').scrollIntoView({ block: 'center' })`);
+    await sleep(300);
     return page.eval(`(() => { const p=document.querySelector('.act-own-prev'); return { text:p.textContent, show:p.classList.contains('show'), err:p.classList.contains('err') }; })()`);
   };
   const pOpen = await typeOwn('open https://example.org');

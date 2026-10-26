@@ -12,7 +12,7 @@
 .tw-pk:last-child { border-bottom: 0; }
 .tw-pk-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .tw-pk-n { font-size: 16px; font-weight: 550; letter-spacing: -.012em; color: var(--ink); }
-.tw-pk-b { font-size: 13px; color: var(--muted-2); line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tw-pk-b { font-size: 13px; color: var(--muted-2); line-height: 1.4; }
 .tw-pk-r { flex: none; }
 
 .tw-pk-do {

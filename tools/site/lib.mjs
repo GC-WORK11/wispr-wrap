@@ -90,7 +90,10 @@ export async function newPage(S, { cdpPort, viewport = [390, 844, true, 2], prof
   const port = Number(cdpPort || process.env.SITE_CDP || 9015);
   const prof = profile || `/tmp/site-chrome-${port}`;
   fs.rmSync(prof, { recursive: true, force: true });
-  const page = await launchChrome({ port, profile: prof, origin: S.base });
+  // SITE_FAKE_CAM=<file.y4m>: feed the fake camera DEVICE a neutral dim clip instead of Chrome's
+  // neon test pattern (still a fake device: no real camera, no people; labelled so in proofs)
+  const extra = process.env.SITE_FAKE_CAM ? ['--use-file-for-fake-video-capture=' + process.env.SITE_FAKE_CAM] : [];
+  const page = await launchChrome({ port, profile: prof, origin: S.base, extra });
   // never touch a sibling lane's kp42 replay seam
   await page.send('Network.setBlockedURLs', { urls: ['http://127.0.0.1:8877/*'] });
   await page.send('Page.addScriptToEvaluateOnNewDocument', { source: TRACKER });
@@ -114,3 +117,42 @@ export const playAndWait = async (page, clip, timeout = 30000) => {
 
 export const viaDrawer = async (page, sel) => { await page.click('#menu'); await sleep(600); await page.click(sel); await sleep(500); };
 export const shotTo = (page, dir, name) => page.shot(path.join(dir, name + '.png'));
+
+// screen recording (CDP screencast -> mp4, real-time pacing) ---------------------------
+// const rec = recorder(page, dir); await rec.start(); ...; await rec.stop('flow.mp4')
+import { spawnSync } from 'node:child_process';
+export function recorder(page, dir) {
+  const frames = []; let n = 0;
+  fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
+  page.on('Page.screencastFrame', async (p) => {
+    try {
+      const f = path.join(dir, 'f' + String(n++).padStart(5, '0') + '.jpg');
+      fs.writeFileSync(f, Buffer.from(p.data, 'base64'));
+      frames.push({ f, t: Date.now() });
+      await page.send('Page.screencastFrameAck', { sessionId: p.sessionId });
+    } catch (e) { /* page closing */ }
+  });
+  return {
+    start: () => page.send('Page.startScreencast', { format: 'jpeg', quality: 82, everyNthFrame: 1, maxWidth: 780, maxHeight: 1688 }),
+    async stop(mp4) {
+      try { await page.send('Page.stopScreencast'); } catch (e) { /* gone */ }
+      await sleep(250);
+      if (frames.length < 2) return { ok: false, frames: frames.length };
+      // concat demuxer with the real inter-frame gaps (long idle waits are capped at 1.2 s)
+      const lines = [];
+      frames.forEach((fr, i) => {
+        const dur = i + 1 < frames.length ? Math.min(1.2, Math.max(0.03, (frames[i + 1].t - fr.t) / 1000)) : 0.8;
+        lines.push(`file '${fr.f}'`, `duration ${dur.toFixed(3)}`);
+      });
+      lines.push(`file '${frames[frames.length - 1].f}'`);
+      const list = path.join(dir, 'list.txt');
+      fs.writeFileSync(list, lines.join('\n'));
+      const out = path.join(path.dirname(dir), mp4);
+      const r = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', list,
+        '-vf', 'scale=390:-2:flags=lanczos,fps=24,format=yuv420p', '-movflags', '+faststart', out], { encoding: 'utf8' });
+      const ok = r.status === 0 && fs.existsSync(out) && fs.statSync(out).size > 2000;
+      if (ok) fs.rmSync(dir, { recursive: true, force: true });
+      return { ok, frames: frames.length, file: out };
+    },
+  };
+}

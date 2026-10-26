@@ -11,7 +11,7 @@
 //  (d) the old path still works: name -> record -> bind -> done (old ids)
 //  (e) 390x844@2x screenshots of every stage + start screen at 360/768/1280.
 import path from 'node:path';
-import { stack, newPage, loadClips, playAndWait, sleep, shotTo, reporter, daemon, root } from './lib.mjs';
+import { stack, newPage, loadClips, playAndWait, sleep, shotTo, reporter, daemon, root, recorder } from './lib.mjs';
 
 const OUT = path.join(root, 'proofs/ui-v2/site-teach');
 const S = stack(process.env.SITE_ENV || '/tmp/wf-site-overlay/env');
@@ -31,6 +31,8 @@ const openTeach = async (page) => {
 for (const g of [GLOSS, OLD, 'TEST-BROWSER-SIGN']) await api('DELETE', '/bank?gloss=' + g);
 
 const page = await newPage(S, { cdpPort: Number(process.env.SITE_CDP || 9016) });
+const rec = process.env.SITE_RECORD ? recorder(page, path.join(OUT, '_rec')) : null;
+if (rec) await rec.start();
 try {
   await page.goto(S.base + '/?k=' + S.KEY, { settle: 2500 });
   await loadClips(page, ['teach-TYPE-HELLO', 'palm-hold', 'perform-TYPE-HELLO', 'idle']);
@@ -93,9 +95,15 @@ try {
   // the training view (screenshot mid-way)
   await page.waitFor(`document.querySelector('.tw-step[data-step="train"]').classList.contains('on') || document.querySelector('.tw-step[data-step="done"]').classList.contains('on')`, 10000, 'train/done');
   const sawTrain = await page.eval(`document.querySelector('.tw-step[data-step="train"]').classList.contains('on')`);
-  if (sawTrain) await shotTo(page, OUT, '05-training');
+  if (sawTrain) {
+    // let the entry animation settle and the paths finish drawing, then shoot mid-training
+    await page.waitFor(`document.querySelector('#tw-train li[data-k="read"]').classList.contains('done')`, 8000, 'reading stage done').catch(() => {});
+    await sleep(350);
+    await shotTo(page, OUT, '05-training');
+  }
   await page.waitFor(`document.querySelector('.tw-step[data-step="done"]').classList.contains('on')`, 12000, 'done step');
   if (!sawTrain) await shotTo(page, OUT, '05-training');
+  await sleep(900);                       // entry animation settled
   await shotTo(page, OUT, '06-done');
   check('training view led to the done screen', true, sawTrain ? 'train view shown' : 'train info absent — no false check');
 
@@ -180,6 +188,7 @@ try {
 } catch (e) {
   check('flow completed', false, String(e && e.message || e).slice(0, 300));
 } finally {
+  if (rec) { const r = await rec.stop('teach-flow.mp4'); check('screen recording of the whole flow (mp4)', r.ok, r.frames + ' frames -> teach-flow.mp4'); }
   await page.close();
 }
 finish();
