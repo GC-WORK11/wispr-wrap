@@ -1,161 +1,126 @@
-/* teach.css — the teach wizard in #sheet-teach: a calm step flow, one card
-   per step in a centered ~560px column. Shares tokens from app.css. */
+/* teach.css — the teach flow in #sheet-teach: name it, perform it three
+   times, say what it does, Finish. Open layout on paper (no card around the
+   form); a three-segment progress with labels. Tokens from app.css. */
 
-/* centered column: head + progress + step cards all share the same lane */
-#sheet-teach .sheet-head {
-  width: 100%; max-width: 560px; margin: 0 auto;
-}
+#sheet-teach .sheet-head { width: 100%; max-width: 580px; margin: 0 auto; padding-top: 22px; }
 
-/* progress — three quiet dots, the current one ringed */
+/* progress: three segments, labelled */
 .tw-steps {
-  flex: none; width: 100%; max-width: 560px; margin: 0 auto;
-  display: flex; justify-content: center; gap: 12px;
-  list-style: none; padding: 0 18px 14px;
+  flex: none; width: 100%; max-width: 580px; margin: 2px auto 22px; padding: 0 22px;
+  display: flex; gap: 8px; list-style: none;
 }
-.tw-steps li {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: var(--hairline);
-  transition: background .25s, box-shadow .25s;
-}
-.tw-steps li.on { background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
-.tw-steps li.done { background: #b9ccf8; }
+.tw-steps li { flex: 1; position: relative; padding-top: 12px; font-size: 12.5px; font-weight: 550; color: var(--muted); transition: color var(--t-2); }
+.tw-steps li::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 2px; background: var(--hairline); transition: background var(--t-3) var(--ease-out); }
+.tw-steps li:nth-child(1)::after { content: "Name it"; }
+.tw-steps li:nth-child(2)::after { content: "Perform it"; }
+.tw-steps li:nth-child(3)::after { content: "Finish"; }
+.tw-steps li.on { color: var(--ink); }
+.tw-steps li.on::before { background: var(--accent); }
+.tw-steps li.done { color: var(--muted-2); }
+.tw-steps li.done::before { background: var(--accent-line); }
 
-/* step cards — vertically centered when short, scrolls when tall */
 .tw-body { display: flex; flex-direction: column; align-items: center; }
-.tw-step {
-  display: none; flex-direction: column; gap: 15px;
-  width: 100%; max-width: 560px;
-  background: var(--surface); border: 1px solid var(--hairline);
-  border-radius: var(--r-card); box-shadow: var(--sh-1);
-  padding: 22px;
-}
-.tw-step.on { display: flex; margin-block: auto; animation: sheet-in .22s var(--ease-out); }
+.tw-step { display: none; flex-direction: column; gap: 18px; width: 100%; max-width: 580px; padding: 6px 0 4px; }
+.tw-step.on { display: flex; animation: sheet-in var(--t-3) var(--ease-out); }
 
-/* eyebrow label orients the flow without a big heading */
-.tw-step::before {
-  font-size: 10.5px; font-weight: 650; letter-spacing: .14em;
-  text-transform: uppercase; color: var(--muted);
+/* lead sentence (name step) */
+.tw-step[data-step="name"] > .hint {
+  font-size: clamp(21px, 3.2vw, 26px); line-height: 1.32; font-weight: 450; letter-spacing: -.022em; color: var(--ink-2);
 }
-.tw-step[data-step="name"]::before { content: "name it"; }
-.tw-step[data-step="record"]::before { content: "perform it"; }
-.tw-step[data-step="bind"]::before { content: "bind it"; }
+.tw-step[data-step="name"] > .hint b { color: var(--accent); font-weight: 550; font-family: var(--serif); font-style: italic; letter-spacing: -.01em; }
+.tw-step[data-step="name"] .input { font-size: 19px; padding: 17px 20px; border-radius: 18px; box-shadow: var(--sh-1); letter-spacing: -.01em; }
+.tw-step[data-step="name"] .input:focus { box-shadow: 0 0 0 4px var(--ring), var(--sh-1); }
+.tw-step > .hint { font-size: 14.5px; color: var(--muted-2); line-height: 1.6; }
 
-/* gloss preview — a mono chip that only appears once the name slugifies */
 .tw-gloss {
-  align-self: flex-start;
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 5px 12px; border-radius: 999px;
-  background: var(--accent-soft); border: 1px solid #d7e3fc;
-  font-family: var(--mono); font-size: 12px; color: var(--muted-2);
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 8px;
+  padding: 5px 13px; border-radius: 999px; background: var(--accent-soft);
+  font-size: 12.5px; color: var(--muted-2);
 }
 .tw-gloss:empty { display: none; }
-.tw-gloss b { color: var(--accent); font-weight: 600; letter-spacing: .02em; }
+.tw-gloss b { color: var(--accent); font-weight: 650; letter-spacing: .02em; font-family: var(--mono); font-size: 12px; }
+.errline { min-height: 18px; font-size: 13px; color: var(--danger); }
 
-.errline { min-height: 16px; font-size: 12px; color: var(--danger); }
+.tw-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+.tw-foot .btn { height: 48px; min-width: 120px; border-radius: 14px; font-size: 15px; }
 
-/* footer — actions cluster at the card's right edge */
-.tw-foot { display: flex; justify-content: flex-end; gap: 10px; }
-.tw-foot .btn-primary, .tw-foot .btn-ghost { flex: none; min-width: 116px; }
-
-/* perform stage — the camera card (the video pane is intrinsically dark;
-   the card around it stays light, same as live's viewfinder) */
+/* the lens you perform in */
 .tw-stage {
-  position: relative; width: 100%;
-  aspect-ratio: 4 / 5; max-height: 48dvh;
-  border-radius: 16px; overflow: hidden;
-  background: #101216; border: 1px solid var(--hairline);
+  position: relative; width: 100%; aspect-ratio: 4 / 3; max-height: 46dvh;
+  border-radius: 26px; overflow: hidden; background: #1c1b18; box-shadow: var(--sh-2);
 }
-#tw-vid {
-  position: absolute; inset: 0; width: 100%; height: 100%;
-  object-fit: cover; transform: scaleX(-1);
-}
+.tw-stage::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07); }
+#tw-vid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
 #tw-vid.rear { transform: none; }
 #tw-skel { position: absolute; inset: 0; width: 100%; height: 100%; }
-/* devtools kp42 replay — same dark gradient live uses; the pane is the
-   skeleton, no camera image exists */
-.tw-stage.replay { background:
-  radial-gradient(120% 90% at 50% 0%, #16203a 0%, #0c1224 60%, #070b18 100%); }
+.tw-stage.replay { background: radial-gradient(120% 90% at 50% 0%, #2a2924 0%, #1c1b18 62%, #14130f 100%); }
 .tw-stage.replay #tw-vid { display: none; }
 .tw-camerr {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  padding: 22px; text-align: center; font-size: 12.5px; line-height: 1.6;
-  color: #e6e9f0; background: rgba(14,16,20,.55);
+  padding: 24px; text-align: center; font-size: 14px; line-height: 1.6; color: #f3f0e8;
+  background: rgba(28, 27, 24, .62);
 }
 .tw-camerr[hidden] { display: none; }
 .tw-count {
-  position: absolute; inset: 0; display: none;
-  align-items: center; justify-content: center;
-  font-size: clamp(60px, 14dvh, 96px); font-weight: 700; color: var(--accent);
-  font-variant-numeric: tabular-nums;
-  text-shadow: 0 2px 22px rgba(0,0,0,.65), 0 0 3px rgba(0,0,0,.45);
+  position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+  font-size: clamp(60px, 14dvh, 96px); font-weight: 700; color: #fff; font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 22px rgba(0, 0, 0, .55);
 }
 .tw-rec {
-  position: absolute; top: 10px; left: 10px;
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 22px; padding: 0 10px; border-radius: 999px;
-  background: rgba(10,12,16,.6); border: 1px solid rgba(255,255,255,.12);
-  color: #fff; font-size: 10px; font-weight: 700; letter-spacing: .12em;
-  opacity: 0; transition: opacity .2s;
+  position: absolute; top: 14px; left: 14px; display: inline-flex; align-items: center; gap: 8px;
+  height: 28px; padding: 0 12px 0 10px; border-radius: 999px;
+  background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .18);
+  color: #fff; font-size: 12px; font-weight: 600; letter-spacing: .02em;
+  opacity: 0; transform: translateY(-4px); transition: opacity var(--t-2), transform var(--t-2);
 }
-.tw-rec.on { opacity: 1; }
-.tw-rec i { width: 7px; height: 7px; border-radius: 50%; background: #f04747; animation: pulse 1s infinite; }
+.tw-rec.on { opacity: 1; transform: none; }
+.tw-rec i { width: 8px; height: 8px; border-radius: 50%; background: var(--live); animation: pulse 1.2s infinite; }
 
-/* take bar — slot chips that fill as takes land */
+/* take slots fill as the laptop stores each one */
 .tw-takes { display: flex; gap: 8px; flex: none; counter-reset: tk; }
 .tw-takes .tk {
-  flex: 1; height: 30px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 10px; border: 1px dashed var(--hairline);
-  font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: .02em;
+  flex: 1; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 12px;
+  border: 1px dashed #d9d3c6; font-size: 13px; font-weight: 550; color: var(--muted);
+  transition: background var(--t-3) var(--ease-out), border-color var(--t-2), color var(--t-2), transform var(--t-3) var(--ease-spring);
 }
-.tw-takes .tk::before { counter-increment: tk; content: "take " counter(tk); }
-.tw-takes .tk.got {
-  border-style: solid; border-color: #c9d8fc;
-  background: var(--accent-soft); color: var(--accent);
-}
-.tw-takes .tk.got::before { content: "take " counter(tk) " \2713"; }
-.tw-takes .tk.miss {
-  border-style: solid; border-color: #efc9c4;
-  background: var(--danger-soft); color: var(--danger);
-}
-.tw-takes .tk.miss::before { content: "take " counter(tk) " — retry"; }
+.tw-takes .tk::before { counter-increment: tk; content: "Take " counter(tk); }
+.tw-takes .tk.got { border-style: solid; border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); animation: tk-pop var(--t-3) var(--ease-spring); }
+.tw-takes .tk.got::before { content: "Take " counter(tk) "  ✓"; }
+.tw-takes .tk.miss { border-style: solid; border-color: #efcfc7; background: var(--danger-soft); color: var(--danger); }
+.tw-takes .tk.miss::before { content: "Take " counter(tk) " — again"; }
+@keyframes tk-pop { from { transform: scale(.9); } to { transform: none; } }
 
-/* bind previews */
-.tw-prev { display: flex; gap: 10px; flex-wrap: wrap; }
-.tkv { display: flex; flex-direction: column; gap: 4px; }
-.tkv canvas {
-  width: 92px; height: 92px; border-radius: 14px;
-  border: 1px solid var(--hairline); background: #f8fafc;
-}
-.tkv-m { font-size: 10.5px; color: var(--muted); max-width: 92px; }
+/* bind: what the laptop saw, then what to do */
+.tw-prev { display: flex; gap: 12px; flex-wrap: wrap; }
+.tkv { display: flex; flex-direction: column; gap: 6px; }
+.tkv canvas { width: 96px; height: 96px; border-radius: 16px; background: #f4f1ea; }
+.tkv-m { font-size: 12px; color: var(--muted); max-width: 96px; }
 
 .tw-bound { display: flex; flex-direction: column; gap: 10px; }
+#tw-pick { height: 56px; border-radius: 16px; justify-content: flex-start; font-size: 16px; font-weight: 500; text-align: left; padding: 0 18px; color: var(--muted-2); box-shadow: var(--sh-1); }
+#tw-pick:hover { color: var(--ink); }
 .tw-action {
-  display: flex; align-items: center; gap: 10px;
-  background: var(--surface); border: 1px solid var(--hairline);
-  border-radius: 14px; padding: 12px 14px;
+  display: flex; align-items: center; gap: 12px; background: var(--surface);
+  border-radius: 16px; padding: 14px 16px; box-shadow: var(--sh-1);
+  animation: msg-in var(--t-3) var(--ease-out);
 }
-.tw-act-n { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tw-act-n { flex: 1; min-width: 0; font-size: 16px; font-weight: 550; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* done */
-.tw-done { text-align: center; padding: 18px 4px; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.tw-done { text-align: center; padding: 28px 4px 8px; display: flex; flex-direction: column; gap: 12px; align-items: center; }
 .tw-check {
-  width: 52px; height: 52px; border-radius: 50%;
-  background: var(--accent-soft); color: var(--accent);
-  font-size: 26px; font-weight: 700;
-  display: flex; align-items: center; justify-content: center;
-  animation: tw-check-pop .35s var(--ease-spring);
+  width: 64px; height: 64px; border-radius: 50%; background: var(--accent); color: #fff;
+  font-size: 30px; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 10px 28px rgba(21, 73, 63, .3); animation: tw-check-pop .55s var(--ease-spring);
 }
-@keyframes tw-check-pop {
-  from { transform: scale(.6); opacity: 0; }
-  to { transform: none; opacity: 1; }
-}
-.tw-done h2 { font-size: 17px; font-weight: 700; }
-.tw-done .tw-foot { width: 100%; }
+@keyframes tw-check-pop { from { transform: scale(.5); opacity: 0; } to { transform: none; opacity: 1; } }
+.tw-done h2 { font-size: 26px; font-weight: 500; letter-spacing: -.028em; }
+.tw-done .hint { max-width: 380px; }
+.tw-done .tw-foot { width: 100%; justify-content: center; margin-top: 10px; }
 
 @media (max-width: 720px) {
-  .tw-step { padding: 18px; }
-  /* buttons stretch so both stay thumb-reachable */
-  .tw-foot .btn-primary, .tw-foot .btn-ghost { flex: 1; }
-  .tw-stage { max-height: 44dvh; }
+  .tw-steps { padding: 0 16px; margin-bottom: 16px; }
+  .tw-foot .btn { flex: 1; }
+  .tw-stage { max-height: 44dvh; border-radius: 22px; }
+  .tw-step[data-step="name"] > .hint { font-size: 21px; }
 }

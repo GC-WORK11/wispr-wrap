@@ -1,135 +1,113 @@
-/* actions.css — the @ picker sheet. Shares tokens from app.css.
-   Wide screens: centered modal card over a dimmed scrim (the sheet
-   element itself is the scrim — clicks on it cancel). Narrow: the
-   inner .sheet-card fills the sheet full-bleed like before. */
+/* actions.css — the @ picker: one calm, searchable list (apps, actions,
+   commands), a command-palette, not a grid of tiles. Wide screens: a modal
+   over a soft scrim (the sheet element is the scrim — clicking it cancels).
+   Narrow: the inner card fills the sheet. Tokens from app.css. */
 
-#sheet-actions .sheet-card {
-  flex: 1; width: 100%; min-height: 0;
-  display: flex; flex-direction: column;
-}
+#sheet-actions .sheet-card { flex: 1; width: 100%; min-height: 0; display: flex; flex-direction: column; }
 
 @media (min-width: 721px) {
   #sheet-actions.sheet {
-    background: rgba(15, 23, 42, .28);
-    justify-content: center;
-    align-items: center;
-    padding: 28px;
+    background: rgba(28, 27, 24, .34);
+    backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+    justify-content: center; align-items: center; padding: 28px;
     animation-name: act-dim;
   }
   #sheet-actions .sheet-card {
-    flex: none;
-    max-width: 560px; max-height: 80vh;
-    background: var(--surface);
-    border-radius: var(--r-card);
-    box-shadow: var(--sh-2);
-    overflow: hidden;
-    animation: act-pop .26s var(--ease-spring);
-  }
-  /* soft-fill inputs inside the white card */
-  #sheet-actions .act-search .input,
-  #sheet-actions .act-input,
-  #sheet-actions .act-select {
-    background: var(--bg);
-    border-color: transparent;
+    flex: none; width: 100%; max-width: 620px; max-height: min(720px, 84vh);
+    background: var(--surface); border-radius: 24px; box-shadow: var(--sh-pop); overflow: hidden;
+    animation: act-pop var(--t-3) var(--ease-spring);
   }
 }
 @keyframes act-dim { from { opacity: 0; } to { opacity: 1; } }
-@keyframes act-pop {
-  from { opacity: 0; transform: scale(.95) translateY(10px); }
-  to { opacity: 1; transform: none; }
-}
+@keyframes act-pop { from { opacity: 0; transform: scale(.96) translateY(12px); } to { opacity: 1; transform: none; } }
 
-/* slim, quiet scrollbar inside the picker */
-#sheet-actions .sheet-body::-webkit-scrollbar { width: 10px; }
-#sheet-actions .sheet-body::-webkit-scrollbar-thumb {
-  background: #cfd7e4; border: 3px solid transparent;
-  border-radius: 8px; background-clip: padding-box;
-}
-#sheet-actions .sheet-body { scrollbar-width: thin; scrollbar-color: #cfd7e4 transparent; }
+#sheet-actions .sheet-head { padding: 20px 22px 6px; }
+#sheet-actions .sheet-head h1 { font-size: 15px; font-weight: 600; color: var(--muted-2); letter-spacing: -.005em; }
+#sheet-actions .sheet-body { padding: 4px 10px 12px; }
 
-.act-search { flex: none; padding: 0 18px 10px; }
+/* search: large, borderless, with a pine @ */
+.act-search { position: relative; flex: none; padding: 0 22px 10px; border-bottom: 1px solid var(--hairline-2); }
+.act-search::before {
+  content: "@"; position: absolute; left: 22px; top: 4px;
+  width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center;
+  background: var(--accent-soft); color: var(--accent); font-size: 15px; font-weight: 700;
+}
+#act-q.input, .act-search .input {
+  border: none; background: transparent; box-shadow: none; border-radius: 0;
+  font-size: 19px; font-weight: 450; letter-spacing: -.012em;
+  padding: 2px 4px 4px 42px; height: 34px;
+}
+.act-search .input:focus { box-shadow: none; }
+.act-search .input::-webkit-search-cancel-button { display: none; }
+
 .act-note {
-  flex: none; padding: 10px 18px calc(env(safe-area-inset-bottom) + 12px);
-  font-size: 11px; color: var(--muted); line-height: 1.5;
-  border-top: 1px solid var(--hairline-2);
+  flex: none; padding: 10px 22px calc(env(safe-area-inset-bottom) + 12px);
+  font-size: 12px; color: var(--muted); line-height: 1.5; border-top: 1px solid var(--hairline-2);
 }
 .act-note:empty { display: none; }
 
-/* small-caps muted group labels */
-.act-sect {
-  font-size: 10.5px; font-weight: 700; letter-spacing: .14em;
-  text-transform: uppercase; color: var(--muted);
-  margin: 16px 0 8px;
-}
-.act-sect:first-child { margin-top: 6px; }
+/* group labels */
+.act-sect { font-size: 12px; font-weight: 600; letter-spacing: .01em; color: var(--muted); margin: 14px 12px 6px; }
+.act-sect:first-child { margin-top: 8px; }
 
-/* apps grid */
-.act-apps {
-  display: grid; gap: 8px;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
-}
+/* apps: a plain list with real icons */
+.act-apps { display: flex; flex-direction: column; gap: 1px; }
 .act-app {
-  appearance: none; border: 1px solid var(--hairline); background: var(--surface);
-  border-radius: 14px; cursor: pointer; padding: 10px 6px;
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
-  font-family: inherit;
-  transition: transform .12s, border-color .15s, box-shadow .18s;
+  appearance: none; border: none; background: transparent; cursor: pointer; text-align: left;
+  display: flex; flex-direction: row; align-items: center; gap: 12px;
+  height: 44px; padding: 0 12px; border-radius: 12px; font-family: inherit;
+  transition: background var(--t-1), transform var(--t-1);
 }
-.act-app:hover { border-color: #d8e0ee; box-shadow: var(--sh-1); }
-.act-app:active { transform: scale(.96); border-color: var(--accent); }
+.act-app:hover, .act-app.act-sel, .act-row.act-sel { background: var(--hairline-2); }
+.act-app:active { transform: scale(.985); }
+.act-app.act-sel::after, .act-row.act-sel > .act-row-top::after {
+  content: "Tab"; margin-left: auto; font-size: 11px; font-weight: 600; color: var(--muted);
+  border: 1px solid var(--hairline); border-radius: 6px; padding: 1px 6px;
+}
 .act-ic {
-  width: 34px; height: 34px; border-radius: 9px;
+  flex: none; width: 30px; height: 30px; border-radius: 8px;
   background: var(--accent-soft); color: var(--accent);
   display: flex; align-items: center; justify-content: center;
-  font-size: 15px; font-weight: 700; overflow: hidden;
+  font-size: 14px; font-weight: 700; overflow: hidden;
 }
 .act-ic img { width: 100%; height: 100%; object-fit: contain; }
-.act-app-nm {
-  font-size: 10.5px; font-weight: 550; color: var(--ink-2);
-  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
+.act-app-nm { font-size: 14.5px; font-weight: 500; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* tool rows — icon dot + title + honest subtitle + right affordance */
-.act-row {
-  background: var(--surface); border: 1px solid var(--hairline);
-  border-radius: 16px; padding: 13px 14px; margin-bottom: 8px;
-  cursor: pointer;
-  transition: border-color .15s, box-shadow .18s;
-}
-.act-row:hover { border-color: #d8e0ee; box-shadow: var(--sh-1); }
-.act-row:active { border-color: var(--accent); }
-.act-row-top { display: flex; align-items: center; gap: 8px; }
-.act-dot {
-  flex: none; width: 8px; height: 8px; border-radius: 50%;
-  background: var(--accent);
-}
-.act-dot.warn { background: var(--warn); }
-.act-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 620; letter-spacing: .01em; }
-.act-chev {
-  flex: none; color: var(--muted);
-  font-size: 16px; line-height: 1; margin-left: 2px;
-}
-/* desc + arg row align under the title, past the dot */
-.act-desc { font-size: 12px; color: var(--muted-2); margin: 3px 0 0 16px; line-height: 1.5; }
-.act-arg { display: flex; gap: 8px; margin: 10px 0 0 16px; }
-.act-input {
-  flex: 1; min-width: 0; padding: 9px 11px; font-size: 14px;
-  border-radius: 10px; background: var(--bg); border-color: transparent;
+/* actions + advanced: flat rows, the argument field opens right under the title */
+.act-row { background: transparent; border: none; border-radius: 12px; padding: 10px 12px; margin: 0; cursor: pointer; transition: background var(--t-1); }
+.act-row:hover { background: var(--hairline-2); }
+.act-row-top { display: flex; align-items: center; gap: 10px; }
+.act-dot { display: none; }
+.act-name { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 500; letter-spacing: -.005em; }
+.act-row-top .chip { font-size: 11px; padding: 2px 8px; }
+.act-chev { flex: none; color: var(--muted); font-size: 16px; line-height: 1; }
+.act-desc { font-size: 12.5px; color: var(--muted-2); margin: 2px 0 0; line-height: 1.5; }
+.act-arg { display: flex; gap: 8px; margin: 10px 0 2px; }
+.act-input, .act-select {
+  flex: 1; min-width: 0; padding: 9px 12px; font-size: 14px; border-radius: 10px;
+  background: var(--bg); border-color: var(--hairline);
 }
 .act-input:focus { background: var(--surface); }
 .act-input.act-bad { border-color: var(--danger); background: var(--surface); }
-.act-select {
-  flex: 1; min-width: 0; padding: 9px 11px; font-size: 14px;
-  border-radius: 10px; background: var(--bg); border-color: transparent;
-}
-.act-select:focus { background: var(--surface); }
 .act-use {
-  flex: none; appearance: none; cursor: pointer; font-family: inherit;
-  font-size: 13px; font-weight: 650; padding: 0 16px; border-radius: 10px;
-  border: 1px solid transparent; background: var(--accent-soft); color: var(--accent);
+  flex: none; appearance: none; cursor: pointer; font-family: inherit; font-size: 13.5px; font-weight: 600;
+  padding: 0 18px; border-radius: 10px; border: 1px solid transparent;
+  background: var(--accent); color: var(--accent-ink);
+  transition: background var(--t-1), transform var(--t-1);
 }
-.act-use:hover { background: #e3ecff; }
+.act-use:hover { background: var(--accent-hi); }
 .act-use:active { transform: scale(.95); }
 
-.act-bound { display: flex; flex-wrap: wrap; gap: 6px; }
-.act-empty { padding: 22px 6px; text-align: center; font-size: 13px; color: var(--muted); }
+.act-bound { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px; }
+.act-empty { padding: 28px 6px; text-align: center; font-size: 14px; color: var(--muted); }
+
+#sheet-actions .sheet-body { scrollbar-width: thin; scrollbar-color: #ddd7ca transparent; }
+#sheet-actions .sheet-body::-webkit-scrollbar { width: 10px; }
+#sheet-actions .sheet-body::-webkit-scrollbar-thumb { background: #ddd7ca; border: 3px solid transparent; border-radius: 8px; background-clip: padding-box; }
+
+@media (max-width: 720px) {
+  #sheet-actions .sheet-head { padding: 16px 16px 4px; }
+  .act-search { padding: 0 16px 10px; }
+  .act-search::before { left: 16px; }
+  #sheet-actions .sheet-body { padding: 4px 6px 12px; }
+}
