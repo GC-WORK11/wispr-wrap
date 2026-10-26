@@ -33,6 +33,24 @@
 <link rel="stylesheet" href="css/library.css">
 <link rel="stylesheet" href="css/panes.css">
 <link rel="stylesheet" href="css/drawer.css">
+<link rel="stylesheet" href="css/packs.css">
+<link rel="stylesheet" href="css/boot.css">
+<!-- BOOT stage: critical splash styles, inline so the loading screen paints
+     before any stylesheet loads (zero layout shift, no flash of blank page). -->
+<style>
+#boot{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;
+align-items:center;justify-content:center;gap:18px;background:#fafaf9;
+-webkit-user-select:none;user-select:none;
+animation:boot-away 0s linear 3s forwards}
+#boot .boot-mark{width:72px;height:72px;color:#c2185b;display:block}
+#boot .boot-word{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,
+system-ui,sans-serif;font-weight:600;font-size:19px;letter-spacing:.2px;color:#111;margin:0}
+#boot .boot-bar{width:128px;height:2px;border-radius:2px;background:rgba(17,17,17,.09);
+overflow:hidden;position:relative}
+#boot .boot-bar>i{position:absolute;inset:0 auto 0 0;width:100%;border-radius:2px;
+background:#c2185b;transform:scaleX(.06);transform-origin:left center}
+@keyframes boot-away{to{opacity:0;visibility:hidden;pointer-events:none}}
+</style>
 </head>
 <body>
   <div id="boot" aria-hidden="true">
