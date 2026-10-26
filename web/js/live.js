@@ -895,6 +895,7 @@ function startReplay(rep) {
   S.front = false;
   viewEl.classList.add('replay');
   S.booting = false;
+  lines.setInkColor('#1c1b18');        // light replay stage: ink lines, not white
   startLink(video, rep);
   setBars(); renderSub();
 }
@@ -1116,7 +1117,7 @@ async function close() {
   S.link.stop();
   clearInterval(S.stT); S.stT = null;
   stopCam();
-  if (S.replay) { try { S.replay.close(); } catch (e) {} S.replay = null; }
+  if (S.replay) { try { S.replay.close(); } catch (e) {} S.replay = null; lines.setInkColor('#ffffff'); }
   S.engine = null;                     // the shared model stays loaded for next time
   lines.stop(); H.reset(); S.browse = false; PTR.q.length = 0; PTR.move = null;
   wakeLock(false);

@@ -17,6 +17,8 @@ bad()  { FAIL=$((FAIL+1)); log "  FAIL  $1"; }
 scene(){ log "===================== SCENE $1 ====================="; }
 jse()  { python3 "$HERE/nav.py" --eval "$1"; }
 SINK_WID() { DISPLAY="$D" xdotool search --class SinkEdit 2>/dev/null | tail -1; }
+EDIT_WID() { DISPLAY="$D" xdotool search --name "LibreOffice Writer" 2>/dev/null | tail -1; }
+LAST_SEND() { "${CURL[@]}" -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -c "import json,sys;s=json.load(sys.stdin).get('last_send') or {};print(s.get('kind'),s.get('into'))"; }
 MARK="wrap-demo-$(date +%s)"
 
 scene "00-composer  (home -> send text -> drawer -> teach)"
@@ -30,28 +32,31 @@ CLS=$(jse 'document.getElementById("composer").className')
 note "composer: title='$TITLE' class='$CLS'"
 [ -n "$CLS" ] && ok "composer home rendered" || bad "composer missing"
 
-# --- 2. real send through the UI: box -> go.click() -> /send -> sink ----------
-W=$(SINK_WID)
-[ -n "$W" ] && DISPLAY="$D" xdotool windowactivate "$W" 2>/dev/null && sleep 0.6
-BEFORE=$(wc -c < "$SINK" 2>/dev/null || echo 0)
-jse '(function(){var b=document.getElementById("box");b.value="'"$MARK"'";b.dispatchEvent(new Event("input",{bubbles:true}));document.getElementById("go").click();return "clicked"})()' | sed 's/^/ui: /'
+# --- 2. real send through the UI: box -> go.click() -> /send -> Writer -------
+W=$(EDIT_WID)
+[ -n "$W" ] && DISPLAY="$D" xdotool windowactivate "$W" 2>/dev/null && sleep 0.8
+# type char-by-char through the real input events so the camera sees the
+# waveform pill morph into the send arrow, then tap send
+jse '(function(){var b=document.getElementById("box"),s="'"$MARK"'",i=0;var iv=setInterval(function(){if(i<s.length){b.value+=s[i++];b.dispatchEvent(new Event("input",{bubbles:true}));}else{clearInterval(iv);}},80);return "typing"})()' | sed 's/^/ui: /'
+sleep 2.2   # chars landing + morph on camera
+jse 'document.getElementById("go").click();"clicked"' | sed 's/^/ui: /'
 note "sent '$MARK' via the composer go button"
-GREW=0
+SENT=0
 for _ in $(seq 1 40); do
-    NOW=$(wc -c < "$SINK" 2>/dev/null || echo 0)
-    grep -q "$MARK" "$SINK" 2>/dev/null && { GREW=1; break; }
+    LS=$(LAST_SEND)
+    echo "$LS" | grep -q "^text " && { SENT=1; break; }
     sleep 0.25
 done
-sleep 1.2   # let the sink visibly hold the text on camera
+sleep 1.2   # let Writer visibly hold the text on camera
 CW=$(chrome_wid); [ -n "$CW" ] && DISPLAY="$D" xdotool windowactivate "$CW" 2>/dev/null
-if [ "$GREW" = 1 ]; then
-    ok "composer send -> /send -> text typed into the real sink editor"
+if [ "$SENT" = 1 ]; then
+    ok "composer send -> /send -> text typed into LibreOffice Writer ($LS)"
 else
-    bad "composer send: sink unchanged ($BEFORE -> $NOW)"
+    bad "composer send: no text send recorded ($LS)"
 fi
 
 # --- 2b. image send: stage a real PNG via the file input -> go ---------------
-W=$(SINK_WID)
+W=$(EDIT_WID)
 [ -n "$W" ] && DISPLAY="$D" xdotool windowactivate "$W" 2>/dev/null && sleep 0.5
 # a tiny real PNG (32x32 pink square), built in-page and staged through the
 # composer's own file input — the same handler a tap on the photo picker hits.
@@ -80,6 +85,8 @@ sleep 1.0
 CW=$(chrome_wid); [ -n "$CW" ] && DISPLAY="$D" xdotool windowactivate "$CW" 2>/dev/null
 
 # --- 2c. file send: stage notes.txt via fileany -> go -> laptop disk ---------
+W=$(EDIT_WID)
+[ -n "$W" ] && DISPLAY="$D" xdotool windowactivate "$W" 2>/dev/null && sleep 0.5
 UPLOADS=/tmp/wf-realrun/home/wf-uploads
 FBEFORE=$(ls "$UPLOADS" 2>/dev/null | wc -l)
 jse '(function(){

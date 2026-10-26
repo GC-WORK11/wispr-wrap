@@ -38,22 +38,29 @@ LIS=$("${CURL[@]}" -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -c "import j
 note "listening=$LIS"
 
 # focus the real editor and KEEP it focused — text mode types at the cursor;
-# focus must still be on the editor when the sign commits
-xdotool search --class SinkEdit 2>/dev/null | tail -1 | xargs -r xdotool windowactivate 2>/dev/null || true
-sleep 0.4
-: > "$SINK"
+# focus must still be on the editor when the sign commits. LibreOffice Writer
+# is the real editor on camera.
+WID=$(DISPLAY="$D" xdotool search --name "LibreOffice Writer" 2>/dev/null | tail -1)
+[ -n "$WID" ] && DISPLAY="$D" xdotool windowactivate "$WID" 2>/dev/null || true
+sleep 0.5
+FIRED=0
 for i in 1 2 3; do
     ensure_listening || continue
     push_clip "$CLIPS/perform-TYPE-HELLO.json"
-    for _ in $(seq 1 80); do grep -q "type hello" "$SINK" 2>/dev/null && break; sleep 0.25; done
-    grep -q "type hello" "$SINK" && break
-    note "  text-mode attempt $i: sink unchanged"
+    for _ in $(seq 1 80); do
+      "${CURL[@]}" -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -c \
+        "import json,sys,time;s=json.load(sys.stdin).get('last_send') or {};i=str(s.get('into','')).lower();exit(0 if s.get('kind')=='text' and ('libre' in i or 'soffice' in i) and time.time()*1000 - s.get('t_ms',0) < 15000 else 1)" 2>/dev/null \
+        && { FIRED=1; break; }
+      sleep 0.25
+    done
+    [ "$FIRED" = 1 ] && break
+    note "  text-mode attempt $i: no text send yet"
 done
 sleep 0.8
-if grep -q "type hello" "$SINK" 2>/dev/null; then
-    ok "Text mode: sign -> '$(cat "$SINK")' typed into the real editor"
+if [ "$FIRED" = 1 ]; then
+    ok "Text mode: sign -> word typed into LibreOffice Writer (last_send.kind=text)"
 else
-    bad "text-mode sign never reached the sink"
+    bad "text-mode sign produced no text send"
 fi
 
 # back to control for the next chapter

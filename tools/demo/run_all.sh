@@ -142,9 +142,9 @@ rec_done
 scene "03-teach  (3 takes each via real /teach/begin + replayed clips)"
 rec "03-teach"
 BINDINGS='{
-  "OPEN-NOTES":{"argv":["/usr/bin/touch","'"$MARKERS"'/open-notes"],"tier":0,"label":"open notes"},
-  "TYPE-HELLO":{"argv":["bash","'"$HERE"'/type_into_sink.sh","hello-from-the-demo-sign"],"tier":0,"label":"type hello"},
-  "LOCK":{"argv":["/usr/bin/touch","'"$MARKERS"'/lock-confirmed"],"tier":2,"label":"lock screen"}
+  "OPEN-NOTES":{"argv":["/usr/bin/touch","'"$MARKERS"'/open-notes"],"tier":0,"label":"notes"},
+  "TYPE-HELLO":{"argv":["bash","'"$HERE"'/type_into_sink.sh","hello"],"tier":0,"label":"hello"},
+  "LOCK":{"argv":["/usr/bin/touch","'"$MARKERS"'/lock-confirmed"],"tier":2,"label":"lock"}
 }'
 for G in OPEN-NOTES TYPE-HELLO LOCK; do
     note "--- teach $G ---"
@@ -209,7 +209,7 @@ note "TYPE-HELLO -> xdotool types into the real SinkEdit editor"
 xdotool search --class SinkEdit 2>/dev/null | tail -1 | xargs -r xdotool windowactivate 2>/dev/null || true
 sleep 0.3; chrome_wid | xargs -r xdotool windowactivate 2>/dev/null || true
 # probe = sink.txt containing the typed string (not just mtime)
-sink_probe() { grep -q "hello-from-the-demo-sign" "$SINK" 2>/dev/null; }
+sink_probe() { grep -q "hello" "$SINK" 2>/dev/null; }
 for i in 1 2 3; do
     ensure_listening || continue
     push_clip "$CLIPS/perform-TYPE-HELLO.json"
