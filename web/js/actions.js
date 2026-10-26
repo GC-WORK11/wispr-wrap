@@ -33,11 +33,11 @@ if (!sheet) throw new Error('actions: #sheet-actions missing');
 sheet.innerHTML = `
   <div class="sheet-card">
     <div class="sheet-head">
-      <h1 id="act-title">bind an action</h1>
+      <h1 id="act-title">Bind an action</h1>
       <button class="sheet-x" id="act-x" aria-label="Cancel">×</button>
     </div>
     <div class="act-search"><input class="input" id="act-q" type="search"
-      placeholder="@ search actions — app, volume, screenshot, command…" autocomplete="off"></div>
+      placeholder="Search apps, actions, commands…" autocomplete="off"></div>
     <div class="sheet-body" id="act-list"></div>
     <div class="act-note" id="act-note"></div>
   </div>`;
@@ -73,6 +73,28 @@ const TOOL_TYPE = {
   'open.url': 'open_url', 'type.text': 'type_text', 'key.press': 'key_press',
   'command': 'run_argv', 'macro': 'macro',
 };
+
+/* ---------- icons ----------
+   /act/icons/<id> is key-gated and an <img src> cannot send X-WF-Key, so the
+   icon is fetched with the header and shown from a blob URL (cached). */
+const ICON_URL = new Map();
+let iconBusy = 0; const iconQ = [];
+function iconBlob(id) {
+  if (ICON_URL.has(id)) return ICON_URL.get(id);
+  const p = new Promise(res => {
+    iconQ.push(() => fetch('/act/icons/' + encodeURIComponent(id), { headers: { 'X-WF-Key': App.key } })
+      .then(r => r.ok ? r.blob() : null).then(b => res(b ? URL.createObjectURL(b) : null)).catch(() => res(null)));
+    pumpIcons();
+  });
+  ICON_URL.set(id, p);
+  return p;
+}
+function pumpIcons() {
+  while (iconBusy < 6 && iconQ.length) {
+    iconBusy++;
+    Promise.resolve(iconQ.shift()()).finally(() => { iconBusy--; pumpIcons(); });
+  }
+}
 
 /* ---------- catalog ---------- */
 let CAT = null;
@@ -155,7 +177,7 @@ function close(result) {
 function pick(opts) {
   opts = opts || {};
   titleEl.textContent = opts.title ||
-    (opts.forGloss ? 'what should ' + opts.forGloss + ' do?' : 'bind an action');
+    (opts.forGloss ? 'What should ' + opts.forGloss + ' do?' : 'Bind an action');
   sheet.hidden = false;
   App.raise(sheet);
   build();
@@ -184,7 +206,7 @@ async function build() {
   const apps = (cat.apps || []).filter(a =>
     matches(query, { label: a.name, id: a.id, desc: a.generic }));
   if (apps.length) {
-    const h = document.createElement('div'); h.className = 'act-sect'; h.textContent = 'apps';
+    const h = document.createElement('div'); h.className = 'act-sect'; h.textContent = 'Apps';
     listEl.appendChild(h);
     const grid = document.createElement('div'); grid.className = 'act-apps';
     for (const a of apps.slice(0, 60)) {
@@ -192,11 +214,13 @@ async function build() {
       it.className = 'act-app';
       const icon = document.createElement('span'); icon.className = 'act-ic';
       if (iconsEnabled(cat)) {
-        const img = document.createElement('img');
-        img.src = '/act/icons/' + encodeURIComponent(a.id);
-        img.alt = ''; img.loading = 'lazy';
-        img.onerror = () => { img.remove(); icon.textContent = (a.name || '?')[0].toUpperCase(); };
-        icon.appendChild(img);
+        icon.textContent = (a.name || '?')[0].toUpperCase();      // until the real icon lands
+        iconBlob(a.id).then(u => {
+          if (!u) return;
+          const img = document.createElement('img');
+          img.alt = ''; img.src = u;
+          img.onload = () => { icon.textContent = ''; icon.appendChild(img); icon.classList.add('real'); };
+        });
       } else {
         icon.textContent = (a.name || '?')[0].toUpperCase();
       }
@@ -212,7 +236,7 @@ async function build() {
   /* --- tools section --- */
   const tools = (cat.tools || []).filter(t => matches(query, t));
   if (tools.length) {
-    const h = document.createElement('div'); h.className = 'act-sect'; h.textContent = 'actions';
+    const h = document.createElement('div'); h.className = 'act-sect'; h.textContent = 'Actions';
     listEl.appendChild(h);
     for (const t of tools) {
       const row = document.createElement('div');
@@ -291,7 +315,7 @@ async function build() {
     { id: '_argv', label: 'custom command', desc: 'argv spawned directly on the laptop — never through a shell', tier: 2 },
   ].filter(x => matches(query, x));
   if (adv.length) {
-    const h = document.createElement('div'); h.className = 'act-sect'; h.textContent = 'advanced';
+    const h = document.createElement('div'); h.className = 'act-sect'; h.textContent = 'Advanced';
     listEl.appendChild(h);
     for (const x of adv) {
       const row = document.createElement('div');
@@ -331,7 +355,7 @@ async function build() {
   /* --- already bound (reference, when the daemon reports them) --- */
   const bound = (cat.bound || []).filter(b => matches(query, { label: b.label, id: b.gloss }));
   if (bound.length && !query) {
-    const h = document.createElement('div'); h.className = 'act-sect'; h.textContent = 'already bound';
+    const h = document.createElement('div'); h.className = 'act-sect'; h.textContent = 'Already bound';
     listEl.appendChild(h);
     const wrap = document.createElement('div'); wrap.className = 'act-bound';
     for (const b of bound.slice(0, 12)) {
@@ -342,13 +366,35 @@ async function build() {
     listEl.appendChild(wrap);
   }
 
+  setTimeout(() => sel(selIdx), 0);
   if (!listEl.children.length) {
     const d = document.createElement('div'); d.className = 'act-empty';
-    d.textContent = 'nothing matches — try “command” to bind any argv.';
+    d.textContent = 'Nothing matches. Try “command” to run any program.';
     listEl.appendChild(d);
   }
 }
-q.addEventListener('input', build);
+q.addEventListener('input', () => { build(); sel(0, true); });
+/* keyboard: ↑/↓ move through the list, Tab or Enter completes the highlighted
+   row (an app, or an action that needs no argument; one with an argument
+   focuses its field). Esc cancels. */
+let selIdx = 0;
+const rows = () => [...listEl.querySelectorAll('.act-app, .act-row')];
+function sel(i, reset) {
+  const r = rows(); if (!r.length) return;
+  selIdx = reset ? 0 : (i + r.length) % r.length;
+  r.forEach((el, k) => el.classList.toggle('act-sel', k === selIdx));
+  r[selIdx].scrollIntoView({ block: 'nearest' });
+}
+q.addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown') { e.preventDefault(); sel(selIdx + 1); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); sel(selIdx - 1); }
+  else if ((e.key === 'Tab' && !e.shiftKey) || e.key === 'Enter') {
+    const r = rows()[selIdx]; if (!r) return;
+    e.preventDefault();
+    const inp = r.querySelector('input'); 
+    if (inp && !(r.classList.contains('act-row') && r.querySelector('.act-chev'))) inp.focus(); else r.click();
+  }
+});
 $('act-x').onclick = () => close(null);
 // clicking the dimmed scrim (desktop modal) or hitting Esc cancels —
 // same cancel path as the ×

@@ -23,7 +23,7 @@ if (!sheet) throw new Error('live: #sheet-live missing');
 /* ---------- DOM (built once — index.html keeps only the mount) ---------- */
 sheet.innerHTML = `
   <div class="sheet-head">
-    <h1>live<span class="lv-eng" id="lv-eng"></span></h1>
+    <h1>Live<span class="lv-eng" id="lv-eng"></span></h1>
     <div class="lv-badge" id="lv-badge"><i></i><span id="lv-badge-t">off</span></div>
     <button class="sheet-x" id="lv-x" aria-label="Close live mode">×</button>
   </div>
@@ -40,7 +40,7 @@ sheet.innerHTML = `
       </div>
     </div>
     <div class="lv-read">
-      <span class="lv-rlab">reading</span>
+      <span class="lv-rlab">Reading</span>
       <span class="lv-rguess dim" id="lv-guess">—</span>
       <span class="lv-rdist" id="lv-dist"></span>
     </div>
@@ -61,7 +61,7 @@ const video = $('lv-cam'), skel = $('lv-skel'), cover = $('lv-cover'),
       holdI = $('lv-hold-i'), hint = $('lv-hint'), xbtn = $('lv-x'),
       viewEl = $('lv-view');
 
-const HINT_DEF = 'hold an open palm to listen · palms together to stop';
+const HINT_DEF = 'Hold an open palm to start listening · palms together to stop';
 const KP_MS = 83;        // ~12 Hz keypoint frames (spec: 10-15 Hz)
 const ST_MS = 167;       // ~6 Hz state poll while open
 
@@ -170,6 +170,7 @@ function renderCard() {
   cardB.textContent = '';
   const bs = typeof c.buttons === 'function' ? c.buttons() : c.buttons;
   for (const b of bs || []) if (b) cardB.appendChild(b);
+  cardB.parentNode.classList.toggle('busy', !(bs || []).some(Boolean));
   cover.hidden = false;
 }
 function hideCard() { lastCard = null; cover.hidden = true; }
@@ -189,9 +190,9 @@ async function probe() {
   if (r.status === 404 || r.status === 405) {
     S.eng.up = false;
     setBadge('err', 'no live engine');
-    card('daemon has no live engine',
-      'this wfd predates the merge — update the laptop daemon (git pull && npm run wrap) and live mode comes up.',
-      [mkBtn('close', () => App.back())]);
+    card('Laptop needs an update',
+      'This laptop runs an older wrap. Update it (git pull && npm run wrap) and live mode comes up.',
+      [mkBtn('Close', () => App.back())]);
     return;
   }
   if (!r.ok || !r.json) { engDown(); return; }
@@ -228,11 +229,11 @@ function showMatch(m, viaPoll) {
     // last-action flash comes from the same row — pending/routed/fired
     const a = m.action || {};
     if (m.mode) {
-      actFlash(m.label === 'listening' ? 'mode · listening' : 'mode · ' + (m.label || m.gloss));
+      actFlash(m.label === 'listening' ? 'Listening' : (m.label || m.gloss));
     } else if (a.fired || a.routed) {
-      actFlash('fired · ' + (a.label || m.label || m.gloss) + (a.pending ? ' — held for confirm' : ''));
+      actFlash((a.pending ? 'Waiting for your OK · ' : 'Ran · ') + (a.label || m.label || m.gloss));
     } else if (a.routed === false && !m.mode) {
-      actFlash('matched · ' + (m.label || m.gloss) + ' — no action bound');
+      actFlash((m.label || m.gloss) + ' · no action bound yet');
     }
   } else if (label || m.reason) {
     guessEl.textContent = label || '—';
@@ -268,13 +269,13 @@ function renderPending(rows) {
     row.className = 'lv-pend-row';
     const t = document.createElement('span');
     t.className = 'lv-pend-t';
-    t.textContent = (p.label || p.gloss || 'action') + ' held for confirm';
-    const yes = mkBtn('run', async () => {
+    t.textContent = (p.label || p.gloss || 'Action') + ' · waiting for your OK';
+    const yes = mkBtn('Run it', async () => {
       const r = await App.api.post('/act/confirm', { id: p.id }).catch(() => null);
-      if (r && r.ok) actFlash('fired · ' + (p.label || p.gloss)); else App.toast('confirm failed', true);
+      if (r && r.ok) actFlash('Ran · ' + (p.label || p.gloss)); else App.toast('confirm failed', true);
       App.pollState();
     }, true);
-    const no = mkBtn('cancel', async () => {
+    const no = mkBtn('Cancel', async () => {
       await App.api.post('/act/confirm', { id: p.id, cancel: true }).catch(() => null);
       App.pollState();
     });
@@ -320,7 +321,7 @@ function feedHold(pts, t) {
   holdI.style.width = Math.min(100, Math.max(GM.palmT / HOLD, GM.namT / NHOLD) * 100) + '%';
 }
 function checkPendingHint(listening) {
-  hint.textContent = listening ? 'listening — sign a command' : HINT_DEF;
+  hint.textContent = listening ? 'Listening — sign a command' : HINT_DEF;
 }
 
 /* ---------- kp response handler (matches/teach ride the POST response) ---------- */
@@ -328,7 +329,7 @@ function onKpResp(j) {
   if (j.mode) {
     const on = j.mode === 'PALM-OPEN' || /palm/i.test(j.mode);
     setBadge(on ? 'listen' : '', on ? 'listening' : 'idle');
-    hint.textContent = on ? 'listening — sign a command' : HINT_DEF;
+    hint.textContent = on ? 'Listening — sign a command' : HINT_DEF;
     holdI.style.width = '0';
   }
   if (j.match) showMatch(j.match);
@@ -353,7 +354,7 @@ async function boot() {
         tag.className = 'lv-replay';
         viewEl.appendChild(tag);
       }
-      tag.textContent = 'replayed keypoints · devtools';
+      tag.textContent = 'demo input · recorded hand motion';
       tag.hidden = false;
       hideCard();
       setBadge('', 'idle');
@@ -369,19 +370,19 @@ async function boot() {
     }
     viewEl.classList.remove('replay');
   } catch (e) { /* probe failed — camera path */ }
-  card('camera', 'asking for the camera…');
+  card('Allow the camera', 'Your browser is asking to use it. Video stays on this device. Only hand points are sent.');
   try {
     const c = await Pose.openCamera(video, true);
     S.stream = c.stream; S.front = c.front;
     video.classList.toggle('rear', !S.front);
   } catch (e) { camFail(e); return; }
   if (!S.open) { stopCam(); return; }
-  card('pose', 'loading the on-device pose model… (one-time, ~34 MB vendored — then fully offline)');
+  card('Getting ready', 'Loading the hand model onto this device. One time only, then it works offline.');
   try {
-    S.engine = await Pose.load(p => card('pose', (p.detail || p.phase) + '…'));
+    S.engine = await Pose.load(p => card('Getting ready', 'Loading the hand model onto this device. One time only.'));
   } catch (e) {
-    card('pose model unavailable', Pose.error || 'the vendored mediapipe files did not load',
-      [mkBtn('retry', boot, true), laptopBtn()]);
+    card('Hand model unavailable', Pose.error || 'the model files did not load',
+      [mkBtn('Try again', boot, true), laptopBtn()]);
     setBadge('err', 'no pose');
     return;
   }
@@ -402,34 +403,33 @@ function stopCam() {
 function camFail(e) {
   const secure = window.isSecureContext;
   if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError'))
-    card('camera blocked',
-      'grant camera access for this page, then retry — the video never leaves this device, only keypoints do.',
-      [mkBtn('retry', boot, true), laptopBtn()]);
+    card('Camera is blocked',
+      'Allow camera access for this page, then try again. The video never leaves this device; only hand points do.',
+      [mkBtn('Try again', boot, true), laptopBtn()]);
   else if (e && e.name === 'NoAPI' || !secure)
-    card('camera needs a secure context',
-      'browsers only open the camera on https or localhost — this page is plain http on the LAN. ' +
-      'pair over usb (adb reverse tcp:8741 + open localhost:8741) or the wrap tunnel, or use the laptop camera.',
+    card('Camera needs a secure connection',
+      'Browsers only open the camera on https or localhost, and this page is plain http on your network. ' +
+      'Connect over USB (wrap bridge, then open localhost:8741), use the wrap tunnel, or use the laptop camera.',
       [laptopBtn()].filter(Boolean));
   else if (e && (e.name === 'NotFoundError' || e.name === 'OverconstrainedError'))
-    card('no camera here', 'this device has no usable camera.',
-      [laptopBtn(), laptopBtn() ? null : mkBtn('close', hideCard)].filter(Boolean));
+    card('No camera found', 'This device has no usable camera.',
+      [laptopBtn(), laptopBtn() ? null : mkBtn('Close', hideCard)].filter(Boolean));
   else
-    card('camera failed', (e && e.message) || 'unknown error',
-      [mkBtn('retry', boot, true), laptopBtn()]);
+    card('Camera failed', (e && e.message) || 'unknown error',
+      [mkBtn('Try again', boot, true), laptopBtn()]);
   setBadge('err', 'camera');
 }
 function canLaptop() { return S.eng.up && S.eng.laptopCam; }
 function laptopBtn() {
-  return canLaptop() ? mkBtn('use the laptop camera', useLaptop, true) : null;
+  return canLaptop() ? mkBtn('Use the laptop camera', useLaptop, true) : null;
 }
 async function useLaptop() {
   S.remote = true;
   stopCam(); S.link.stop();
   if (S.engine) { try { S.engine.close(); } catch (e) {} S.engine = null; }
-  card('laptop camera',
-    'the laptop is watching its own webcam — sign at your laptop. ' +
-    'the reading strip still shows what the engine sees.',
-    [mkBtn('back to phone camera', () => { S.remote = false; boot(); })]);
+  card('Using the laptop camera',
+    'Your laptop is watching its own webcam. Sign at your laptop; the reading below still shows what it sees.',
+    [mkBtn('Back to this camera', () => { S.remote = false; boot(); })]);
   /* no source-switch endpoint exists on wfd.py today — when the rust engine
      reports a laptop cam it already owns the source; we just stop ours. */
 }

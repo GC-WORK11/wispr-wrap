@@ -1,171 +1,212 @@
-/* compose.css — the composer card: reviewable input, attach chip, sends.
-   Register: light surface, hairlines, one accent — shares tokens from app.css.
-   The card shell (.pill, .row, .go, .iconbtn) lives in app.css; this file
-   carries the composer-specific dressing: card radius/focus lift, the
-   attach strip, the + menu, pending-confirm holds, and the toast anchor. */
+/* compose.css — the home screen: greeting, composer, what-you-sent feed.
+   Before the first send the stage is a calm centered greeting with the
+   composer under it (ChatGPT / Gemini idiom); the first send docks the
+   composer to the bottom and the feed takes over (compose.js animates it).
+   Tokens come from app.css. */
+
+/* ---------- stage states ---------- */
+.stage .stage-hint { order: 1; }
+.stage .feed { order: 1; }
+.stage .toast { order: 2; }
+.stage .pill { order: 3; }
+.stage .suggest { order: 4; }
+
+.stage:not(.has-feed) { justify-content: center; padding-bottom: calc(env(safe-area-inset-bottom) + 9vh); }
+
+/* ---------- greeting ---------- */
+.stage-hint { max-width: 600px; text-align: center; padding: 0 12px; margin: 0 0 30px; }
+.sh-title {
+  font-size: clamp(30px, 4.4vw, 46px); line-height: 1.08; font-weight: 500;
+  letter-spacing: -.034em; color: var(--ink); margin-bottom: 14px;
+}
+.sh-title em {
+  font-family: var(--serif); font-style: italic; font-weight: 400;
+  letter-spacing: -.012em; color: var(--accent);
+}
+.sh-sub { font-size: 16px; line-height: 1.6; color: var(--muted-2); max-width: 470px; margin: 0 auto; }
+.sh-sub b { color: var(--ink-2); font-weight: 600; }
+.has-feed .stage-hint, .has-feed .suggest { display: none; }
+
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.stage:not(.has-feed) .stage-hint { animation: rise .8s var(--ease-out) .05s both; }
+.stage:not(.has-feed) .pill { animation: rise .8s var(--ease-out) .18s both; }
+.stage:not(.has-feed) .suggest { animation: rise .8s var(--ease-out) .32s both; }
+
+/* ---------- suggestions: three quiet pills, not cards ---------- */
+.suggest { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: 100%; max-width: 680px; margin-top: 18px; }
+.sugg {
+  appearance: none; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 38px; padding: 0 16px 0 13px; border-radius: 999px;
+  background: transparent; border: 1px solid var(--hairline);
+  font-size: 13.5px; font-weight: 500; color: var(--ink-2); letter-spacing: -.003em;
+  transition: transform var(--t-1) var(--ease-out), background var(--t-1), border-color var(--t-1), box-shadow var(--t-2);
+}
+.sugg svg { width: 16px; height: 16px; color: var(--muted-2); transition: color var(--t-1); }
+.sugg:hover { background: var(--surface); border-color: #d9d3c6; box-shadow: var(--sh-1); transform: translateY(-1px); }
+.sugg:hover svg { color: var(--accent); }
+.sugg:active { transform: scale(.97); }
+
+/* ---------- feed: what you sent, and what your signs did ---------- */
+.feed {
+  flex: 1 1 auto; min-height: 0; width: 100%; max-width: 680px;
+  display: flex; flex-direction: column; gap: 16px;
+  overflow-y: auto; overscroll-behavior: contain;
+  padding: calc(env(safe-area-inset-top) + 34px) 4px 20px;
+  scrollbar-width: thin; scrollbar-color: var(--hairline) transparent;
+}
+.feed:empty { display: none; }
+.feed > :first-child { margin-top: auto; }
+
+.msg { align-self: flex-end; max-width: min(520px, 88%); display: flex; flex-direction: column; align-items: flex-end; gap: 7px;
+  animation: msg-in var(--t-3) var(--ease-out) both; }
+@keyframes msg-in { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+.msg-b {
+  background: var(--surface); border: 1px solid var(--hairline);
+  border-radius: 20px 20px 6px 20px; padding: 11px 16px;
+  box-shadow: var(--sh-1);
+  font-size: 15.5px; line-height: 1.5; color: var(--ink);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.msg-media { border-radius: 18px 18px 6px 18px; overflow: hidden; border: 1px solid var(--hairline); box-shadow: var(--sh-1); background: var(--surface); }
+.msg-media img, .msg-media video { display: block; max-width: min(320px, 100%); max-height: 280px; object-fit: cover; }
+.msg-file { display: flex; align-items: center; gap: 12px; padding: 10px 16px 10px 12px;
+  background: var(--surface); border: 1px solid var(--hairline); border-radius: 18px 18px 6px 18px; box-shadow: var(--sh-1); }
+.msg-file .fi { flex: none; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center;
+  background: var(--accent-soft); color: var(--accent); }
+.msg-file .fi svg { width: 18px; height: 18px; }
+.msg-file b { display: block; font-size: 14px; font-weight: 600; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-file small { font-size: 12px; color: var(--muted-2); }
+.msg-m { display: flex; align-items: center; gap: 6px; padding-right: 4px; font-size: 12px; color: var(--muted-2); }
+.msg-m svg { width: 14px; height: 14px; flex: none; }
+.msg.ok .msg-m svg { color: var(--ok); }
+.msg.err .msg-m { color: var(--danger); }
+.msg.err .msg-b { border-color: #efcfc7; }
+.spin { width: 12px; height: 12px; border-radius: 50%; border: 1.6px solid var(--hairline); border-top-color: var(--accent); animation: spin .8s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* a sign that ran an action, shown where you'd expect the reply */
+.msg.sys { align-self: flex-start; align-items: flex-start; }
+.msg.sys .msg-b {
+  background: var(--accent-soft); border-color: var(--accent-line); box-shadow: none;
+  border-radius: 20px 20px 20px 6px; display: flex; align-items: center; gap: 10px;
+  font-size: 14.5px; font-weight: 500; color: var(--accent);
+}
+.msg.sys .msg-b svg { width: 18px; height: 18px; flex: none; }
+.msg.sys .msg-m { padding-left: 4px; padding-right: 0; }
 
 /* ---------- the card ---------- */
-.pill {
-  position: relative;
-  border-radius: 26px;
-  border: 1px solid var(--hairline);
-  transition: box-shadow .22s var(--ease-out), border-color .2s,
-              transform .2s var(--ease-out);
-}
-/* subtle focus lift — the card breathes up, ring whispers accent */
-.pill:focus-within {
-  transform: translateY(-1px);
-  border-color: rgba(74, 125, 255, .38);
-  box-shadow: 0 0 0 3px rgba(74, 125, 255, .12), var(--sh-2),
-              0 18px 46px rgba(35, 45, 80, .13);
-}
+.pill { border: 1px solid var(--hairline); transition: box-shadow var(--t-2) var(--ease-out), border-color var(--t-1); }
+.pill:hover { border-color: #ddd7ca; }
+.pill:focus-within { border-color: rgba(21, 73, 63, .45); box-shadow: 0 0 0 4px var(--ring), var(--sh-2); }
 
 #box {
-  flex: 1; min-width: 0; min-height: 40px; max-height: 132px;
+  flex: 1; min-width: 0; min-height: 40px; max-height: 148px;
   background: transparent; border: none; outline: none; resize: none;
-  font: inherit; font-size: 16px; line-height: 1.42; color: var(--ink);
-  caret-color: var(--accent); letter-spacing: .01em;
-  padding: 9px 4px 9px 2px; overflow-y: hidden;
+  font: inherit; font-size: 16px; line-height: 1.5; color: var(--ink);
+  caret-color: var(--accent); letter-spacing: -.004em;
+  padding: 8px 6px 8px 4px; overflow-y: hidden;
 }
-#box::placeholder { color: var(--muted); transition: color .2s; }
-#box:focus::placeholder { color: #aeb8c8; }
+#box::placeholder { color: var(--muted); transition: color var(--t-2); }
+#box:focus::placeholder { color: #bdb6aa; }
 #box::-webkit-scrollbar { width: 6px; }
 #box::-webkit-scrollbar-thumb { background: var(--hairline); border-radius: 3px; }
 
-/* plus button — quiet until asked */
-#plus:hover { border-color: var(--muted); color: var(--ink); background: var(--hairline-2); }
+/* the send button wakes up when there is something to send */
+.go { transform: scale(.92); }
+.pill.ready .go { transform: none; box-shadow: 0 6px 16px rgba(21, 73, 63, .28); }
+.pill.ready .go:active { transform: scale(.9); }
 
-/* send — accent circle (base .go lives in app.css): hover deepens, disabled goes soft */
-.go { transition: transform .12s, box-shadow .2s, opacity .2s, background .2s; }
-.go:hover:not(:disabled) {
-  background: #3d6ee8;
-  box-shadow: 0 6px 18px rgba(74, 125, 255, .42);
-}
-.go:disabled { opacity: .4; box-shadow: none; cursor: default; }
-
-/* quiet, consistent focus rings on every composer control */
-#plus:focus-visible, .go:focus-visible,
-.attach .x:focus-visible, .attach-item:focus-visible,
-.confirm-yes:focus-visible, .confirm-no:focus-visible {
-  outline: 2px solid rgba(74, 125, 255, .55);
-  outline-offset: 2px;
-}
-
-/* ---------- attach chip — staged file card above the row ---------- */
+/* ---------- attach chip: the staged file above the row ---------- */
 .attach {
-  display: flex; align-items: center; gap: 10px; width: 100%;
-  margin-bottom: 10px; padding: 6px 8px 6px 6px;
-  background: var(--surface); border: 1px solid var(--hairline);
-  border-radius: 14px;
-  box-shadow: 0 1px 3px rgba(35, 45, 80, .05);
-  animation: attach-in .2s var(--ease-out);
+  display: flex; align-items: center; gap: 10px; width: fit-content; max-width: 100%;
+  margin: 2px 4px 8px; padding: 5px 6px 5px 5px;
+  background: var(--bg); border: 1px solid var(--hairline); border-radius: 16px;
+  animation: attach-in var(--t-2) var(--ease-out);
 }
 .attach[hidden] { display: none; }
-@keyframes attach-in {
-  from { opacity: 0; transform: translateY(4px); }
-}
-.attach img, .attach video {
-  flex: none; width: 28px; height: 28px; border-radius: 8px; object-fit: cover;
-  border: 1px solid var(--hairline); background: var(--bg);
-}
-.attach .aname {
-  flex: 1; min-width: 0; color: var(--muted-2); font-size: 12.5px; letter-spacing: .02em;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
+@keyframes attach-in { from { opacity: 0; transform: translateY(6px) scale(.98); } }
+.attach img, .attach video { flex: none; width: 44px; height: 44px; border-radius: 11px; object-fit: cover; background: var(--hairline-2); }
+.attach .aname { flex: 1; min-width: 0; color: var(--ink-2); font-size: 13px; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
 .attach .x {
-  flex: none; width: 24px; height: 24px; border-radius: 50%; cursor: pointer;
-  background: transparent; border: none; color: var(--muted);
-  font-size: 15px; line-height: 1; font-family: inherit;
+  flex: none; width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
+  background: transparent; border: none; color: var(--muted-2); font-size: 17px; line-height: 1;
   display: flex; align-items: center; justify-content: center;
-  transition: background .15s, color .15s, transform .12s;
+  transition: background var(--t-1), color var(--t-1), transform var(--t-1);
 }
-.attach .x:hover { background: var(--hairline-2); color: var(--ink-2); }
+.attach .x:hover { background: var(--hairline); color: var(--ink); }
 .attach .x:active { transform: scale(.88); }
 
-/* ---------- + attach menu — floating card above the plus ---------- */
+/* ---------- + menu ---------- */
 .attach-menu {
-  position: absolute; left: 10px; bottom: calc(100% + 8px); z-index: 12;
+  position: absolute; left: 8px; bottom: calc(100% + 10px); z-index: 12;
   background: var(--surface); border: 1px solid var(--hairline);
-  border-radius: 14px; box-shadow: var(--sh-2);
-  padding: 5px; display: flex; flex-direction: column; gap: 1px;
-  min-width: 176px;
+  border-radius: 16px; box-shadow: var(--sh-pop);
+  padding: 6px; display: flex; flex-direction: column; gap: 1px; min-width: 212px;
   transform-origin: bottom left;
-  animation: attach-menu-in .18s var(--ease-out);
+  animation: attach-menu-in var(--t-2) var(--ease-spring);
 }
-@keyframes attach-menu-in {
-  from { opacity: 0; transform: translateY(5px) scale(.98); }
-}
+@keyframes attach-menu-in { from { opacity: 0; transform: translateY(8px) scale(.96); } }
 .attach-item {
   appearance: none; border: none; background: transparent; cursor: pointer;
-  font-family: inherit; font-size: 14px; font-weight: 550; color: var(--ink);
-  text-align: left; padding: 10px 12px; border-radius: 10px;
-  transition: background .14s;
+  display: flex; align-items: center; gap: 12px;
+  font-family: inherit; font-size: 14.5px; font-weight: 500; color: var(--ink);
+  text-align: left; padding: 10px 12px; border-radius: 11px;
+  transition: background var(--t-1);
 }
+.attach-item svg { width: 18px; height: 18px; color: var(--muted-2); flex: none; }
 .attach-item:hover { background: var(--hairline-2); }
+.attach-item:hover svg { color: var(--accent); }
 .attach-item:active { background: var(--hairline); }
 
-/* ---------- pending-confirm strip — tier>=2 holds, visible not alarming ---------- */
-#confirms {
-  position: absolute; left: 0; right: 0; bottom: calc(100% + 10px); z-index: 11;
-  display: flex; flex-direction: column; gap: 8px;
+/* ---------- drag a file anywhere on the stage ---------- */
+.stage.drop::after {
+  content: "Drop to attach"; position: absolute; inset: 14px; z-index: 30;
+  display: grid; place-items: center; border-radius: 28px; pointer-events: none;
+  border: 2px dashed var(--accent-line); background: rgba(250, 248, 244, .82);
+  font-size: 18px; font-weight: 550; color: var(--accent);
+  animation: attach-in var(--t-2) var(--ease-out);
 }
+
+/* ---------- held actions: visible, never alarming ---------- */
+#confirms { position: absolute; left: 0; right: 0; bottom: calc(100% + 10px); z-index: 11; display: flex; flex-direction: column; gap: 8px; }
 #confirms[hidden] { display: none; }
 .confirm-row {
   display: flex; align-items: center; gap: 8px;
-  background: var(--warn-soft);
-  border: 1px solid rgba(146, 96, 0, .16);
-  border-radius: 16px; box-shadow: var(--sh-1);
-  padding: 10px 12px;
-  animation: confirm-in .22s var(--ease-out);
+  background: var(--warn-soft); border: 1px solid rgba(143, 95, 16, .16);
+  border-radius: 18px; box-shadow: var(--sh-1); padding: 10px 12px 10px 16px;
+  animation: msg-in var(--t-3) var(--ease-out);
 }
-@keyframes confirm-in {
-  from { opacity: 0; transform: translateY(6px); }
-}
-.confirm-txt {
-  flex: 1; min-width: 0; font-size: 12.5px; color: var(--ink-2); font-weight: 550;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-/* a small amber pip — "this one is held", readable at a glance */
-.confirm-txt::before {
-  content: ""; display: inline-block;
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--warn); opacity: .75;
-  margin: 0 8px 1px 0;
-}
+.confirm-txt { flex: 1; min-width: 0; font-size: 13.5px; color: var(--ink-2); font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.confirm-txt::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); opacity: .8; margin: 0 9px 1px 0; }
 .confirm-yes, .confirm-no {
-  flex: none; appearance: none; cursor: pointer;
-  font-family: inherit; font-size: 12px; font-weight: 650; line-height: 1.1;
-  padding: 7px 13px; border-radius: 999px;
-  transition: background .15s, color .15s, opacity .15s, transform .12s;
+  flex: none; appearance: none; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600; line-height: 1.1;
+  height: 34px; padding: 0 16px; border-radius: 999px;
+  transition: background var(--t-1), color var(--t-1), opacity var(--t-1), transform var(--t-1);
 }
 .confirm-yes { border: 1px solid transparent; background: var(--accent); color: #fff; }
-.confirm-yes:hover:not(:disabled) { background: #3d6ee8; }
-.confirm-no {
-  background: rgba(255, 255, 255, .72); color: var(--muted-2);
-  border: 1px solid rgba(146, 96, 0, .14);
-}
-.confirm-no:hover:not(:disabled) { color: var(--ink-2); background: #fff; }
+.confirm-yes:hover:not(:disabled) { background: var(--accent-hi); }
+.confirm-no { background: rgba(255, 255, 255, .7); color: var(--muted-2); border: 1px solid rgba(143, 95, 16, .16); }
+.confirm-no:hover:not(:disabled) { color: var(--ink); background: #fff; }
 .confirm-yes:active:not(:disabled), .confirm-no:active:not(:disabled) { transform: scale(.94); }
-.confirm-yes:disabled, .confirm-no:disabled { opacity: .55; cursor: default; }
+.confirm-yes:disabled, .confirm-no:disabled { opacity: .5; cursor: default; }
 
-/* ---------- toast — rides just above the card ---------- */
-/* app.css positions .toast absolute against .stage (bottom:100%+8px — i.e.
-   above the stage, off-screen). Re-anchor it in the flex flow instead: a
-   zero-height item ordered between hint and card, painted nudged upward —
-   it tracks the card top at any height (grown textarea, attach strip). */
+/* ---------- toast: rides just above the card ---------- */
 .stage .toast {
-  position: relative; left: auto; right: auto; bottom: 26px; z-index: 20;
-  order: 2; align-self: center;
-  width: 100%; max-width: 600px; height: 0; overflow: visible;
+  position: relative; left: auto; right: auto; bottom: 22px; z-index: 20;
+  align-self: center; width: 100%; max-width: 680px; height: 0; overflow: visible;
 }
-/* a held confirm covers the toast's usual seat — hop above one row */
-.stage:has(.pill > #confirms:not([hidden])) .toast { bottom: 86px; }
-.stage .stage-hint { order: 1; }
-.stage .pill { order: 3; }
+.stage:has(.pill > #confirms:not([hidden])) .toast { bottom: 82px; }
 
-/* ---------- narrow screens ---------- */
 @media (max-width: 720px) {
-  .attach-menu { left: 6px; }
-  .confirm-row { padding: 9px 10px; gap: 6px; }
-  .confirm-yes, .confirm-no { padding: 6px 11px; font-size: 11.5px; }
+  .stage:not(.has-feed) { padding-bottom: 3vh; justify-content: flex-end; }
+  .stage-hint { margin: auto 0; padding: 10vh 8px 6vh; }
+  .sh-title { font-size: 34px; }
+  .sh-sub { font-size: 15px; }
+  .attach-menu { left: 4px; }
+  .confirm-row { padding: 9px 10px 9px 14px; gap: 6px; }
+  .suggest { margin-top: 14px; gap: 7px; }
+  .sugg { height: 36px; padding: 0 14px 0 11px; font-size: 13px; }
+  .msg { max-width: 92%; }
 }

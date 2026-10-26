@@ -25,21 +25,21 @@ if (!sheet) throw new Error('teach: #sheet-teach missing');
 
 sheet.innerHTML = `
   <div class="sheet-head">
-    <h1 id="tw-title">teach a sign</h1>
+    <h1 id="tw-title">Teach a sign</h1>
     <button class="sheet-x" id="tw-x" aria-label="Close">×</button>
   </div>
   <ol class="tw-steps" id="tw-steps"><li></li><li></li><li></li></ol>
   <div class="sheet-body tw-body">
 
     <section class="tw-step" data-step="name">
-      <p class="hint">a sign is a gesture <b>you</b> choose, bound to an action on your laptop. it's not a fixed language — motion + hand shape, yours.</p>
-      <input class="input" id="tw-name" type="text" placeholder="e.g. open browser"
+      <p class="hint">A sign is a gesture <b>you</b> choose, bound to something your laptop does.</p>
+      <input class="input" id="tw-name" type="text" placeholder="Name it, e.g. open browser"
              autocomplete="off" autocorrect="off" autocapitalize="characters" maxlength="32" enterkeyhint="next">
       <div class="tw-gloss" id="tw-gloss"></div>
       <div class="errline" id="tw-name-err"></div>
       <div class="tw-foot">
-        <button class="btn btn-ghost" id="tw-name-cancel">cancel</button>
-        <button class="btn btn-primary" id="tw-name-next" disabled>record it</button>
+        <button class="btn btn-ghost" id="tw-name-cancel">Cancel</button>
+        <button class="btn btn-primary" id="tw-name-next" disabled>Record it</button>
       </div>
     </section>
 
@@ -55,33 +55,33 @@ sheet.innerHTML = `
       <div class="tw-takes" id="tw-takebar"></div>
       <div class="errline" id="tw-rec-err"></div>
       <div class="tw-foot">
-        <button class="btn btn-ghost" id="tw-rec-back">back</button>
-        <button class="btn btn-primary" id="tw-rec-done" disabled>bind it ›</button>
+        <button class="btn btn-ghost" id="tw-rec-back">Back</button>
+        <button class="btn btn-primary" id="tw-rec-done" disabled>Next</button>
       </div>
     </section>
 
     <section class="tw-step" data-step="bind">
-      <p class="hint">captured on the laptop — wrist path + hand shape is what it scores.</p>
+      <p class="hint">Your laptop learned this from your three takes. Now say what it should do.</p>
       <div class="tw-prev" id="tw-prev"></div>
       <div class="tw-bound" id="tw-bound">
-        <button class="btn btn-ghost btn-block" id="tw-pick">@ pick what it does</button>
+        <button class="btn btn-ghost btn-block" id="tw-pick">@ Pick what it does</button>
         <div class="tw-action" id="tw-action" hidden></div>
       </div>
       <div class="errline" id="tw-bind-err"></div>
       <div class="tw-foot">
-        <button class="btn btn-ghost" id="tw-bind-back">record more</button>
-        <button class="btn btn-primary" id="tw-save" disabled>make it live</button>
+        <button class="btn btn-ghost" id="tw-bind-back">Record more</button>
+        <button class="btn btn-primary" id="tw-save" disabled>Finish</button>
       </div>
     </section>
 
     <section class="tw-step" data-step="done">
       <div class="tw-done">
         <div class="tw-check">✓</div>
-        <h2 id="tw-done-t">live</h2>
+        <h2 id="tw-done-t">Live</h2>
         <p class="hint" id="tw-done-m"></p>
         <div class="tw-foot">
-          <button class="btn btn-ghost" id="tw-done-lib">sign library</button>
-          <button class="btn btn-primary" id="tw-done-live">sign it live</button>
+          <button class="btn btn-ghost" id="tw-done-lib">Your signs</button>
+          <button class="btn btn-primary" id="tw-done-live">Try it live</button>
         </div>
       </div>
     </section>
@@ -151,10 +151,10 @@ function onResp(j) {
         if (W.mode === 'add') { finishAdd(); return; }
         buildBind(); showStep('bind');
       } else {
-        recLead.textContent = 'stored — same sign again, drop your hands between takes.';
+        recLead.textContent = 'Got it. Same sign again, and drop your hands between takes.';
       }
     } else if (t.ok === false) {
-      recErr.textContent = 'the daemon dropped that take (too short or no hands) — sign a beat slower.';
+      recErr.textContent = 'That one was too short or had no hands in view. Try again a little slower.';
       const slot = takebar.children[W.got];
       if (slot) { slot.classList.add('miss'); setTimeout(() => slot.classList.remove('miss'), 2000); }
     }
@@ -184,7 +184,7 @@ async function startCapture() {
     if (rep) {
       W.engine = rep; W.front = false;
       stageEl.classList.add('replay');
-      recLead.textContent += ' (dev: replayed keypoints)';
+      recLead.textContent += ' (demo input)';
       recEl.classList.add('on');
       W.link.start(vid, W.engine, { onFrame, onResp, onStatus });
       return;
@@ -197,8 +197,8 @@ async function startCapture() {
   } catch (e) {
     camErr.hidden = false;
     camErr.textContent = e && e.name === 'NoAPI'
-      ? 'camera needs a secure context — pair over usb (adb reverse) or the wrap tunnel.'
-      : 'camera blocked — allow camera access to perform the sign.';
+      ? 'The camera needs a secure connection. Connect over USB (wrap bridge) or use the wrap tunnel.'
+      : 'Camera blocked. Allow camera access to perform the sign.';
   }
   try {
     W.engine = await Pose.load();
@@ -225,8 +225,8 @@ nameIn.addEventListener('input', () => {
   nameErr.textContent = '';
   nameNext.disabled = true;
   if (!g) return;
-  if (RESERVED.has(g)) { nameErr.textContent = g + ' is the built-in listen/stop gesture — pick another name.'; return; }
-  if (W.library.some(s => s.gloss === g)) { nameErr.textContent = 'that gloss is taken — re-record it from the sign library instead.'; return; }
+  if (RESERVED.has(g)) { nameErr.textContent = g + ' is the built-in listen / stop gesture. Pick another name.'; return; }
+  if (W.library.some(s => s.gloss === g)) { nameErr.textContent = 'You already have a sign with that name. Add takes to it from Your signs.'; return; }
   nameNext.disabled = false;
 });
 nameIn.addEventListener('keydown', e => { if (e.key === 'Enter' && !nameNext.disabled) nameNext.click(); });
@@ -248,7 +248,7 @@ nameNext.onclick = async () => {
   }
   if (!r.ok) { nameErr.textContent = (r.json && r.json.error) || 'teach session refused'; return; }
   setTeaching(true);
-  recLead.textContent = 'perform ' + W.gloss + ' — sign once, drop your hands. three takes; each lands as an exemplar on the laptop.';
+  recLead.textContent = 'Do ' + W.gloss + ' once, then drop your hands. Three times, so it learns you.';
   recDone.hidden = false; recBack.textContent = 'back';
   renderTakebar();
   showStep('record');
@@ -265,7 +265,7 @@ function renderTakebar() {
     takebar.appendChild(d);
   }
   recDone.disabled = W.got < 1;
-  recDone.textContent = W.got >= NEED ? 'bind it ›' : 'bind anyway (' + W.got + '/' + NEED + ') ›';
+  recDone.textContent = W.got >= NEED ? 'Next' : 'Next (' + W.got + '/' + NEED + ')';
 }
 recBack.onclick = async () => {
   if (W.teaching) { await App.api.post('/teach/end', { name: W.gloss }).catch(() => {}); setTeaching(false); }
@@ -291,7 +291,7 @@ function buildBind() {
     prevEl.appendChild(row);
   });
   actionEl.hidden = true;
-  pickBtn.textContent = '@ pick what ' + W.gloss + ' does';
+  pickBtn.textContent = '@ Pick what ' + W.gloss + ' does';
   saveBtn.disabled = true;
 }
 pickBtn.onclick = async () => {
@@ -302,7 +302,7 @@ pickBtn.onclick = async () => {
   actionEl.innerHTML =
     `<span class="tw-act-n">${esc(Actions.describe(a))}</span>` +
     `<span class="chip ${a.tier >= 2 ? 'warn' : 'accent'}">${a.tier >= 2 ? 'laptop confirm' : 'instant'}</span>`;
-  pickBtn.textContent = 'change it';
+  pickBtn.textContent = 'Change it';
   saveBtn.disabled = false;
 };
 
@@ -310,7 +310,7 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
   c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 $('tw-bind-back').onclick = () => {
-  recLead.textContent = 'extra takes refine the match — the bank keeps your newest five.';
+  recLead.textContent = 'Extra takes sharpen the match. It keeps your newest five.';
   showStep('record');
   if (!W.teaching && W.gloss) {
     App.api.post('/teach/begin', { name: W.gloss, takes: 5, label: W.label })
@@ -321,13 +321,13 @@ $('tw-bind-back').onclick = () => {
 
 saveBtn.onclick = async () => {
   if (W.busy || !W.action) return;
-  W.busy = true; saveBtn.disabled = true; saveBtn.textContent = 'saving…';
+  W.busy = true; saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
   const a = W.action;
   const body = { gloss: W.gloss, label: W.label || W.gloss,
                  tier: a.tier == null ? 1 : a.tier, action: a };
   if (Array.isArray(a.argv) && a.argv.length) body.argv = a.argv;
   const r = await App.api.put('/bank', body).catch(() => null);
-  W.busy = false; saveBtn.disabled = false; saveBtn.textContent = 'make it live';
+  W.busy = false; saveBtn.disabled = false; saveBtn.textContent = 'Finish';
   if (!r) { bindErr.textContent = 'laptop unreachable — run: wrap start'; return; }
   if (r.status === 403) { bindErr.textContent = 'unpaired — rescan the QR.'; return; }
   if (!r.ok) {
@@ -336,8 +336,8 @@ saveBtn.onclick = async () => {
     return;
   }
   doneT.textContent = W.gloss + ' is live';
-  doneM.textContent = 'open live mode and sign it — the laptop fires "' +
-    Actions.describe(a) + '"' + (a.tier >= 2 ? ' after a laptop-side confirm.' : '.');
+  doneM.textContent = 'Go live and sign it. Your laptop will ' +
+    Actions.describe(a) + (a.tier >= 2 ? ', after you approve it on the laptop.' : '.');
   showStep('done');
   App.buzz();
 };
@@ -363,7 +363,7 @@ async function open() {
   W.got = 0; W.cur = []; W.need = NEED; W.busy = false;
   nameIn.value = ''; glossPre.textContent = ''; nameErr.textContent = '';
   nameNext.disabled = true;
-  $('tw-title').textContent = 'teach a sign';
+  $('tw-title').textContent = 'Teach a sign';
   showStep('name');
   refreshLibrary();
   setTimeout(() => nameIn.focus(), 250);
