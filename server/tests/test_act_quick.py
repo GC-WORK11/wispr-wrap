@@ -244,6 +244,14 @@ class TestTypeAllowGuard(unittest.TestCase):
         p = _FocusStub(title="kiro — agent terminal")
         self.assertTrue(p.verify_focus())
 
+    def test_title_only_window_matches_allowlist(self):
+        # Chrome headless and some toolkits report no WM_CLASS — the
+        # allowlist still matches on the title.
+        os.environ["WF_TYPE_ALLOW"] = r"chrome"
+        p = _FocusStub(wm_class="", instance="",
+                       title="Google Chrome and ChromeOS Terms")
+        self.assertTrue(p.verify_focus())
+
     def test_bad_pattern_refuses_safe(self):
         os.environ["WF_TYPE_ALLOW"] = r"(["
         p = _FocusStub(title="wispr-wrap-merge-sink")
