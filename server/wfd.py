@@ -302,7 +302,7 @@ LIVE = {"session": None, "listening": False, "ep": None,
         "dup_fires": 0,
         "feed": deque(maxlen=64)}
 TEACH = {"active": False, "name": "", "takes": 0, "got": 0,
-         "label": "", "action": None}
+         "label": "", "action": None, "session": None}
 PENDING = {}                    # confirm_id -> {gloss,label,argv,at}
 _cmd_cache = {"key": None, "rows": {}}
 LIVE_POSTS = ("/live/kp", "/live/event", "/live/listen", "/live/mode",
@@ -481,8 +481,10 @@ def bank_size():
 
 def live_reset():
     """New listen session / idle expiry: clean segmenter + session id.
-    A dangling teach is cancelled — a rotated session means the composer
-    was re-opened."""
+    An active teach is NOT touched — teach state is owned by the
+    session that began it (TEACH['session']) and ends via /teach/end,
+    /teach/cancel or a fresh /teach/begin, never by a kp-stream
+    rotation (a foreign streamer must not cancel someone's capture)."""
     LIVE.update(session=None, listening=False, last_match=None, seen=0.0,
                 last_accept=None)
     # rate counters are per-identity and self-prune; keeping them across a
@@ -495,7 +497,6 @@ def live_reset():
             OPS.reset_session()
         except Exception:
             pass
-    TEACH.update(active=False, name="", takes=0, got=0, label="", action=None)
 
 
 def commands():
@@ -808,6 +809,7 @@ def _on_segment(frames, t_ms):
         if TEACH["got"] >= TEACH["takes"]:
             save_bank()
             TEACH["active"] = False
+            TEACH["session"] = None
             out["teach"]["done"] = True
         return out
     if not LIVE["listening"]:
@@ -945,8 +947,22 @@ def live_kp(data, client=None):
     now = time.time()
     with LIVE_LOCK:
         sid = data.get("session")
-        if (sid and sid != LIVE["session"]) or \
-           (LIVE["seen"] and now - LIVE["seen"] > LIVE_IDLE_S):
+        if TEACH["active"]:
+            # A teach owns its capture stream.  The first kp frame
+            # carrying a session id claims it (or /teach/begin pre-binds
+            # via its own 'session' field); frames from any OTHER session
+            # are refused so a foreign streamer can neither cancel the
+            # teach nor contaminate its exemplars.
+            owner = TEACH.get("session")
+            if sid and owner and str(sid)[:64] != owner:
+                return 409, {"ok": False,
+                             "error": "teach in progress",
+                             "session": LIVE["session"]}
+            if sid and owner is None:
+                TEACH["session"] = str(sid)[:64]
+                LIVE["session"] = TEACH["session"]
+        elif (sid and sid != LIVE["session"]) or \
+             (LIVE["seen"] and now - LIVE["seen"] > LIVE_IDLE_S):
             live_reset()
         key = ("sid:" + str(sid)[:64]) if sid else \
               ("ip:" + str(client or "local"))
@@ -1129,7 +1145,9 @@ def teach_begin(data):
         label = label or row["label"]
     with LIVE_LOCK:
         TEACH.update(active=True, name=name, takes=takes, got=0,
-                     label=label, action=action)
+                     label=label, action=action,
+                     session=(str(data["session"])[:64]
+                              if data.get("session") else None))
     return 200, {"ok": True, "name": name, "takes": takes}
 
 
@@ -1137,7 +1155,7 @@ def teach_end(_data):
     with LIVE_LOCK:
         was, got, name = TEACH["active"], TEACH["got"], TEACH["name"]
         TEACH.update(active=False, name="", takes=0, got=0,
-                     label="", action=None)
+                     label="", action=None, session=None)
     if got:
         save_bank()
     if not was and not got:
