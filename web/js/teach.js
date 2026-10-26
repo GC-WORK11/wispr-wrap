@@ -78,7 +78,6 @@ sheet.innerHTML = `
     </section>
 
     <section class="tw-step" data-step="bind">
-      <p class="tw-lead">Your laptop learned it. What should it do?</p>
       <div class="tw-prev" id="tw-prev"></div>
       <div class="tw-bound" id="tw-bound">
         <button class="tw-pickrow" id="tw-pick2" type="button">

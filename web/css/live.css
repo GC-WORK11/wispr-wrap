@@ -72,12 +72,6 @@ body.dev #lv-skel { display: block; }
 .lv-net i { width: 7px; height: 7px; border-radius: 50%; background: #fff; animation: lv-blink 1.4s ease-in-out infinite; }
 @keyframes lv-blink { 50% { opacity: .25; } }
 
-.lv-tag {
-  position: absolute; z-index: 3; left: 0; right: 0; top: calc(var(--safe-t) + 30px); text-align: center;
-  font-size: 13px; color: rgba(255, 255, 255, .72); pointer-events: none;
-}
-.lv-tag[hidden] { display: none; }
-
 /* ---------- bottom stack ---------- */
 .lv-foot {
   position: absolute; z-index: 3; left: 0; right: 0; bottom: 0;

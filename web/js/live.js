@@ -54,7 +54,6 @@ sheet.innerHTML = `
       <p class="lv-net" id="lv-net" hidden><i></i><span>Reconnecting to your laptop</span></p>
       <button class="lv-rb" id="lv-flip" aria-label="Flip camera">${ICON.flip}</button>
     </div>
-    <p class="lv-tag" id="lv-tag" hidden>Demo input · recorded hand motion</p>
     <div class="lv-cover" id="lv-cover" hidden>
       <div class="lv-card" role="alertdialog" aria-labelledby="lv-card-t" aria-describedby="lv-card-m">
         <span class="lv-card-i" id="lv-card-i"></span>
@@ -86,7 +85,7 @@ sheet.innerHTML = `
 
 const $ = id => sheet.querySelector('#' + id);
 const viewEl = $('lv-view'), video = $('lv-cam'), skel = $('lv-skel'), morph = $('lv-morph'), linesEl = $('lv-lines'),
-      netEl = $('lv-net'), flipBtn = $('lv-flip'), tagEl = $('lv-tag'),
+      netEl = $('lv-net'), flipBtn = $('lv-flip'),
       coverEl = $('lv-cover'), cardI = $('lv-card-i'), cardT = $('lv-card-t'), cardM = $('lv-card-m'), cardB = $('lv-card-b'),
       guessEl = $('lv-guess'), actEl = $('lv-act'), actT = $('lv-act-t'), ctaBtn = $('lv-cta'), whyEl = $('lv-why'),
       pendEl = $('lv-pend'), segText = $('lv-m-text'), segCtl = $('lv-m-ctl'),
@@ -858,7 +857,6 @@ function startReplay(rep) {
   S.replay = rep;
   S.front = false;
   viewEl.classList.add('replay');
-  tagEl.hidden = false;
   S.booting = false;
   startLink(video, rep);
   setBars(); renderSub();
@@ -1060,7 +1058,7 @@ async function open() {
   H.reset(); S.browse = false; viewEl.classList.remove('browse');
   T.until = 0; guessEl.textContent = ''; whyEl.textContent = '';
   pendEl.hidden = true; pendEl.textContent = ''; viewEl.classList.remove('has-ask', 'replay');
-  tagEl.hidden = true; netEl.hidden = true;
+  netEl.hidden = true;
   document.body.classList.add('live-open');
   S.link.reset();
   setListening(false);
