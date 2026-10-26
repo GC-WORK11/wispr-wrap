@@ -464,13 +464,8 @@ Flower.init({ field: document.getElementById('field'), anchor: document.getEleme
 on('statusbar', () => Flower.setOnline(connected() || !state.checked));
 on('route', name => { Flower.pause(name !== ''); if (!name) setTimeout(Flower.measure, 60); });
 
-// loading screen: the lotus mark blooms while the app boots. Once the page is ready it dissolves and
-// the ASCII lotus replays its sprout, so every load and refresh ends in the bloom.
-const boot = document.getElementById('boot');
-if (boot) {
-  const MIN = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1000;   // ms since navigation start
-  const finish = () => { Flower.restart(); boot.classList.add('done'); setTimeout(() => boot.remove(), 700); };
-  const go = () => setTimeout(finish, Math.max(0, MIN - performance.now()));
-  if (document.readyState === 'complete') go(); else addEventListener('load', go, { once: true });
-}
-
+// loading screen (boot.js owns readiness + the fade): when it hands over, the ASCII lotus replays its sprout
+// from a bud, so every load and refresh ends in the bloom. Without a splash (or after bfcache restore) replay now.
+if (document.getElementById('boot') && !(window.__boot && window.__boot.done)) addEventListener('wl:boot-done', () => Flower.restart(), { once: true });
+else Flower.restart();
+addEventListener('pageshow', e => { if (e.persisted) Flower.restart(); });   // back/forward restore: bloom again
