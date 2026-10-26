@@ -600,6 +600,10 @@ class LinuxX11Provider(ActionProvider):
         self.register("maximize", self._h_maximize)
         self.register("move_monitor", self._h_move_monitor)
         self.register("key_press", self._h_key_press)
+        self.register("alt_tab", self._h_alt_tab)
+        self.register("minimize", self._h_minimize)
+        self.register("show_desktop", self._h_show_desktop)
+        self.register("scroll", self._h_scroll)
         self.register("type_text", self._h_type_text)
         self.register("open_url", self._h_open_url)
         self.register("run_argv", self._h_run_argv)
@@ -622,6 +626,27 @@ class LinuxX11Provider(ActionProvider):
              "label": "Next workspace", "tier": 1},
             {"id": "win.to-workspace", "kind": "win",
              "label": "Move window to workspace", "tier": 1, "arg": "index"},
+            # quick actions (FOUNDER-SIMPLIFY-1433)
+            {"id": "win.alt-tab", "kind": "win", "label": "Switch window",
+             "tier": 1},
+            {"id": "win.minimize", "kind": "win", "label": "Minimize window",
+             "tier": 1},
+            {"id": "win.close", "kind": "win", "label": "Close window",
+             "tier": 2},
+            {"id": "desktop.show", "kind": "win", "label": "Show desktop",
+             "tier": 1},
+            {"id": "browser.new-tab", "kind": "nav", "label": "New tab",
+             "tier": 1},
+            {"id": "browser.close-tab", "kind": "nav", "label": "Close tab",
+             "tier": 1},
+            {"id": "nav.scroll-up", "kind": "nav", "label": "Scroll up",
+             "tier": 1},
+            {"id": "nav.scroll-down", "kind": "nav", "label": "Scroll down",
+             "tier": 1},
+            {"id": "edit.copy", "kind": "edit", "label": "Copy", "tier": 1},
+            {"id": "edit.paste", "kind": "edit", "label": "Paste", "tier": 1},
+            {"id": "edit.undo", "kind": "edit", "label": "Undo", "tier": 1},
+            {"id": "key.enter", "kind": "edit", "label": "Enter", "tier": 1},
             {"id": "open.url", "kind": "builtin", "label": "Open URL",
              "tier": 1, "arg": "url"},
             {"id": "type.text", "kind": "builtin", "label": "Type text",
@@ -1241,6 +1266,78 @@ class LinuxX11Provider(ActionProvider):
                     (r.stderr or "xdotool key failed").strip())
             return ActionResult.done(f"keys: {keys}")
         return ActionPlan(fn, describe=f"press keys {keys}", guarded=True)
+
+    # -- quick actions (FOUNDER-SIMPLIFY-1433) ------------------------------
+    # Non-destructive by design: alt-tab cycles focus, minimize hides a
+    # window, show-desktop toggles the WM desktop view, scroll is wheel
+    # clicks. Close is deliberately absent here — the existing
+    # close_window handler covers it, tier-2 gated for confirm.
+
+    def _h_alt_tab(self, a, ctx):
+        if not TOOLS.get("xdotool"):
+            return ActionResult.refused(
+                "alt_tab: xdotool not installed (apt install xdotool)")
+
+        def fn(_ctx):
+            r = self._sh(TOOLS["xdotool"], "key", "--clearmodifiers",
+                         "--", "alt+Tab", timeout=5)
+            if r.returncode != 0:
+                return ActionResult.refused(
+                    (r.stderr or "xdotool alt+Tab failed").strip())
+            return ActionResult.done("switched window")
+        return ActionPlan(fn, describe="switch window (Alt-Tab)",
+                          guarded=True)
+
+    def _h_minimize(self, a, ctx):
+        if not TOOLS.get("xdotool"):
+            return ActionResult.refused(
+                "minimize: xdotool not installed (apt install xdotool)")
+
+        def fn(_ctx):
+            wid = self._active_wid()
+            if not wid:
+                return ActionResult.refused("no active window to minimize")
+            title = self._win_info(wid).get("title") or hex(wid)
+            r = self._sh(TOOLS["xdotool"], "windowminimize",
+                         str(wid), timeout=5)
+            if r.returncode != 0:
+                return ActionResult.refused(
+                    (r.stderr or "windowminimize failed").strip())
+            return ActionResult.done(f"minimized '{title}'",
+                                     extra={"wid": wid})
+        return ActionPlan(fn, describe="minimize the active window")
+
+    def _h_show_desktop(self, a, ctx):
+        if not TOOLS.get("wmctrl"):
+            return ActionResult.refused(
+                "show_desktop: wmctrl not installed (apt install wmctrl)")
+
+        def fn(_ctx):
+            r = self._sh(TOOLS["wmctrl"], "-k", "on", timeout=5)
+            if r.returncode != 0:
+                return ActionResult.refused(
+                    (r.stderr or "wmctrl -k failed").strip())
+            return ActionResult.done("show desktop on")
+        return ActionPlan(fn, describe="show desktop")
+
+    def _h_scroll(self, a, ctx):
+        down = str(a.get("dir", "down")).lower() != "up"
+        btn = "5" if down else "4"
+        clicks = max(1, min(int(a.get("n", 3) or 3), 10))
+        if not TOOLS.get("xdotool"):
+            return ActionResult.refused(
+                "scroll: xdotool not installed (apt install xdotool)")
+
+        def fn(_ctx):
+            r = self._sh(TOOLS["xdotool"], "click", "--repeat",
+                         str(clicks), "--delay", "60", btn, timeout=10)
+            if r.returncode != 0:
+                return ActionResult.refused(
+                    (r.stderr or "xdotool scroll failed").strip())
+            return ActionResult.done(
+                f"scrolled {'down' if down else 'up'} x{clicks}")
+        return ActionPlan(fn, describe="scroll down" if down
+                          else "scroll up", guarded=True)
 
     def _h_type_text(self, a, ctx):
         text = a.get("text")

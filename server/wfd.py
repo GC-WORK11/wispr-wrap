@@ -362,7 +362,7 @@ if act_linux is not None:
                 toolmap = {
                     "volume": "sys.mute" if str(a.get("op")) == "mute"
                               else "sys.volume-" + str(a.get("op", "up")),
-                    "media": "media." + str(a.get("op", "playpause")),
+                    "media": "media." + str(a.get("op", "playpause")).replace("_", ""),
                     "screenshot": "sys.screenshot-region"
                                   if str(a.get("mode")) == "region"
                                   else "sys.screenshot",
