@@ -9,14 +9,20 @@ TUNPID="$ROOT/tunnel.pid"
 CF="${CF:-$(command -v cloudflared 2>/dev/null || echo "$HOME/.local/bin/cloudflared")}"
 KEYFILE="$HOME/.config/wf/key"
 
-daemon_running() { curl -sf "http://localhost:$PORT/health" >/dev/null 2>&1; }
+bound_port() {
+    # the port the daemon ACTUALLY bound (falls back when busy) — scraped
+    # from its log line, so `wrap` commands work after a port fallback.
+    grep -o 'http://0\.0\.0\.0:[0-9]*' "$LOG" 2>/dev/null | tail -1 | grep -o '[0-9]*$'
+}
+live_port() { local p; p=$(bound_port); echo "${p:-$PORT}"; }
+daemon_running() { curl -sf "http://localhost:$(live_port)/health" >/dev/null 2>&1; }
 key() { cat "$KEYFILE" 2>/dev/null; }
 
 qr() { python3 "$ROOT/server/qrprint.py" "$1"; }
 
 pair_card() {
     local info
-    info=$(curl -sf "http://localhost:$PORT/pair-info") || { echo "daemon not answering"; return 1; }
+    info=$(curl -sf "http://localhost:$(live_port)/pair-info") || { echo "daemon not answering"; return 1; }
     python3 - "$info" "$ROOT/server/qrprint.py" <<'PY'
 import json, sys, subprocess
 i = json.loads(sys.argv[1])
@@ -34,31 +40,27 @@ PY
 
 case "$1" in
 start)
-    if daemon_running; then echo "daemon already running on :$PORT"; else
-        nohup python3 "$ROOT/server/wfd.py" >>"$LOG" 2>&1 &
+    if daemon_running; then echo "daemon already running on :$(live_port)"; else
+        : >"$LOG"
+        # setsid = own session, < /dev/null = no tty: the daemon survives
+        # this terminal closing or the CLI being killed (SIGHUP can't reach it).
+        setsid python3 "$ROOT/server/wfd.py" >>"$LOG" 2>&1 </dev/null &
         echo $! > "$PIDFILE"
-        sleep 0.5
-        daemon_running || { echo "daemon failed — see $LOG"; exit 1; }
+        for i in $(seq 1 40); do daemon_running && break; sleep 0.25; done
+        daemon_running || { echo "daemon failed — see $LOG (wrap logs)"; exit 1; }
+        BPORT="$(live_port)"
+        [ "$BPORT" != "$PORT" ] && echo "port $PORT busy — using :$BPORT"
     fi
     if adb get-state >/dev/null 2>&1; then
-        adb reverse "tcp:8741" "tcp:$PORT" && echo "usb bridge: phone localhost:8741 -> laptop :$PORT"
-    fi
-    # best-effort firewall fix — LAN pairing needs the port open (tries once per port)
-    FWMARK="$HOME/.config/wf/fw-$PORT"
-    if [ ! -f "$FWMARK" ] && grep -q '^ENABLED=yes' /etc/ufw/ufw.conf 2>/dev/null; then
-        if [ -t 0 ]; then
-            echo "firewall: ufw is on — opening :$PORT for LAN pairing (sudo)"
-            sudo ufw allow "$PORT/tcp" >/dev/null 2>&1 && touch "$FWMARK" \
-                && echo "firewall: opened :$PORT" \
-                || echo "firewall: failed — run: sudo ufw allow $PORT/tcp"
-        else
-            echo "firewall: ufw is on — if the link doesn't load: sudo ufw allow $PORT/tcp"
-        fi
-    elif [ ! -f "$FWMARK" ] && command -v firewall-cmd >/dev/null 2>&1 && systemctl is-active --quiet firewalld; then
-        [ -t 0 ] && sudo firewall-cmd --add-port="$PORT/tcp" >/dev/null 2>&1 && touch "$FWMARK" \
-            || echo "firewall: if the link doesn't load: sudo firewall-cmd --add-port=$PORT/tcp"
+        adb reverse "tcp:8741" "tcp:$(live_port)" && echo "usb bridge: phone localhost:8741 -> laptop :$(live_port)"
     fi
     pair_card
+    # firewall hint ONLY when the LAN URL doesn't answer (ufw/firewalld users)
+    LIP=$(curl -sf "http://localhost:$(live_port)/pair-info" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("ip",""))' 2>/dev/null)
+    if [ -n "$LIP" ] && [ "$LIP" != "127.0.0.1" ] && ! curl -sf --max-time 2 "http://$LIP:$(live_port)/health" >/dev/null 2>&1; then
+        echo "firewall: http://$LIP:$(live_port) unreachable from here — likely a firewall."
+        echo "          allow it: sudo ufw allow $(live_port)/tcp   (or: sudo firewall-cmd --add-port=$(live_port)/tcp)"
+    fi
     ;;
 pair)
     pair_card
@@ -76,14 +78,26 @@ stop)
     adb reverse --remove "tcp:8741" 2>/dev/null
     ;;
 status)
-    daemon_running && echo "daemon: UP on :$PORT" || echo "daemon: DOWN"
+    if daemon_running; then
+        BP="$(live_port)"
+        RSS=$(awk '/VmRSS/{printf "%.1f", $2/1024}' "/proc/$(cat "$PIDFILE" 2>/dev/null)/status" 2>/dev/null)
+        LIP=$(curl -sf "http://localhost:$BP/pair-info" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("ip",""))' 2>/dev/null)
+        echo "daemon: UP on :$BP (pid $(cat "$PIDFILE" 2>/dev/null), rss ${RSS:-?} MB)"
+        [ -n "$LIP" ] && echo "lan:    http://$LIP:$BP/"
+    else
+        echo "daemon: DOWN"
+    fi
     adb devices | tail -n +2 | grep -q device && adb devices || echo "adb: no device"
     adb reverse --list 2>/dev/null | grep . || echo "bridge: none"
     grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' "$TUNLOG" 2>/dev/null | tail -1 | sed 's/^/tunnel: /'
     ;;
+logs)
+    [ -f "$LOG" ] || { echo "no log yet — run: wrap start"; exit 1; }
+    if [ "$2" = "-f" ]; then tail -f "$LOG"; else tail -50 "$LOG"; fi
+    ;;
 send|test)
     shift; text="$*"; [ -z "$text" ] && text="hello from wrap $(date +%T)"
-    curl -sf -X POST "http://localhost:$PORT/send" -H "Content-Type: application/json" \
+    curl -sf -X POST "http://localhost:$(live_port)/send" -H "Content-Type: application/json" \
         -H "X-WF-Key: $(key)" \
         -d "$(python3 -c 'import json,sys; print(json.dumps({"text": sys.argv[1], "mode": "type"}))' "$text")" \
         && echo " -> typed at cursor"
@@ -179,7 +193,8 @@ PY
   wrap bridge    adb reverse (after replug)
   wrap tunnel    cloudflare tunnel + pair QR (works from anywhere)
   wrap doctor    verify dependencies (run this first)
-  wrap status    daemon / adb / bridge / tunnel state
+  wrap status    daemon / port / rss / lan link / adb state
+  wrap logs      daemon log (wrap logs -f to follow)
   wrap send TEXT type TEXT at laptop cursor
   wrap install   build + install Android app (optional)
   wrap open      launch app on phone
