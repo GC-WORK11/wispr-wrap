@@ -65,7 +65,7 @@ const TRACKER = `(() => {
 })()`;
 
 async function newPage(viewport = [390, 844, true, 2]) {
-  const profile = '/tmp/peak-chrome-flows';
+  const profile = process.env.PEAK_PROFILE || '/tmp/peak-chrome-flows';
   fs.rmSync(profile, { recursive: true, force: true });
   const page = await launchChrome({ port: cdpPort, profile, origin: S.base });
   await page.send('Network.setBlockedURLs', { urls: ['http://127.0.0.1:8877/*'] });   // never touch a sibling's replay seam
