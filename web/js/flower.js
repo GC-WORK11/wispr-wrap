@@ -180,6 +180,8 @@ export const Flower = {
   poke(a) { charge = Math.min(1, charge + (a == null ? .22 : a)); },
   burst() { burstAt = performance.now() / 1000; },
   pause(v) { paused = !!v; },
+  /** replay the sprout from a bud (called as the loading screen dissolves) */
+  restart() { bloom = 0; charge = 0; burstAt = -99; lastF = 0; },
   measure,
   get bloom() { return bloom; },
 };

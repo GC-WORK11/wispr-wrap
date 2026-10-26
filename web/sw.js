@@ -26,8 +26,7 @@ const SHELL = [
   "/js/live.js", "/js/actions.js", "/js/macro.js", "/js/teach.js",
   "/js/library.js", "/js/panes.js",
   "/js/laptop.js", "/js/settings.js", "/js/drawer.js", "/css/drawer.css",
-  // BOOT stage: loading screen + sound + packs shell files
-  "/css/boot.css", "/css/packs.css", "/js/boot.js", "/js/sfx.js", "/js/packs.js"
+  "/css/packs.css", "/js/packs.js", "/js/sound.js"
 ];
 const VENDOR = [
   "/vendor/mediapipe/vision_bundle.mjs",
