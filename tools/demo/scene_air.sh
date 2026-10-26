@@ -38,6 +38,11 @@ for i in $(seq 1 15); do
 done
 if [ -n "$NEW_WID" ]; then
     ok "air-C -> real Chrome window $NEW_WID"
+    # raise the spawned laptop app on camera — the sign's visible effect
+    DISPLAY="$D" wmctrl -i -r "$NEW_WID" -b remove,hidden 2>/dev/null
+    DISPLAY="$D" xdotool windowactivate "$NEW_WID" 2>/dev/null
+    DISPLAY="$D" wmctrl -i -r "$NEW_WID" -e 0,120,60,1000,700 2>/dev/null
+    sleep 3.0
 elif DISPLAY="$D" wmctrl -l | grep -qi chrome; then
     ok "air-C -> Chrome running (opened a tab in the existing instance)"
 else
@@ -59,8 +64,26 @@ ev '{"type":"scroll","dy":-3}' >/dev/null; sleep 0.5
 
 # --- 3. V sign -> YouTube ------------------------------------------------------
 note "V sign -> POST /live/event {type:'air',letter:'V'}"
+CB2=$(DISPLAY="$D" xdotool search --class chrome | sort -u | tr '\n' ' ')
 ev '{"type":"air","letter":"V"}' | tee -a "$EVE"; echo
-sleep 5
+YT=""
+for i in $(seq 1 10); do
+    for wid in $(DISPLAY="$D" xdotool search --class chrome 2>/dev/null); do
+        case " $CB2 " in *" $wid "*) ;; *) YT=$wid;; esac
+    done
+    [ -n "$YT" ] && break
+    # open.url may land as a new tab in the window air-C spawned
+    W=$(DISPLAY="$D" xdotool search --name "YouTube" 2>/dev/null | tail -1)
+    [ -n "$W" ] && YT=$W && break
+    sleep 1
+done
+if [ -n "$YT" ]; then
+    DISPLAY="$D" wmctrl -i -r "$YT" -b remove,hidden 2>/dev/null
+    DISPLAY="$D" xdotool windowactivate "$YT" 2>/dev/null
+    DISPLAY="$D" wmctrl -i -r "$YT" -e 0,100,80,1080,660 2>/dev/null
+    sleep 4
+    note "YouTube window raised on camera (wid $YT)"
+fi
 DISPLAY="$D" wmctrl -l | grep -i "youtube\|chrome" | tee -a "$EVE"
 "${CURL[@]}" -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -c \
     'import json,sys; d=json.load(sys.stdin)
@@ -72,6 +95,12 @@ note "hover + click -> {type:'click',x,y} (video select)"
 ev '{"type":"pointer","x":0.5,"y":0.45}' >/dev/null; sleep 0.7
 ev '{"type":"click","x":0.5,"y":0.45}' >/dev/null; sleep 0.7
 LOC2=$(DISPLAY="$D" xdotool getmouselocation); echo "cursor: $LOC2" | tee -a "$EVE"
+
+# back to the live sheet for the next scene; hide the spawned browser so the
+# frame holds only the app (URL bar on the spawned laptop app is fine — that's
+# a real laptop window, not our dev surface — but the next scene starts clean)
+CW=$(chrome_wid)
+[ -n "$CW" ] && DISPLAY="$D" xdotool windowactivate "$CW" 2>/dev/null && sleep 0.8
 
 bash "$HERE/record.sh" stop
 ok "section A recorded: Chrome, scroll, YouTube, select-click"

@@ -35,11 +35,14 @@ check("SVG parses as XML", xml_ok)
 
 # count drawable elements
 drawables = re.findall(r"<(path|circle|rect|ellipse)\b", svg_txt)
-check("SVG <=12 simple elements", len(drawables) <= 12, f"{len(drawables)} elements")
-banned = re.findall(r"<(filter|lineargradient|radialgradient|mask|clippath|image|text|defs|stroke)\b", svg_txt, re.I)
-check("no filters/gradients/masks/text/raster", len(banned) == 0, f"banned={banned}")
-check("fills deep pink only", set(re.findall(r'fill="(#[0-9A-Fa-f]{6})"', svg_txt)) <= {"#C2185B", "#E91E63", "#AD1457"},
-      str(set(re.findall(r'fill="(#[0-9A-Fa-f]{6})"', svg_txt))))
+check("SVG <=12 simple elements", len(drawables) <= 12, f"{len(drawables)} drawn elements")
+check("one blob path + two glints, one radial gradient", len(drawables) == 3 and svg_txt.count("<radialGradient") == 1, "")
+banned = re.findall(r"<(filter|linearGradient|mask|clipPath|image|text|use|foreignObject|style|script)\b", svg_txt)
+check("no filters/masks/clips/text/raster/scripts", len(banned) == 0, f"banned={banned}")
+widths = [float(w) for w in re.findall(r'stroke-width="([0-9.]+)"', svg_txt)]
+check("glint strokes are >= 2 units (they hold at 16px)", bool(widths) and all(w >= 2 for w in widths), str(widths))
+stops = set(c.upper() for c in re.findall(r'stop-color="(#[0-9A-Fa-f]{6})"', svg_txt))
+check("pink family only (gradient stops)", stops <= {"#FF4CA8", "#FF309C", "#E02085"}, str(sorted(stops)))
 
 # ---- 3. mark fills 80-92% of viewBox (alpha coverage of bbox span) ----
 def bbox_alpha(path):
@@ -118,7 +121,7 @@ def holes(a, bb):
 hole_px = holes(a512, bb)
 check("no transparent holes in mark", hole_px == 0, f"hole_px={hole_px} (AA specks ignored)")
 
-# ---- 6. contrast of pink on #FAFAF9 >= 4.5:1 ----
+# ---- 6. graphic contrast of the blob on the page colour (WCAG non-text: >= 3:1) ----
 def lum(rgb):
     def f(c):
         c /= 255.0
@@ -129,14 +132,17 @@ def ratio(fg, bg):
     l1, l2 = lum(fg), lum(bg)
     hi, lo = max(l1, l2), min(l1, l2)
     return (hi + 0.05) / (lo + 0.05)
-bg = (0xFA, 0xFA, 0xF9)
-fills = sorted(set(re.findall(r'fill="#([0-9A-Fa-f]{6})"', svg_txt)))
-worst = 999.0
-for hexc in fills:
-    rgb = tuple(int(hexc[i:i+2], 16) for i in (0, 2, 4))
+bg = (0xFC, 0xFC, 0xFC)
+for hexc in sorted(stops - {"#FF4CA8"}):
+    rgb = tuple(int(hexc[i:i+2], 16) for i in (1, 3, 5))
     rr = ratio(rgb, bg)
-    check(f"contrast #{hexc} on #FAFAF9 >=4.5", rr >= 4.5, f"{rr:.2f}:1")
-    worst = min(worst, rr)
+    check(f"graphic contrast {hexc} on #FCFCFC >= 3:1", rr >= 3.0, f"{rr:.2f}:1")
+
+# ---- 6b. the PNG set exists at the right pixel sizes ----
+for name, px in (("icon-16.png", 16), ("icon-32.png", 32), ("icon-64.png", 64), ("apple-touch-icon.png", 180), ("icon-192.png", 192), ("icon-512.png", 512), ("icon-maskable-512.png", 512)):
+    im = Image.open(os.path.join(WEB, name))
+    check(f"{name} is {px}x{px}", im.size == (px, px), str(im.size))
+check("apple-touch-icon.png is opaque", Image.open(os.path.join(WEB, "apple-touch-icon.png")).convert("RGBA").getchannel("A").getextrema()[0] == 255)
 
 # ---- 7. contact sheet ----
 def load(p): return Image.open(p).convert("RGB")
@@ -146,12 +152,12 @@ for s in (16, 64, 512):
     for dpr in (1, 2):
         tiles.append(load(os.path.join(PROOF, f"mark-{s}-dpr{dpr}.png")))
         labels.append(f"{s}px @{dpr}x")
-# normalize each into a 160x160 cell on #FAFAF9, centered (16px shown tiny -> keep true scale)
+# normalize each into a 160x160 cell on #FCFCFC, centered (16px shown tiny -> keep true scale)
 CELL = 180
 PAD = 14
 cols = 3
 rows = 2
-sheet = Image.new("RGB", (cols*CELL, rows*CELL + 30), (0xFA, 0xFA, 0xF9))
+sheet = Image.new("RGB", (cols*CELL, rows*CELL + 30), (0xFC, 0xFC, 0xFC))
 from PIL import ImageDraw
 d = ImageDraw.Draw(sheet)
 order = [(16,1),(64,1),(512,1),(16,2),(64,2),(512,2)]
@@ -176,8 +182,8 @@ allpass = all(ok for _, ok, _ in results)
 print("\nSUMMARY:", "ALL PASS" if allpass else "SOME FAIL")
 # write RESULT.txt
 with open(os.path.join(PROOF, "RESULT.txt"), "w") as f:
-    f.write("Wispr Wrap — site logo (LOGO stage) proof\n")
-    f.write("mark: hand-built geometric deep-pink lotus, viewBox 0 0 64 64, 5 petals\n\n")
+    f.write("Wispr Wrap — site logo proof (FOUNDER-COLOR-1658)\n")
+    f.write("mark: glossy lotus-blob, viewBox 0 0 64 64: 1 blob path, 2 glints, 1 radial gradient (tools/site/logo/make-blob.py)\n\n")
     for name, ok, detail in results:
         f.write(f"{'PASS' if ok else 'FAIL'}  {name}  {detail}\n")
     f.write(f"\nSUMMARY: {'ALL PASS' if allpass else 'SOME FAIL'}\n")

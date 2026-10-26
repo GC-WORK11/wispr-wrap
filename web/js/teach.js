@@ -14,7 +14,7 @@
 //                       checked,ok,worst_dist}}  — close + run the held-out check
 //   PUT  /bank {gloss,label,argv|action,tier}       — bind the action
 //   DELETE /bank?gloss=                             — remove a sign
-//   GET  /packs / POST /packs/install {id}          — ready-made signs (packs.js)
+//   GET  /packs                                     — Hello / I am Govinda become tiles (quick.js)
 // Reserved glosses (daemon refuses them): PALM-OPEN, NAMASTE.
 //
 // Compat: keeps .tw-step[data-step="name|record|bind|done"] in that DOM order
@@ -24,7 +24,6 @@ import { Pose } from './pose.js';
 import { Skel } from './skeleton.js';
 import { KpLink } from './live.js';
 import { Actions } from './actions.js';
-import { Packs } from './packs.js';
 import { Quick, typeAction } from './quick.js';
 
 const sheet = App.el.sheetTeach;
@@ -32,52 +31,56 @@ if (!sheet) throw new Error('teach: #sheet-teach missing');
 
 sheet.innerHTML = `
   <div class="sheet-head">
-    <h1 id="tw-title">Teach a sign</h1>
-    <button class="sheet-x" id="tw-x" aria-label="Close">×</button>
+    <h1 id="tw-title" class="sr-only">Teach a sign</h1>
+    <button class="sheet-x" id="tw-x" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </div>
-  <ol class="tw-steps" id="tw-steps"><li></li><li></li><li></li></ol>
+  <ol class="tw-steps" id="tw-steps" aria-hidden="true"><li></li><li></li><li></li></ol>
   <div class="sheet-body tw-body">
 
-    <section class="tw-step" data-step="name">
-      <h2 class="tw-ask-t">What should it do?</h2>
-      <div class="qa-grid" id="qa-grid" role="group" aria-label="Actions"></div>
-      <div class="qa-text" id="qa-text" hidden>
-        <input class="input" id="qa-text-in" type="text" placeholder="Words to type" aria-label="Words to type"
-               autocomplete="off" autocapitalize="sentences" maxlength="120" enterkeyhint="done">
+    <section class="tw-step" data-step="name" aria-label="What should it do?">
+      <div class="qa-off" id="qa-off" hidden>
+        <svg class="qa-off-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="No laptop connected"><rect x="4" y="5" width="16" height="11" rx="2"/><path d="M2 19h20"/></svg>
+        <button class="btn btn-primary" id="qa-connect" type="button">Connect</button>
       </div>
-      <button class="qa-link" id="tw-packs-toggle" type="button" hidden>Ready-made signs</button>
-      <div class="tw-packs" id="tw-packs" hidden></div>
+      <div class="qa-grid" id="qa-grid" role="group" aria-label="Actions"></div>
+      <label class="qa-text" id="qa-text" hidden>
+        <svg class="qa-text-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M7 14h10"/></svg>
+        <input class="input" id="qa-text-in" type="text" aria-label="Words to type"
+               autocomplete="off" autocapitalize="sentences" maxlength="120" enterkeyhint="done">
+      </label>
       <div class="tw-compat" hidden>
         <button id="tw-pick" type="button"><span id="tw-pick-ic">@</span><span id="tw-pick-tx">Pick an app or action</span></button>
-        <input class="input" id="tw-name" type="text" placeholder="Give it a name"
+        <input class="input" id="tw-name" type="text" aria-label="Name"
                autocomplete="off" autocorrect="off" autocapitalize="off" maxlength="32" enterkeyhint="next">
         <span id="tw-gloss" class="tw-gloss" aria-hidden="true"></span>
         <div class="errline" id="tw-name-err"></div>
         <button id="tw-name-cancel" type="button">Cancel</button>
       </div>
-      <div class="tw-foot">
+      <div class="tw-foot" id="tw-name-foot">
         <button class="btn btn-primary btn-block" id="tw-name-next" disabled>Record</button>
       </div>
     </section>
 
     <section class="tw-step" data-step="record">
-      <p class="tw-lead" id="tw-rec-lead"></p>
+      <p class="tw-lead sr-only" id="tw-rec-lead" role="status"></p>
       <div class="tw-stage" id="tw-stage">
         <video id="tw-vid" muted playsinline autoplay></video>
         <canvas id="tw-skel"></canvas>
+        <svg class="tw-ghost" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 11.5V6a1.5 1.5 0 0 1 3 0v5m0-1.5a1.5 1.5 0 0 1 3 0V11m0-.5a1.5 1.5 0 0 1 3 0v1m0-.5a1.5 1.5 0 0 1 3 0v4.5c0 3-2.5 5.5-6 5.5s-5-1.5-6.5-4l-2-3.6c-.6-1 .8-2.1 1.7-1.3l1.3 1.1"/></svg>
         <div class="tw-count" id="tw-count"></div>
-        <div class="tw-rec" id="tw-rec"><i></i>Recording</div>
+        <div class="tw-rec" id="tw-rec" role="img" aria-label="Recording"><i></i></div>
         <div class="tw-camerr" id="tw-camerr" hidden></div>
       </div>
-      <div class="tw-takes" id="tw-takebar"></div>
-      <div class="errline" id="tw-rec-err"></div>
+      <div class="tw-takes" id="tw-takebar" role="img" aria-label="Takes"></div>
+      <div class="errline sr-only" id="tw-rec-err" role="status"></div>
       <div class="tw-foot">
         <button class="btn btn-ghost" id="tw-rec-back">Back</button>
-        <button class="btn btn-primary" id="tw-rec-done" disabled>Next</button>
+        <button class="btn btn-primary" id="tw-rec-done" disabled hidden>Next</button>
       </div>
     </section>
 
     <section class="tw-step" data-step="bind">
+      <p class="tw-lead sr-only">What should it do?</p>
       <div class="tw-prev" id="tw-prev"></div>
       <div class="tw-bound" id="tw-bound">
         <button class="tw-pickrow" id="tw-pick2" type="button">
@@ -95,29 +98,30 @@ sheet.innerHTML = `
 
     <section class="tw-step" data-step="done">
       <div class="tw-done">
-        <div class="tw-check">✓</div>
-        <h2 id="tw-done-t">Ready</h2>
-        <p class="tw-done-m" id="tw-done-m"></p>
+        <div class="tw-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+        <div class="qa-done" id="qa-done"></div>
+        <h2 id="tw-done-t" class="sr-only">Ready</h2>
+        <p class="tw-done-m sr-only" id="tw-done-m" role="status"></p>
         <div class="tw-foot">
-          <button class="btn btn-ghost" id="tw-done-lib">My signs</button>
+          <button class="btn btn-ghost tw-ibtn" id="tw-done-lib" aria-label="My signs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg></button>
           <button class="btn btn-primary" id="tw-done-live">Try it now</button>
         </div>
       </div>
     </section>
 
     <section class="tw-step" data-step="train">
-      <h2 class="tw-ask-t" id="tw-train-t">Learning your sign</h2>
+      <h2 class="sr-only" id="tw-train-t">Learning your sign</h2>
       <div class="tw-trails" id="tw-trails" aria-hidden="true"></div>
       <div class="tw-prog"><i id="tw-prog-bar"></i></div>
-      <ul class="tw-train" id="tw-train">
+      <ul class="tw-train sr-only" id="tw-train" role="status">
         <li data-k="read"><span class="tw-tick"></span><span>Reading your three takes</span></li>
         <li data-k="check"><span class="tw-tick"></span><span>Checking it against your other signs</span></li>
         <li data-k="save"><span class="tw-tick"></span><span>Saving to your laptop</span></li>
       </ul>
       <div class="tw-retake" id="tw-retake" hidden>
-        <p class="tw-lead" id="tw-retake-m"></p>
+        <p class="tw-lead sr-only" id="tw-retake-m" role="status"></p>
         <div class="tw-foot">
-          <button class="btn btn-ghost" id="tw-retake-keep">Keep it anyway</button>
+          <button class="btn btn-ghost" id="tw-retake-keep">Keep</button>
           <button class="btn btn-primary" id="tw-retake-redo">Record again</button>
         </div>
       </div>
@@ -135,7 +139,7 @@ const nameIn = $('tw-name'), nameErr = $('tw-name-err'),
       pickIc = $('tw-pick-ic'), pickBtn2 = $('tw-pick2'), pickTx2 = $('tw-pick2-tx'),
       actionEl = $('tw-action'), bindErr = $('tw-bind-err'), saveBtn = $('tw-save'),
       doneT = $('tw-done-t'), doneM = $('tw-done-m'),
-      packsEl = $('tw-packs'), progBar = $('tw-prog-bar'), trainList = $('tw-train'), trailsEl = $('tw-trails'),
+      qaDone = $('qa-done'), progBar = $('tw-prog-bar'), trainList = $('tw-train'), trailsEl = $('tw-trails'),
       retakeEl = $('tw-retake'), retakeM = $('tw-retake-m');
 
 /* the Recording chip mirrors the daemon's capture session, nothing else */
@@ -199,18 +203,18 @@ function onResp(j) {
         if (W.action) endSession().then(j2 => runTrain(j2));
         else { endSession(); showStep('bind'); }
       } else {
-        recLead.textContent = 'Got it. Same sign again — drop your hands between takes.';
+        recLead.textContent = 'Take ' + Math.min(W.got + 1, W.need) + ' of ' + W.need;
       }
     } else if (t.ok === false) {
-      recErr.textContent = 'That one was too short or had no hands in view. Try again, a little slower.';
+      recErr.textContent = 'Too quick';
       const slot = takebar.children[W.got];
       if (slot) { slot.classList.add('miss'); setTimeout(() => slot.classList.remove('miss'), 2000); }
     }
   }
 }
 function onStatus(s) {
-  if (s === 'dead') recErr.textContent = 'This laptop runs an older version — update it and try again.';
-  if (s === 'denied') recErr.textContent = 'Not connected — scan the code again.';
+  if (s === 'dead') recErr.textContent = 'Update the laptop app';
+  if (s === 'denied') recErr.textContent = 'Not connected';
 }
 
 /* close the capture session; return the daemon's end payload (with .train) */
@@ -249,14 +253,12 @@ async function startCapture() {
     vid.classList.toggle('rear', !W.front);
   } catch (e) {
     camErr.hidden = false;
-    camErr.textContent = e && e.name === 'NoAPI'
-      ? 'The camera needs a secure connection. Connect over USB, or use the tunnel link.'
-      : 'Camera blocked. Allow camera access to perform the sign.';
+    camErr.textContent = e && e.name === 'NoAPI' ? 'Needs a secure connection' : 'Camera blocked';
   }
   try {
     W.engine = await Pose.load();
   } catch (e) {
-    recErr.textContent = 'The pose model failed to load. Reload and try again.';
+    recErr.textContent = 'Camera model failed';
     return;
   }
   recEl.classList.add('on');
@@ -302,7 +304,7 @@ async function setAction(a) {
   actionEl.hidden = false;
   actionEl.innerHTML =
     `<span class="tw-act-n">${esc(text)}</span>` +
-    `<span class="tw-act-w">${(a.tier >= 2) ? 'Asks for a yes on your laptop first' : ''}</span>`;
+    `<span class="tw-act-w sr-only">${(a.tier >= 2) ? 'Needs a yes on your laptop' : ''}</span>`;
   saveBtn.disabled = false;
 }
 
@@ -319,7 +321,7 @@ pickBtn2.onclick = openPicker;
 /* ---------- the one-tap quick-actions grid (FOUNDER-SIMPLIFY-1433) ----------
    Tap a tile -> selected -> the one primary button ("Record"). The sign's name follows
    the tile ("Switch window") unless you typed your own; duplicates get a number. */
-const qaGrid = $('qa-grid'), qaText = $('qa-text'), qaTextIn = $('qa-text-in'), packsToggle = $('tw-packs-toggle');
+const qaGrid = $('qa-grid'), qaText = $('qa-text'), qaTextIn = $('qa-text-in');
 let autoName = '';
 function uniqueLabel(label) {
   let n = label, i = 2;
@@ -340,7 +342,7 @@ function quickPick(a) {
 }
 async function quickApp() {
   if (!App.canAct()) { App.emit('unpaired'); Quick.clear(); return; }
-  const a = await Actions.pick({ title: 'Open which app?' });
+  const a = await Actions.pick({ title: 'Open which app?', apps: true });
   if (!a) { Quick.clear(); Quick.resetApp(); quickPick(null); return; }
   quickPick(a);
   let url = null;
@@ -358,18 +360,38 @@ qaTextIn.addEventListener('input', () => {
   quickPick(t ? typeAction(t) : null);
 });
 qaTextIn.addEventListener('keydown', e => { if (e.key === 'Enter' && !nameNext.disabled) { e.preventDefault(); nameNext.click(); } });
+/* laptop actions exist only while a laptop is connected: otherwise one calm "Connect" button */
+const qaOff = $('qa-off'), nameFoot = $('tw-name-foot');
+let laptopUp = true, gateTimer = null;
+async function probeLaptop() {          // the service worker answers /health with a 503 when the laptop is gone
+  try { const r = await fetch('/health', { cache: 'no-store' }); laptopUp = r.status < 500; } catch (e) { laptopUp = false; }
+  if (!sheet.hidden && stepEl('name').classList.contains('on')) {
+    const on = App.canAct() && laptopUp;
+    if (on && qaGrid.hidden) mountQuick(); else if (!on && !qaGrid.hidden) applyGate();
+  }
+}
+function applyGate() {
+  const on = App.canAct() && laptopUp;
+  qaOff.hidden = on; qaGrid.hidden = !on; nameFoot.hidden = !on;
+  if (!on) qaText.hidden = true;
+  return on;
+}
+$('qa-connect').onclick = () => { if (App.connect) App.connect(); else App.nav('laptop'); };
+App.on('statusbar', () => {
+  if (sheet.hidden || !stepEl('name').classList.contains('on')) return;
+  const on = App.canAct() && laptopUp;
+  if (on && qaGrid.hidden) mountQuick(); else if (!on && !qaGrid.hidden) applyGate();
+});
 function mountQuick() {
   autoName = '';
+  if (!applyGate()) return;
   Quick.mount(qaGrid, {
     onPick: quickPick,
     onOpenApp: quickApp,
     onText: showText,
   });
 }
-packsToggle.onclick = () => {
-  packsEl.hidden = !packsEl.hidden;
-  packsToggle.textContent = packsEl.hidden ? 'Ready-made signs' : 'Hide ready-made signs';
-};
+
 
 /* ---------- step 1 · name ---------- */
 function validateName() {
@@ -379,8 +401,8 @@ function validateName() {
   // name valid OR an action already picked -> can proceed
   if (!g) { nameNext.disabled = !W.action ? true : false; if (W.action && !g) nameErr.textContent = ''; }
   if (!g && !W.action) { nameNext.disabled = true; return; }
-  if (g && RESERVED.has(g)) { nameErr.textContent = 'That gesture already means listen / stop. Pick another name.'; nameNext.disabled = true; return; }
-  if (g && W.library.some(s => s.gloss === g)) { nameErr.textContent = 'You already have a sign with that name. Add takes to it from My signs.'; nameNext.disabled = true; return; }
+  if (g && RESERVED.has(g)) { nameErr.textContent = 'Name taken'; nameNext.disabled = true; return; }
+  if (g && W.library.some(s => s.gloss === g)) { nameErr.textContent = 'Name taken'; nameNext.disabled = true; return; }
   nameNext.disabled = !(g || W.action);
 }
 function onNameInput() {
@@ -402,24 +424,24 @@ $('tw-name-cancel').onclick = () => App.back();
 nameNext.onclick = async () => {
   W.label = nameIn.value.trim() || (W.action && W.action.label) || W.gloss;
   W.gloss = slug(W.label);
-  if (!W.gloss) { nameErr.textContent = 'Give it a name first.'; return; }
-  if (W.library.some(s => s.gloss === W.gloss)) { nameErr.textContent = 'You already have a sign with that name.'; return; }
+  if (!W.gloss) { nameErr.textContent = 'Name needed'; return; }
+  if (W.library.some(s => s.gloss === W.gloss)) { nameErr.textContent = 'Name taken'; return; }
   const r = await App.api.post('/teach/begin',
     { name: W.gloss, takes: NEED, label: W.label, action: W.action || undefined }).catch(() => null);
   if (!r) { nameErr.textContent = 'Can’t reach your laptop.'; return; }
   if (r.status === 403) { nameErr.textContent = 'Not connected — scan the code again.'; return; }
   if (r.status === 404 || r.status === 405) {
-    nameErr.textContent = 'This laptop runs an older version — update it to teach signs.';
+    nameErr.textContent = 'Update the laptop app';
     return;
   }
   if (r.status === 503 || (r.json && r.json.error && /signbank/.test(r.json.error))) {
-    nameErr.textContent = 'This laptop can’t learn signs yet — update it first.';
+    nameErr.textContent = 'Update the laptop app';
     return;
   }
   if (!r.ok) { nameErr.textContent = App.daemonErr(r, 'Could not start — try again.'); return; }
   setTeaching(true);
-  recLead.textContent = 'Do your “' + W.label + '” sign once, then drop your hands. Three times, so it learns you.';
-  recDone.hidden = false; recBack.textContent = 'Back';
+  recLead.textContent = 'Take 1 of ' + NEED;
+  recDone.hidden = true; recBack.textContent = 'Back';
   renderTakebar();
   showStep('record');
   startCapture();
@@ -427,6 +449,7 @@ nameNext.onclick = async () => {
 
 /* ---------- step 2 · record ---------- */
 function renderTakebar() {
+  stageEl.classList.toggle('got', W.got > 0);
   takebar.textContent = '';
   const n = W.need || (W.mode === 'add' ? 1 : NEED);
   for (let i = 0; i < n; i++) {
@@ -474,7 +497,7 @@ function drawTake(cv, frames, animate, delay) {
   const sc = (S - 2 * pad) / Math.max(w, h);
   const ox = (S - w * sc) / 2 - x0 * sc, oy = (S - h * sc) / 2 - y0 * sc;
   const pt = q => [mx(q) * sc + ox, q.y * sc + oy];
-  const cols = ['#c2185b', '#e29ab6'];
+  const cols = [getComputedStyle(sheet).getPropertyValue('--accent').trim() || '#FF309C', '#FFB3D9'];
   const paint = k => {
     x.clearRect(0, 0, S, S);
     paths.forEach((p, i) => {
@@ -517,7 +540,7 @@ function buildBind() {
 }
 
 $('tw-bind-back').onclick = () => {
-  recLead.textContent = 'Extra takes sharpen the match. It keeps your newest five.';
+  recLead.textContent = 'Take 1 of 5';
   showStep('record');
   if (!W.teaching && W.gloss) {
     App.api.post('/teach/begin', { name: W.gloss, takes: 5, label: W.label, action: W.action || undefined })
@@ -548,6 +571,7 @@ async function runTrain(endJson) {
   W.train = endJson && endJson.train ? endJson.train : null;
   // reset train view
   retakeEl.hidden = true;
+  progBar.parentElement.classList.remove('bad');
   for (const li of trainList.children) li.classList.remove('done', 'bad');
   progBar.style.width = '0%';
   showStep('train');
@@ -595,6 +619,8 @@ async function runTrain(endJson) {
   if (failed) {
     tick('check', false);
     progBar.style.width = '66%';
+    progBar.parentElement.classList.add('bad');
+    trailsEl.querySelectorAll('.tw-trail-ok').forEach(b => b.classList.add('on', 'bad'));
     retakeM.textContent = (tr.state === 'needs_more')
       ? 'It needs a couple more takes to be sure. Record it again.'
       : 'That one looks too close to another sign. Record it again, a little differently.';
@@ -617,7 +643,7 @@ async function runTrain(endJson) {
 
 async function saveBank() {
   const a = W.action;
-  if (!a) { bindErr.textContent = 'Pick what it should do first.'; showStep('bind'); return false; }
+  if (!a) { bindErr.textContent = 'Pick an action'; showStep('bind'); return false; }
   const body = { gloss: W.gloss, label: W.label || W.gloss,
                  tier: a.tier == null ? 1 : a.tier, action: a };
   if (Array.isArray(a.argv) && a.argv.length) body.argv = a.argv;
@@ -634,7 +660,7 @@ async function saveBank() {
 $('tw-retake-redo').onclick = () => {
   retakeEl.hidden = true;
   W.got = 0; W.cur = []; W.need = NEED; W.takes = [];
-  recLead.textContent = 'Do it again, a little clearer. Three times.';
+  recLead.textContent = 'Take 1 of ' + NEED;
   renderTakebar();
   showStep('record');
   App.api.post('/teach/begin', { name: W.gloss, takes: NEED, label: W.label, action: W.action || undefined })
@@ -650,15 +676,18 @@ function finishDone() {
   const a = W.action;
   const sentence = a ? (a.say || (Actions.sentence && Actions.sentence(a)) || (Actions.describe && Actions.describe(a))) : '';
   doneT.textContent = 'Ready';
-  doneM.textContent = sentence ? ('Your laptop will ' + sentence + '.') : ('“' + W.label + '” is ready to use.');
+  doneM.textContent = sentence ? sentence.charAt(0).toUpperCase() + sentence.slice(1) : W.label;
+  const sum = Quick.summary();
+  qaDone.innerHTML = sum ? `<span class="qa-ic">${sum.ic}</span><span class="qa-l">${esc(sum.label)}</span>` : '';
   showStep('done');
   App.buzz();
   try { window.dispatchEvent(new CustomEvent('wf:sign-ready')); } catch (e) {}
 }
 
 async function finishAdd() {
+  qaDone.textContent = '';
   doneT.textContent = 'Take added';
-  doneM.textContent = '“' + (W.label || W.target) + '” has another take now — a little surer each time.';
+  doneM.textContent = 'Take added';
   showStep('done');
   try { window.dispatchEvent(new CustomEvent('wf:sign-ready')); } catch (e) {}
 }
@@ -666,45 +695,7 @@ $('tw-done-lib').onclick = () => App.nav('signs');
 $('tw-done-live').onclick = () => App.nav('live');
 $('tw-x').onclick = () => App.back();
 
-/* ---------- ready-made signs (packs.js) ---------- */
-async function mountPacks() {
-  try {
-    await Packs.mount(packsEl, {
-      onStart: startFromPack,   // needs_takes -> jump into Record with name+action
-      onDone: () => refreshLibrary(),
-    });
-    // quiet by default: one text link under the grid opens the list
-    const has = !packsEl.hidden;
-    packsEl.hidden = true;
-    packsToggle.hidden = !has;
-    packsToggle.textContent = 'Ready-made signs';
-  } catch (e) { packsEl.hidden = true; packsToggle.hidden = true; }
-}
 
-// a pack chosen for "Teach it": pre-fill name + a type-text action, go to Record
-async function startFromPack(pack) {
-  W.mode = 'teach'; W.target = null;
-  W.gloss = pack.gloss || slug(pack.title || pack.id);
-  W.label = pack.title || W.gloss;
-  W.takes = []; W.got = 0; W.cur = []; W.need = NEED; W.busy = false;
-  // pack text: hello -> "hello", i-am-govinda -> "I am Govinda"
-  const text = PACK_TEXT[pack.id] || (pack.action && pack.action.args && pack.action.args.text) || pack.title;
-  W.action = pack.action || {
-    kind: 'builtin', tool: 'type.text', args: { text }, label: 'Type “' + text + '”', tier: 1,
-  };
-  nameIn.value = W.label; glossEl.textContent = W.gloss;
-  setAction(W.action);
-  const r = await App.api.post('/teach/begin',
-    { name: W.gloss, takes: NEED, label: W.label, action: W.action }).catch(() => null);
-  if (!r || !r.ok) { App.toast('Could not start — try again', true); return; }
-  setTeaching(true);
-  recLead.textContent = 'Do your “' + W.label + '” sign once, then drop your hands. Three times, so it learns you.';
-  recDone.hidden = false; recBack.textContent = 'Back';
-  renderTakebar();
-  showStep('record');
-  startCapture();
-}
-const PACK_TEXT = { 'hello': 'hello', 'i-am-govinda': 'I am Govinda' };
 
 /* ---------- route ---------- */
 async function refreshLibrary() {
@@ -725,10 +716,12 @@ async function open() {
   $('tw-title').textContent = 'Teach a sign';
   showStep('name');
   showText(null);
+  qaGrid.textContent = '';                       // never show last visit's tiles
+  clearInterval(gateTimer); probeLaptop(); gateTimer = setInterval(probeLaptop, 2500);
   refreshLibrary().then(() => mountQuick());
-  mountPacks();
 }
 async function close() {
+  clearInterval(gateTimer);
   stopCapture();
   if (W.teaching) { App.api.post('/teach/end', { name: W.gloss }).catch(() => {}); setTeaching(false); }
 }
@@ -747,7 +740,7 @@ const Teach = {
       return;
     }
     setTeaching(true);
-    recLead.textContent = 'Same sign once more — every take makes it surer.';
+    recLead.textContent = 'Take 1 of 1';
     recDone.hidden = true; recBack.textContent = 'Cancel';
     renderTakebar();
     showStep('record');

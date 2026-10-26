@@ -211,7 +211,7 @@ body.sheet-open .top { display: none; }
 /* ---------- first-run pairing ---------- */
 .onb { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 28px; background: var(--bg); animation: sheet-in var(--t-3) var(--ease-out); }
 .onb-in { width: 100%; max-width: 400px; display: flex; flex-direction: column; align-items: center; text-align: center; }
-.onb-mark { width: 64px; height: 64px; margin-bottom: 24px; }
+.onb-mark { width: 56px; height: 56px; margin-bottom: 24px; }
 .onb h1 { font-size: 30px; line-height: 1.12; font-weight: 600; letter-spacing: -.03em; margin-bottom: 10px; }
 .onb p { font-size: 16px; color: var(--muted-2); line-height: 1.55; max-width: 320px; margin-bottom: 28px; }
 .onb-code {

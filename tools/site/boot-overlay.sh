@@ -16,6 +16,10 @@ if [ -f "$OV/pid" ]; then kill "$(cat "$OV/pid")" 2>/dev/null || true; sleep 0.5
 rm -rf "$OV"; mkdir -p "$OV/home" "$OV/srv"
 cp -r "$ROOT/server" "$OV/srv/server"
 for f in wfd.py packs.py teach_train.py; do [ -f "$PRO/$f" ] && cp "$PRO/$f" "$OV/srv/server/$f"; done
+# OVERLAY_REF=<git ref>: use that ref's whole server/ (read-only extract, nothing is merged into this branch)
+if [ -n "${OVERLAY_REF:-}" ]; then
+  rm -rf "$OV/srv/server"; git -C "$ROOT" archive "$OVERLAY_REF" server | tar -x -C "$OV/srv"
+fi
 ln -s "$ROOT/web" "$OV/srv/web"
 [ -d "$ROOT/tools" ] && ln -s "$ROOT/tools" "$OV/srv/tools" || true
 env -i HOME="$OV/home" DISPLAY="$D0" PATH="$BIN0:$PATH" WF_PORT="$OPORT" WF_NO_LOG_TEXT=1 XDG_SESSION_TYPE=x11 \

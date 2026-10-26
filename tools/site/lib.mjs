@@ -156,3 +156,30 @@ export function recorder(page, dir) {
     },
   };
 }
+
+// every string a person can actually SEE inside `rootSel` (visible, painted, not screen-reader-only) -------------
+// FOUNDER-RULE-1652: screens carry tile names and button names, never sentences.
+export async function visibleText(page, rootSel) {
+  return page.eval(`(() => {
+    const root = document.querySelector(${JSON.stringify(rootSel)}); if (!root) return [];
+    const out = [];
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let n = w.nextNode(); n; n = w.nextNode()) {
+      const t = n.nodeValue.replace(/\\s+/g, ' ').trim(); if (!t) continue;
+      const el = n.parentElement; if (!el) continue;
+      let hidden = false;
+      for (let e = el; e && e !== document.body; e = e.parentElement) {
+        const c = getComputedStyle(e);
+        if (c.display === 'none' || c.visibility === 'hidden' || +c.opacity === 0 || e.hidden) { hidden = true; break; }
+        const rr = e.getBoundingClientRect();
+        if ((rr.width < 3 || rr.height < 3) && c.overflow !== 'visible') { hidden = true; break; }   // sr-only: clipped to a pixel
+      }
+      const r = el.getBoundingClientRect();
+      if (hidden || r.width < 3 || r.height < 3 || getComputedStyle(el).fontSize === '0px') continue;
+      out.push(t);
+    }
+    return [...new Set(out)];
+  })()`);
+}
+// a label is short (at most four words, e.g. "Move window to workspace") and has no sentence punctuation
+export const isLabel = (s) => s.split(/\s+/).length <= 4 && !/[.?!,:;\u2026]/.test(s);
