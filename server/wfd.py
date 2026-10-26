@@ -59,6 +59,9 @@ BODY_CAPS = {"/pair": 16 * 1024, "/live/kp": 256 * 1024,
 LIVE_MAX_FPS = int(os.environ.get("WF_LIVE_MAX_FPS", "45"))
 LIVE_IDLE_S = float(os.environ.get("WF_LIVE_IDLE_S", "120"))
 CONFIRM_TTL_S = float(os.environ.get("WF_CONFIRM_TTL", "120"))
+# one movement must fire once: a segment split by mid-sign hesitation
+# reopens within ~0.5s; a deliberate repeat sign pauses longer.
+DUP_GAP_MS = int(os.environ.get("WF_DUP_GAP_MS", "550"))
 PALM_SIGN = os.environ.get("WF_PALM_SIGN", "PALM-OPEN")
 NAMASTE_SIGN = os.environ.get("WF_NAMASTE_SIGN", "NAMASTE")
 TEACH_TAKES = int(os.environ.get("WF_TEACH_TAKES", "3"))
@@ -288,7 +291,8 @@ def send_file(data, name, ctype):
 LIVE_LOCK = threading.RLock()
 LIVE = {"session": None, "listening": False, "ep": None,
         "last_match": None, "seen": 0.0, "rate": deque(),
-        "observe": False, "last_action": None,
+        "observe": False, "last_action": None, "last_accept": None,
+        "dup_fires": 0,
         "feed": deque(maxlen=64)}
 TEACH = {"active": False, "name": "", "takes": 0, "got": 0,
          "label": "", "action": None}
@@ -472,7 +476,8 @@ def live_reset():
     """New listen session / idle expiry: clean segmenter + session id.
     A dangling teach is cancelled — a rotated session means the composer
     was re-opened."""
-    LIVE.update(session=None, listening=False, last_match=None, seen=0.0)
+    LIVE.update(session=None, listening=False, last_match=None, seen=0.0,
+                last_accept=None)
     LIVE["rate"].clear()
     LIVE["feed"].clear()
     LIVE["ep"] = endpointer.Endpointer(
@@ -816,6 +821,27 @@ def _on_segment(frames, t_ms):
             "margin": getattr(m, "margin", None),
             "second": getattr(m, "second_gloss", None),
             "reason": getattr(m, "reason", "")}
+    # segment-split dedup: a mid-sign hesitation ends one segment and the
+    # rest of the same movement re-arms immediately — without this the
+    # halves both match and ONE gesture fires twice. A real repeat sign
+    # pauses longer than the split gap (~0.45-0.55s), so same-gloss
+    # segments reopening inside DUP_GAP_MS are suppressed (counted, fed).
+    if m.accepted and m.gloss and frames:
+        seg_start = int(frames[0].get("t_ms") or t_ms)
+        seg_end = int(frames[-1].get("t_ms") or t_ms)
+        prev = LIVE.get("last_accept") or {}
+        if prev.get("gloss") == m.gloss and \
+                seg_start - prev.get("seg_end", -10**9) < DUP_GAP_MS:
+            LIVE["dup_fires"] = LIVE.get("dup_fires", 0) + 1
+            LIVE["last_accept"] = {"gloss": m.gloss, "seg_end": seg_end}
+            last["dup_suppressed"] = True
+            _feed({"type": "dup-fire", "gloss": m.gloss,
+                   "gap_ms": seg_start - prev.get("seg_end", 0),
+                   "t_ms": t_ms})
+            LIVE["last_match"] = last
+            res["match"] = last
+            return res
+        LIVE["last_accept"] = {"gloss": m.gloss, "seg_end": seg_end}
     if OPS is not None:
         # composer decides: compositional sequences, profile-bound
         # actions, observe mode — and emits events the feed reports.
@@ -998,6 +1024,7 @@ def live_state():
               "focus_title": focus.get("title", ""),
               "observe_mode": bool(LIVE["observe"]),
               "last_action": LIVE["last_action"],
+              "dup_fires": LIVE.get("dup_fires", 0),
               "feed": list(LIVE["feed"])[-16:],
               "bank_size": bank_size()}
         if OPS is not None:
