@@ -306,12 +306,21 @@ button { font-family: inherit; }
   }
   .golive svg { width: 17px; height: 17px; margin: 0; }
   .golive-sub { display: none; }
-  .rail-nav { flex: 1; flex-direction: row; justify-content: flex-end; gap: 2px; }
-  .railitem { padding: 9px 10px; font-size: 12.5px; gap: 6px; white-space: nowrap; }
+  .rail-nav { flex: 1; flex-direction: row; justify-content: flex-end; gap: 2px; min-width: 0; }
+  .railitem { padding: 9px 10px; font-size: 12.5px; gap: 6px; white-space: nowrap; min-width: 0; }
+  .railitem > span { overflow: hidden; text-overflow: ellipsis; }
   .railitem .lbl-long { display: none !important; }
   .railitem .lbl-short { display: inline !important; }
   .railitem svg { width: 15px; height: 15px; }
   .rail-foot { display: none; }
+}
+
+/* narrow phones: every nav label must fit — shrink the rail, not the reach */
+@media (max-width: 400px) {
+  .rail { gap: 4px; padding: 7px 8px calc(env(safe-area-inset-bottom) + 7px); }
+  .rail-status { display: none; }
+  .golive { padding: 9px 12px; font-size: 13.5px; gap: 6px; }
+  .railitem { padding: 9px 7px; font-size: 12px; gap: 5px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

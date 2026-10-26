@@ -244,7 +244,7 @@ export const App = {
   on, off, emit,
   state, renderStatus, pollState, pollEngine,
   route, nav, back, routes, parseHash,
-  toast, buzz, sleep,
+  toast, buzz, sleep, raise,
   kpFrame,
   el: {
     pill: document.getElementById('pill'),
@@ -284,6 +284,16 @@ on('route', name => {
   document.getElementById('tray-teach').classList.toggle('on', name === 'teach');
   document.getElementById('tray-signs').classList.toggle('on', name === 'signs');
 });
+
+// overlay pickers (actions/macro) share z-40 — a nested pick (macro's
+// "pick action" opens the actions sheet) must paint above its parent,
+// so the last-opened .sheet-lower always gets the top slot.
+function raise(el) {
+  let top = 39;
+  for (const s of document.querySelectorAll('.sheet-lower'))
+    if (!s.hidden) top = Math.max(top, parseInt(s.style.zIndex || '40', 10));
+  el.style.zIndex = top + 1;
+}
 
 // rail foot: honest engine + bank info once the daemon reports it
 const railEng = document.getElementById('rail-eng');

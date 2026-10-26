@@ -113,6 +113,10 @@ export class KpLink {
     this.inflight = true;
     const body = { t_ms: Math.round(t), points: pts };
     if (this.session) body.session = this.session;
+    // real video aspect lets the daemon map normalized kp to portrait sensors
+    // (Kiro B: engines assume 16:9 otherwise). Replayed streams have no video.
+    if (this.video && this.video.videoWidth)
+      body.aspect = +(this.video.videoWidth / this.video.videoHeight).toFixed(4);
     App.api.post('/live/kp', body)
       .then(r => {
         if (r.status === 403) { this.denied = true; this.stop(); if (this.onStatus) this.onStatus('denied'); return; }
@@ -248,7 +252,7 @@ function actFlash(txt) {
 }
 function renderState(j) {
   const listening = !!(j.listening || j.mode === 'listening' || j.state === 'listening');
-  setBadge(listening ? 'listen' : '', listening ? 'listening' : 'idle');
+  if (cover.hidden) setBadge(listening ? 'listen' : '', listening ? 'listening' : 'idle');
   if (j.last_match) showMatch(j.last_match, true);
   const pend = Array.isArray(j.pending) ? j.pending : [];
   renderPending(pend);
@@ -407,7 +411,8 @@ function camFail(e) {
       'pair over usb (adb reverse tcp:8741 + open localhost:8741) or the wrap tunnel, or use the laptop camera.',
       [laptopBtn()].filter(Boolean));
   else if (e && (e.name === 'NotFoundError' || e.name === 'OverconstrainedError'))
-    card('no camera here', 'this device has no usable camera.', [laptopBtn()].filter(Boolean));
+    card('no camera here', 'this device has no usable camera.',
+      [laptopBtn(), laptopBtn() ? null : mkBtn('close', hideCard)].filter(Boolean));
   else
     card('camera failed', (e && e.message) || 'unknown error',
       [mkBtn('retry', boot, true), laptopBtn()]);
