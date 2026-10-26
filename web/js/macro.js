@@ -53,7 +53,7 @@ const STEP_KINDS = [
   { k: 'wait_ms', label: 'wait', ph: 'milliseconds (max 60000)', num: true },
   { k: 'type', label: 'type text', ph: 'text at the cursor' },
   { k: 'keys', label: 'key press', ph: 'ctrl+alt+t' },
-  { k: 'argv', label: 'command (argv)', ph: 'notify-send "done"', tier2: true },
+  { k: 'argv', label: 'terminal command', ph: 'notify-send "done"', tier2: true },
 ];
 
 function stepRow(st, i) {
@@ -127,7 +127,7 @@ function render() {
   if (mode === 'macro') {
     const lead = document.createElement('p');
     lead.className = 'hint';
-    lead.textContent = 'steps run in order; the chain stops on the first failure. a step carrying argv makes it confirm on the laptop the first time.';
+    lead.textContent = 'steps run in order; the chain stops on the first failure. a terminal command asks for a yes on the laptop the first time.';
     body.appendChild(lead);
     steps.forEach((st, i) => body.appendChild(stepRow(st, i)));
     body.appendChild(addStepRow());
@@ -137,7 +137,7 @@ function render() {
   } else {
     const lead = document.createElement('p');
     lead.className = 'hint';
-    lead.textContent = 'the same sign does different things depending on the focused window. rules match the window class; “default” fires when nothing matches.';
+    lead.textContent = 'the same sign does different things depending on which app is in front. pick the app; “default” fires when none match.';
     body.appendChild(lead);
     rules.forEach((r, i) => body.appendChild(ruleRow(r, i)));
     const add = document.createElement('button');
@@ -175,7 +175,7 @@ function ruleRow(r, i) {
     '<div class="mc-rule-top"><span class="mc-rt">when</span></div>' +
     '<div class="mc-rule-act"><span class="mc-arrow" aria-hidden="true">→</span></div>';
   const sel = document.createElement('input');
-  sel.className = 'input mc-in'; sel.placeholder = 'focused app — wm_class e.g. firefox';
+  sel.className = 'input mc-in'; sel.placeholder = 'app name, e.g. firefox';
   sel.value = r.app;
   sel.oninput = () => { r.app = sel.value.trim(); syncDone(); };
   Actions.catalog().then(cat => {
