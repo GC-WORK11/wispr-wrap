@@ -49,6 +49,16 @@ class TestQuickCatalog(unittest.TestCase):
             with self.subTest(aid=aid):
                 self.assertIn(aid, ids)
 
+    def test_founder_list_has_icon_label_tier(self):
+        rows = {r["id"]: r for r in
+                al.LinuxX11Provider(config_dir="/nonexistent")._tool_rows}
+        for aid in QUICK:
+            with self.subTest(aid=aid):
+                self.assertTrue(rows[aid].get("icon"), aid)
+                self.assertTrue(rows[aid].get("label"), aid)
+        for aid in ("win.maximize", "app.open", "type.text"):
+            self.assertTrue(rows[aid].get("icon"), aid)
+
     def test_close_window_row_is_confirm_tier(self):
         rows = {r["id"]: r for r in
                 al.LinuxX11Provider(config_dir="/nonexistent")._tool_rows}
