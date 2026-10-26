@@ -395,6 +395,13 @@ function parseOwn(raw) {
     if (isPath)
       return { ok: true, preview: 'Open ' + rest + ' on your laptop',
         action: { kind: 'command', tool: 'command', args: { argv: ['xdg-open', rest] }, argv: ['xdg-open', rest], label: 'Open ' + rest, tier: 1 } };
+    if (/^(this|that|it|this one|the selected one|selected)$/i.test(rest))
+      return { ok: true, preview: 'Open whatever is selected on your laptop (presses Enter)',
+        action: toolAction({ id: 'key.press', kind: 'builtin', label: 'Open this', arg: 'keys', tier: 1 }, 'Return') };
+    const low = rest.toLowerCase();
+    const hit = ((CAT && CAT.apps) || []).find(a => String(a.id).toLowerCase() === low || String(a.name || '').toLowerCase() === low)
+      || ((CAT && CAT.apps) || []).find(a => String(a.name || '').toLowerCase().includes(low) || String(a.id).toLowerCase().includes(low));
+    if (hit) return { ok: true, preview: 'Open ' + (hit.name || hit.id), action: appAction(hit) };
     return { ok: true, preview: 'Open ' + rest + ' on your laptop',
       action: { kind: 'app', tool: 'app.open', type: 'open_app', args: { id: rest }, id: rest, label: 'Open ' + rest, tier: 1 } };
   }
@@ -458,6 +465,26 @@ async function build() {
   noteEl.textContent = cat.mode === 'offline'
     ? 'Connect your laptop to see its apps. These actions will run once it is connected.'
     : '';
+
+  /* --- a typed command works right here ("open youtube.com", "press ctrl+shift+t") --- */
+  const typed = query ? parseOwn(q.value.trim()) : null;
+  if (typed && typed.ok) {
+    const row = document.createElement('div'); row.className = 'act-row act-cmd';
+    row.innerHTML = `<div class="act-row-top">${glyph('bolt')}<span class="act-name">${esc(typed.preview)}</span></div>` +
+      (typed.risky ? '<div class="act-desc ask">Asks you first on your laptop</div>' : '<div class="act-desc">Press Enter to use it</div>');
+    row.onclick = () => close(typed.action);
+    listEl.appendChild(row);
+  } else if (!query) {
+    const row = document.createElement('div'); row.className = 'act-row act-own-link';
+    row.innerHTML = `<div class="act-row-top">${glyph('text')}<span class="act-name">Write your own</span></div>` +
+      '<div class="act-desc">open \u00b7 type \u00b7 press \u00b7 run</div>';
+    row.onclick = () => {
+      const o = listEl.querySelector('.act-own-in'); if (!o) return;
+      o.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      setTimeout(() => o.focus({ preventScroll: true }), 280);
+    };
+    listEl.appendChild(row);
+  }
 
   const allApps = cat.apps || [];
   const visibleApps = allApps.filter(a => query ? true : !isNoise(a));
