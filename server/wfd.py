@@ -57,11 +57,22 @@ ENGINE_FILE = os.path.expanduser("~/.config/wf/engine")
 
 # request bodies are capped BEFORE reading (was: unbounded rfile.read)
 MAX_BODY = int(os.environ.get("WF_MAX_BODY", str(256 * 1024 * 1024)))
+# /send-file STREAMS to disk (phone videos are 20-300 MB), so it is NOT
+# read into RAM via _read_body — it gets its own, larger cap. Default
+# 1 GiB, env-tunable. /send-image still buffers (images are small) but
+# its cap stays modest so one request can't balloon RSS.
+WF_MAX_UPLOAD = int(os.environ.get("WF_MAX_UPLOAD", str(1024 * 1024 * 1024)))
+MAX_IMAGE = int(os.environ.get("WF_MAX_IMAGE", str(64 * 1024 * 1024)))
+UPLOAD_CHUNK = 1024 * 1024            # 1 MiB stream chunks -> flat RSS
+# keep at least this much headroom free after the upload lands
+DISK_HEADROOM = int(os.environ.get("WF_DISK_HEADROOM", str(64 * 1024 * 1024)))
 BODY_CAPS = {"/pair": 16 * 1024, "/live/kp": 256 * 1024,
              "/live/event": 16 * 1024, "/live/listen": 16 * 1024,
              "/live/mode": 16 * 1024,
              "/send": 8 * 1024 * 1024, "/teach/begin": 64 * 1024,
              "/teach/end": 64 * 1024, "/act/confirm": 64 * 1024,
+             "/act/run": 16 * 1024, "/act/pointer": 4 * 1024,
+             "/send-image": MAX_IMAGE,
              "/bank": 256 * 1024}
 # live pipeline knobs — env-tunable, not hidden constants
 LIVE_MAX_FPS = int(os.environ.get("WF_LIVE_MAX_FPS", "45"))
@@ -278,20 +289,96 @@ def send_image(data, ctype=""):
     return cls, mime
 
 
-def send_file(data, name, ctype):
-    import re
-    safe = re.sub(r"[^\w.\-]+", "_", name or "file")
+def sanitize_upload_name(name):
+    """Phone filenames are attacker-controlled. Strip any path, drop
+    control chars, keep a sane extension, and never allow traversal.
+    Returns a bare basename (no directory parts)."""
+    name = name or "file"
+    # take the basename only — kills "../", absolute paths, backslashes
+    name = name.replace("\\", "/").split("/")[-1]
+    # drop control chars (incl. newlines/NUL) and separators
+    name = "".join(c for c in name if ord(c) >= 0x20 and c not in '\x7f')
+    stem, dot, ext = name.rpartition(".")
+    if dot:
+        stem = re.sub(r"[^\w.\-]+", "_", stem) or "file"
+        ext = re.sub(r"[^\w]+", "", ext)[:16]
+        safe = stem + ("." + ext if ext else "")
+    else:
+        safe = re.sub(r"[^\w.\-]+", "_", name) or "file"
+    # collapse leading dots so we never write ".." or dotfiles-as-traversal
+    safe = safe.lstrip(".") or "file"
+    return safe[:200]
+
+
+def _free_bytes(path):
+    try:
+        st = os.statvfs(path)
+        return st.f_bavail * st.f_frsize
+    except OSError:
+        return None
+
+
+def stream_upload(rfile, n, name):
+    """Stream exactly n bytes from rfile into a temp file in UPLOADS,
+    bounded memory (UPLOAD_CHUNK at a time), fsync+rename on success.
+    Returns (status, obj_or_path, final_path):
+      - on cap exceeded: (413, error_obj, None) — WITHOUT reading the body
+      - on no disk:      (507, error_obj, None)
+      - on client abort: (None, None, None) — partial already deleted
+      - on success:      (200, None, final_path)"""
+    if n > WF_MAX_UPLOAD:
+        return 413, {"ok": False,
+                     "error": "file is too large (limit %d MB)"
+                     % (WF_MAX_UPLOAD // (1024 * 1024))}, None
     os.makedirs(UPLOADS, exist_ok=True)
-    path = os.path.join(UPLOADS, f"{int(time.time())}_{safe}")
-    with open(path, "wb") as f:
-        f.write(data)
+    free = _free_bytes(UPLOADS)
+    if free is not None and n + DISK_HEADROOM > free:
+        return 507, {"ok": False,
+                     "error": "not enough free disk space for this upload"}, None
+    safe = sanitize_upload_name(name)
+    # collision-safe final name: <epoch>_<safe>, and if that exists too,
+    # append a short random suffix.
+    final = os.path.join(UPLOADS, f"{int(time.time())}_{safe}")
+    if os.path.exists(final):
+        final = os.path.join(UPLOADS,
+                             f"{int(time.time())}_{secrets.token_hex(3)}_{safe}")
+    fd, tmp = tempfile.mkstemp(prefix=".wf-up-", dir=UPLOADS)
+    got = 0
+    try:
+        with os.fdopen(fd, "wb") as f:
+            while got < n:
+                want = min(UPLOAD_CHUNK, n - got)
+                chunk = rfile.read(want)
+                if not chunk:
+                    break            # client disconnected mid-upload
+                f.write(chunk)
+                got += len(chunk)
+            if got != n:
+                raise IOError("short read (%d/%d) — client aborted" % (got, n))
+            f.flush()
+            os.fsync(f.fileno())
+        os.rename(tmp, final)        # atomic within the same dir
+        return 200, None, final
+    except Exception as e:
+        try:
+            os.unlink(tmp)           # never leave a partial behind
+        except OSError:
+            pass
+        print(f"[wfd] upload aborted: {e!r}", flush=True)
+        return None, None, None
+
+
+def paste_upload(path, ctype):
+    """Put an already-written file on the clipboard and paste it."""
     cls = active_window_class()
     paste_file(path, ctype or "", cls)
-    print(f"[wfd] file: {len(data)}B {safe} -> {path} into '{cls}'", flush=True)
+    size = os.path.getsize(path) if os.path.isfile(path) else 0
+    print(f"[wfd] file: {size}B {os.path.basename(path)} -> {path} "
+          f"into '{cls}'", flush=True)
     global LAST_SEND
     LAST_SEND = {"t_ms": now_ms(), "ok": True, "kind": "file",
-                 "into": cls, "n": len(data), "path": path}
-    return cls, path
+                 "into": cls, "n": size, "path": path}
+    return cls, path, size
 
 
 # ---------------------------------------------------------------------
@@ -316,7 +403,8 @@ PENDING = {}                    # confirm_id -> {gloss,label,argv,at}
 _cmd_cache = {"key": None, "rows": {}}
 LIVE_POSTS = ("/live/kp", "/live/event", "/live/listen", "/live/mode",
               "/teach/begin", "/teach/end", "/teach/record/start",
-              "/teach/record/stop", "/act/confirm", "/packs/install")
+              "/teach/record/stop", "/act/confirm", "/packs/install",
+              "/act/run", "/act/pointer")
 
 
 def now_ms():
@@ -370,7 +458,7 @@ if act_linux is not None:
                 toolmap = {
                     "volume": "sys.mute" if str(a.get("op")) == "mute"
                               else "sys.volume-" + str(a.get("op", "up")),
-                    "media": "media." + str(a.get("op", "playpause")),
+                    "media": "media." + str(a.get("op", "playpause")).replace("_", ""),
                     "screenshot": "sys.screenshot-region"
                                   if str(a.get("mode")) == "region"
                                   else "sys.screenshot",
@@ -395,16 +483,16 @@ if act_linux is not None:
                                             describe="%s (%s)" % (a.get(
                                                 "label") or tid, tid))
             _SYS_CAT = [
-                ("screenshot", {"id": "sys.screenshot", "kind": "sys",
+                ("screenshot", {"id": "sys.screenshot", "icon": "camera-photo", "kind": "sys",
                                 "label": "take a screenshot", "tier": 1,
                                 "desc": "full display -> ~/Pictures"}),
-                ("volume", {"id": "sys.volume-up", "kind": "sys",
+                ("volume", {"id": "sys.volume-up", "icon": "audio-volume-high", "kind": "sys",
                             "label": "volume up", "tier": 1}),
-                ("volume", {"id": "sys.volume-down", "kind": "sys",
+                ("volume", {"id": "sys.volume-down", "icon": "audio-volume-low", "kind": "sys",
                             "label": "volume down", "tier": 1}),
-                ("volume", {"id": "sys.mute", "kind": "sys",
+                ("volume", {"id": "sys.mute", "icon": "audio-volume-muted", "kind": "sys",
                             "label": "mute / unmute", "tier": 1}),
-                ("media", {"id": "media.playpause", "kind": "media",
+                ("media", {"id": "media.playpause", "icon": "media-playback-start", "kind": "media",
                            "label": "play / pause", "tier": 1}),
                 ("media", {"id": "media.next", "kind": "media",
                            "label": "next track", "tier": 1}),
@@ -655,6 +743,181 @@ def _route_provider(gloss, action, label, tier):
                 "detail": d.get("detail")}
     print(f"[wfd] refused {gloss}: {d.get('detail', '')}", flush=True)
     return {"routed": False, "refused": d.get("detail"), "tier": res.tier}
+
+# ---------------------------------------------------------------------
+# Phone -> laptop direct action/pointer surface (FOUNDER-SPEC-1229 §A).
+# The composer's Go Live view drives these: a traced 'C'/'V' posts an
+# action dict to /act/run (same shape the @ picker binds to signs), and
+# browse-mode cursor/scroll/click posts to /act/pointer. Both carry the
+# pairing key and are LAN/USB-only (in LIVE_POSTS) — a pointer that can
+# move the real X11 cursor must never be tunnel-reachable.
+# ---------------------------------------------------------------------
+_GEO_CACHE = {"at": 0.0, "w": 0, "h": 0}
+_GEO_TTL_S = 10.0
+_PTR_RATE = {}                  # peer-addr -> deque[ts]; bounded below
+_PTR_RATE_LOCK = threading.Lock()
+_PTR_RATE_MAX = 90             # requests/sec/peer before 429
+_PTR_RATE_TABLE_CAP = 256      # bounded table — drop idle peers
+
+
+def _ptr_rate_ok(peer):
+    """Per-client 90 req/s sliding window. Simple deque per peer, table
+    bounded so a flood of distinct addresses can't grow it unbounded."""
+    now = time.time()
+    with _PTR_RATE_LOCK:
+        dq = _PTR_RATE.get(peer)
+        if dq is None:
+            if len(_PTR_RATE) >= _PTR_RATE_TABLE_CAP:
+                # evict the peer with the oldest last-seen entry
+                old = min(_PTR_RATE.items(),
+                          key=lambda kv: kv[1][-1] if kv[1] else 0.0)
+                _PTR_RATE.pop(old[0], None)
+            dq = deque()
+            _PTR_RATE[peer] = dq
+        while dq and now - dq[0] > 1.0:
+            dq.popleft()
+        if len(dq) >= _PTR_RATE_MAX:
+            return False
+        dq.append(now)
+        return True
+
+
+def _screen_geom():
+    """(w, h) of the laptop screen via `xdotool getdisplaygeometry`,
+    cached 10 s. Returns None if xdotool is missing or there's no
+    DISPLAY (the pointer path then answers ok:false, never 500)."""
+    now = time.time()
+    if _GEO_CACHE["w"] and now - _GEO_CACHE["at"] < _GEO_TTL_S:
+        return _GEO_CACHE["w"], _GEO_CACHE["h"]
+    try:
+        r = subprocess.run(["xdotool", "getdisplaygeometry"],
+                           capture_output=True, text=True, timeout=2)
+    except Exception:
+        return None
+    if r.returncode != 0:
+        return None
+    try:
+        w, h = (int(x) for x in r.stdout.split()[:2])
+    except Exception:
+        return None
+    if w <= 0 or h <= 0:
+        return None
+    _GEO_CACHE.update(at=now, w=w, h=h)
+    return w, h
+
+
+def _xdotool(argv):
+    """Run an xdotool argv (list, never a shell), 2 s timeout. Returns
+    True on exit 0, False on missing binary / failure / timeout."""
+    try:
+        r = subprocess.run(argv, capture_output=True, text=True, timeout=2)
+    except Exception:
+        return False
+    return r.returncode == 0
+
+
+def act_run(data):
+    """POST /act/run — run one bank-shaped action dict through the same
+    provider path a matched sign uses. tier>=2 parks for /act/confirm.
+    Appends a 'fired' feed event so /live/state reflects it."""
+    if not isinstance(data, dict) or not isinstance(data.get("action"), dict):
+        return 400, {"ok": False, "error": "action must be an object"}
+    if ACT_PROVIDER is None:
+        return 503, {"ok": False, "error": "no action provider on this box"}
+    action = data["action"]
+    label = str(data.get("label") or action.get("label") or "")
+    try:
+        tier = int(action.get("tier") or 1)
+    except (TypeError, ValueError):
+        tier = 1
+    with LIVE_LOCK:
+        res = _route_provider("PHONE", action, label, tier)
+        pending = res.get("pending")
+        fired = bool(res.get("fired"))
+        # ok = fired outright, or routed-without-refusal (parked for confirm)
+        ok = fired or (bool(res.get("routed")) and not res.get("refused"))
+        out = {"ok": ok, "fired": fired}
+        if pending:
+            out["pending"] = pending
+        if res.get("detail") is not None:
+            out["detail"] = res.get("detail")
+        if res.get("refused"):
+            out["detail"] = res.get("refused")
+        _feed({"type": "fired", "glosses": ["PHONE"], "ok": ok,
+               "result": dict(res), "t_ms": now_ms()})
+    return 200, out
+
+
+def act_pointer(data):
+    """POST /act/pointer — move/click/scroll the real laptop cursor via
+    xdotool. Normalized x,y map to the screen; dy drives scroll wheel
+    clicks. Never 500 for a missing DISPLAY — answers ok:false instead."""
+    if not isinstance(data, dict):
+        return 400, {"ok": False, "error": "bad body"}
+    op = data.get("op")
+    if op not in ("move", "click", "scroll"):
+        return 400, {"ok": False, "error": "bad op"}
+
+    # optional normalized coordinates, shared by every op
+    px = py = None
+    have_xy = False
+    if "x" in data or "y" in data:
+        try:
+            nx = float(data["x"])
+            ny = float(data["y"])
+        except (KeyError, TypeError, ValueError):
+            return 400, {"ok": False, "error": "bad x/y"}
+        if not (0.0 <= nx <= 1.0 and 0.0 <= ny <= 1.0):
+            return 400, {"ok": False, "error": "x/y out of 0..1"}
+        have_xy = True
+
+    button = 1
+    if op == "click":
+        b = data.get("button", 1)
+        try:
+            button = int(b)
+        except (TypeError, ValueError):
+            return 400, {"ok": False, "error": "bad button"}
+        if button not in (1, 2, 3):
+            return 400, {"ok": False, "error": "button must be 1/2/3"}
+
+    dy = 0
+    if op == "scroll":
+        try:
+            dy = int(data.get("dy", 0))
+        except (TypeError, ValueError):
+            return 400, {"ok": False, "error": "bad dy"}
+        dy = max(-25, min(25, dy))
+
+    # resolve pixel target if coordinates were given
+    if have_xy:
+        geom = _screen_geom()
+        if geom is None:
+            return 200, {"ok": False, "error": "no display / xdotool"}
+        w, h = geom
+        px = int(round(nx * (w - 1)))
+        py = int(round(ny * (h - 1)))
+        if not _xdotool(["xdotool", "mousemove", str(px), str(py)]):
+            return 200, {"ok": False, "error": "xdotool mousemove failed"}
+
+    if op == "move":
+        if not have_xy:
+            return 400, {"ok": False, "error": "move needs x,y"}
+        return 200, {"ok": True, "x": px, "y": py}
+
+    if op == "click":
+        if not _xdotool(["xdotool", "click", str(button)]):
+            return 200, {"ok": False, "error": "xdotool click failed"}
+        return 200, {"ok": True, "x": px, "y": py}
+
+    # op == "scroll"
+    if dy == 0:
+        return 200, {"ok": True, "x": px, "y": py}
+    wheel = "5" if dy > 0 else "4"
+    if not _xdotool(["xdotool", "click", "--repeat", str(abs(dy)),
+                     "--delay", "16", wheel]):
+        return 200, {"ok": False, "error": "xdotool scroll failed"}
+    return 200, {"ok": True, "x": px, "y": py}
 
 
 def route_gloss(gloss, m_action=None, m_tier=0):
@@ -1317,7 +1580,8 @@ def _status_payload():
     # OS, and how many signs are taught.
     out["laptop"] = {"connected": True, "name": out["name"],
                      "display": out["display"],
-                     "can_act": ACT_PROVIDER is not None,
+                     "can_act": bool(ACT_PROVIDER is not None
+                                     and os.environ.get("DISPLAY")),
                      "signs": out["bank_size"],
                      "engine": out["engine"]}
     return out
@@ -1605,10 +1869,24 @@ def act_catalog():
     return sorted(rows, key=lambda x: x["gloss"])
 
 
+_ENGINE_CACHE = {"v": None, "t": 0.0}
+
+
 def detect_engine():
     """PRD §5.3: report which sign engine is serving. Override order:
     $WF_ENGINE, ~/.config/wf/engine, a rust binary on PATH, then the
-    pure-python bank, else 'none'."""
+    pure-python bank, else 'none'. Cached ~10s — /status polls every 4s
+    and shutil.which/file reads should not run on every poll."""
+    now = time.time()
+    c = _ENGINE_CACHE
+    if c["v"] is not None and now - c["t"] < 10.0:
+        return c["v"]
+    v = _detect_engine_uncached()
+    c["v"], c["t"] = v, now
+    return v
+
+
+def _detect_engine_uncached():
     forced = os.environ.get("WF_ENGINE", "").strip()
     if forced:
         return forced
@@ -1627,6 +1905,66 @@ def detect_engine():
     return "none"
 
 
+_ACT_STATIC_CACHE = {"v": None, "t": 0.0}
+_ACT_CACHE_TTL = float(os.environ.get("WF_ACT_CACHE_S", "60"))
+
+
+def act_catalog_static():
+    """The .desktop-scan-backed portion of /act (apps, tools, features,
+    capabilities). Cached ~60s so the picker's repeat opens don't re-scan
+    the desktop every time. Per-request bits (pending) are merged by the
+    handler, never cached."""
+    now = time.time()
+    c = _ACT_STATIC_CACHE
+    if c["v"] is not None and now - c["t"] < _ACT_CACHE_TTL:
+        return dict(c["v"])
+    out = {"actions": act_catalog(),
+           "display": "x11" if os.environ.get("DISPLAY") else ""}
+    if ACT_PROVIDER is not None:
+        try:
+            cat = ACT_PROVIDER.catalog() or {}
+            out["apps"] = cat.get("apps", [])
+            out["tools"] = cat.get("tools", [])
+            out["capabilities"] = cat.get("capabilities")
+            out["provider"] = cat.get("provider", cat.get("name", "x11"))
+            out["display"] = cat.get("display") or out["display"]
+        except Exception as e:
+            out["provider_error"] = str(e)
+    sys_caps = {}
+    if system_ctl is not None:
+        try:
+            sys_caps = system_ctl.capabilities() or {}
+            out["capabilities_system"] = sys_caps
+        except Exception:
+            pass
+    feats, seen = [], set()
+    for r in (out.get("tools") or []):
+        tid = r.get("id") or r.get("type")
+        if not tid or tid in seen:
+            continue
+        seen.add(tid)
+        cap = sys_caps.get(tid) or {}
+        feats.append({"type": tid, "label": r.get("label", tid),
+                      "tier": r.get("tier", cap.get("tier", 1)),
+                      "kind": r.get("kind", cap.get("kind", "")),
+                      "arg": r.get("arg"),
+                      "available": cap.get("available", True),
+                      "via": cap.get("via", [])})
+    for tid, cap in sorted(sys_caps.items()):
+        if tid in seen:
+            continue
+        feats.append({"type": tid, "label": cap.get("label", tid),
+                      "tier": cap.get("tier", 1),
+                      "kind": cap.get("kind", "system"),
+                      "available": bool(cap.get("available")),
+                      "via": cap.get("via", []),
+                      "note": cap.get("note", "")})
+    out["features"] = feats
+    out["commands"] = out["actions"]
+    c["v"], c["t"] = dict(out), now
+    return dict(out)
+
+
 def _finite(o):
     """Non-finite floats -> None, recursively (for strict JSON)."""
     if isinstance(o, float):
@@ -1643,7 +1981,7 @@ def authed(headers):
 
 
 class Handler(BaseHTTPRequestHandler):
-    def _reply(self, code, body=b"", ctype="text/plain"):
+    def _reply(self, code, body=b"", ctype="text/plain", extra=None):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
@@ -1651,6 +1989,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "*")
         self.send_header("Access-Control-Allow-Methods",
                          "GET, POST, PUT, DELETE, OPTIONS")
+        if extra:
+            for k, v in extra.items():
+                self.send_header(k, v)
         self.end_headers()
         if body:
             try:
@@ -1761,56 +2102,9 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/act":
             if not self._gate():
                 return
-            out = {"ok": True, "actions": act_catalog(),
-                   "pending": live_state()["pending"],
-                   "display": "x11" if os.environ.get("DISPLAY") else ""}
-            if ACT_PROVIDER is not None:
-                try:
-                    cat = ACT_PROVIDER.catalog() or {}
-                    out["apps"] = cat.get("apps", [])
-                    out["tools"] = cat.get("tools", [])
-                    out["capabilities"] = cat.get("capabilities")
-                    out["provider"] = cat.get("provider",
-                                              cat.get("name", "x11"))
-                    out["display"] = cat.get("display") or out["display"]
-                except Exception as e:
-                    out["provider_error"] = str(e)
-            # merged capability table: provider tools (apps, win, type,
-            # key, url, command) + system_ctl features (sys.*, media.*,
-            # net.*, clipboard.*) as the picker's features rows.
-            sys_caps = {}
-            if system_ctl is not None:
-                try:
-                    sys_caps = system_ctl.capabilities() or {}
-                    out["capabilities_system"] = sys_caps
-                except Exception:
-                    pass
-            feats, seen = [], set()
-            for r in (out.get("tools") or []):
-                tid = r.get("id") or r.get("type")
-                if not tid or tid in seen:
-                    continue
-                seen.add(tid)
-                cap = sys_caps.get(tid) or {}
-                feats.append({"type": tid,
-                              "label": r.get("label", tid),
-                              "tier": r.get("tier", cap.get("tier", 1)),
-                              "kind": r.get("kind", cap.get("kind", "")),
-                              "arg": r.get("arg"),
-                              "available": cap.get("available", True),
-                              "via": cap.get("via", [])})
-            for tid, cap in sorted(sys_caps.items()):
-                if tid in seen:
-                    continue
-                feats.append({"type": tid,
-                              "label": cap.get("label", tid),
-                              "tier": cap.get("tier", 1),
-                              "kind": cap.get("kind", "system"),
-                              "available": bool(cap.get("available")),
-                              "via": cap.get("via", []),
-                              "note": cap.get("note", "")})
-            out["features"] = feats
-            out["commands"] = out["actions"]   # alias: bound gloss->argv
+            out = {"ok": True}
+            out.update(act_catalog_static())
+            out["pending"] = live_state()["pending"]
             return self._jreply(200, out)
         if p.startswith("/act/icons/"):
             if not self._gate():
@@ -1846,10 +2140,23 @@ class Handler(BaseHTTPRequestHandler):
             elif head[:4] == b"RIFF" and head[8:12] == b"WEBP":
                 ct = "image/webp"
             elif b"<svg" in head or b"XPM" in head[:64]:
-                ct = "image/svg+xml" if b"<svg" in head else "image/x-xpixmap"
+                # SVG served with its own type — never text/html, so a
+                # hostile .desktop icon can't script. XPM is skipped
+                # (no safe browser rendering) -> treated as not-an-image.
+                if b"<svg" not in head:
+                    return self._reply(404, b"not an image")
+                ct = "image/svg+xml"
             else:
                 return self._reply(404, b"not an image")
-            return self._reply(200, data, ct)
+            # ETag/304: the picker pulls dozens of icons — let the browser
+            # keep them. Weak-ish tag from content hash; cache 1 day.
+            etag = '"%s"' % hashlib.sha1(data).hexdigest()[:16]
+            inm = self.headers.get("If-None-Match", "")
+            extra = {"Cache-Control": "private, max-age=86400",
+                     "ETag": etag}
+            if inm and inm == etag:
+                return self._reply(304, b"", ct, extra=extra)
+            return self._reply(200, data, ct, extra=extra)
         if p == "/engine":
             if not self._gate():
                 return
@@ -1883,6 +2190,38 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         p = self.path.split("?")[0]
+
+        # /send-file STREAMS — it must NOT be buffered into RAM by
+        # _read_body. Auth first (constant-time), then stream to disk in
+        # bounded chunks. Everything else keeps the pre-read contract.
+        if p == "/send-file":
+            if not authed(self.headers):
+                return self._reply(
+                    403, b'{"ok":false,"error":"unpaired"}',
+                    "application/json")
+            try:
+                n = int(self.headers.get("Content-Length", 0) or 0)
+            except (TypeError, ValueError):
+                return self._jreply(400, {"ok": False,
+                                          "error": "bad content-length"})
+            if n <= 0:
+                return self._reply(200, b'{"ok":false}', "application/json")
+            # cap check happens BEFORE reading a single byte of the body
+            name = urllib.parse.unquote(
+                self.headers.get("X-File-Name", "file"))
+            status, obj, path = stream_upload(self.rfile, n, name)
+            if status == 413 or status == 507:
+                self.close_connection = True
+                return self._jreply(status, obj)
+            if status is None:       # client aborted; partial deleted
+                self.close_connection = True
+                return
+            cls, path, size = paste_upload(path, self.headers.get(
+                "Content-Type", ""))
+            out = json.dumps({"ok": True, "into": cls, "path": path,
+                              "mb": round(size / 1048576, 1)}).encode()
+            return self._reply(200, out, "application/json")
+
         raw = self._read_body(BODY_CAPS.get(p, MAX_BODY))
         if raw is None:
             return
@@ -1891,7 +2230,14 @@ class Handler(BaseHTTPRequestHandler):
             ip = self.client_address[0]
             now = time.time()
             if now - PAIR_RATE.get(ip, 0) < 1.0:   # 1 try/sec/IP — blunts code guessing
-                return self._reply(429, b'{"ok":false}', "application/json")
+                self.send_response(429)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Retry-After", "1")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                body = b'{"ok":false,"error":"too many attempts, slow down"}'
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                return self.wfile.write(body)
             PAIR_RATE[ip] = now
             try:
                 code = json.loads(raw).get("code", "").strip().upper()
@@ -1900,7 +2246,7 @@ class Handler(BaseHTTPRequestHandler):
             if code and hmac.compare_digest(code, PAIR_CODE):
                 out = {"ok": True, "key": SECRET, "name": os.uname().nodename}
                 return self._reply(200, json.dumps(out).encode(), "application/json")
-            return self._reply(403, b'{"ok":false}', "application/json")
+            return self._reply(403, b'{"ok":false,"error":"wrong code"}', "application/json")
 
         if not authed(self.headers):
             return self._reply(403, b'{"ok":false,"error":"unpaired"}', "application/json")
@@ -1912,27 +2258,28 @@ class Handler(BaseHTTPRequestHandler):
                                   "kb": round(len(raw) / 1024)}).encode()
                 return self._reply(200, out, "application/json")
             return self._reply(200, b'{"ok":false}', "application/json")
-        if p == "/send-file":
-            if raw:
-                # bug fix: header was never URL-decoded — "a%20b.txt" saved
-                # literally. Decode first, then the safe-name regex runs.
-                name = urllib.parse.unquote(
-                    self.headers.get("X-File-Name", "file"))
-                cls, path = send_file(raw, name, self.headers.get("Content-Type", ""))
-                out = json.dumps({"ok": True, "into": cls, "path": path,
-                                  "mb": round(len(raw) / 1048576, 1)}).encode()
-                return self._reply(200, out, "application/json")
-            return self._reply(200, b'{"ok":false}', "application/json")
         if p == "/send":
             try:
                 data = json.loads(raw)
-                text, mode = data.get("text", ""), data.get("mode", "type")
+                text = data.get("text", "")
+                mode = data.get("mode", "type")
+                expect = data.get("expect")        # optional focus guard
             except Exception:
-                text, mode = raw.decode("utf-8", "replace"), "type"
+                text, mode, expect = raw.decode("utf-8", "replace"), "type", None
+            if mode not in ("type", "paste"):
+                return self._jreply(400, {"ok": False,
+                                          "error": "mode must be 'type' or 'paste'"})
+            cls = active_window_class()
+            # focus-verify contract: if the phone names the window it
+            # expected to type into and focus has since moved, refuse
+            # rather than inject into the wrong app.
+            if expect and cls and str(expect).lower() != cls:
+                return self._jreply(409, {"ok": False, "into": cls,
+                    "error": "focus moved to '%s' — tap the field again" % cls})
             if text:
                 send_text(text, mode)
             return self._reply(200, b'{"ok":true,"into":"' +
-                               active_window_class().encode() + b'"}', "application/json")
+                               cls.encode() + b'"}', "application/json")
 
         # live-sign surface: LAN/USB only — never reachable via tunnel
         if p in LIVE_POSTS and self._proxied():
@@ -2114,6 +2461,23 @@ class Handler(BaseHTTPRequestHandler):
                            "context": r.get("context", {})}
             r["recording"] = False
             return self._jreply(200, r)
+        if p == "/act/run":
+            try:
+                data = json.loads(raw or b"{}")
+            except Exception:
+                return self._jreply(400, {"ok": False, "error": "bad json"})
+            code, obj = act_run(data)
+            return self._jreply(code, obj)
+        if p == "/act/pointer":
+            if not _ptr_rate_ok(self.client_address[0]):
+                return self._jreply(429, {"ok": False,
+                                          "error": "rate limited"})
+            try:
+                data = json.loads(raw or b"{}")
+            except Exception:
+                return self._jreply(400, {"ok": False, "error": "bad json"})
+            code, obj = act_pointer(data)
+            return self._jreply(code, obj)
         if p == "/act/confirm":
             try:
                 data = json.loads(raw)

@@ -1,0 +1,29 @@
+/* packs.css — ready-made signs list inside the Teach sheet (TEACH stage owns
+   this file). Plain list rows, hairline dividers, no cards, no chips. Right
+   action is plain text / ink link. Tokens from app.css. */
+
+.tw-packs-t { font-size: 15px; font-weight: 600; color: var(--muted-2); letter-spacing: -.005em; margin-bottom: 2px; }
+.tw-packs-list { display: flex; flex-direction: column; }
+
+.tw-pk {
+  display: flex; align-items: center; gap: 14px; min-height: 60px;
+  padding: 11px 2px; border-bottom: 1px solid var(--hairline-2);
+}
+.tw-pk:last-child { border-bottom: 0; }
+.tw-pk-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tw-pk-n { font-size: 16px; font-weight: 550; letter-spacing: -.012em; color: var(--ink); }
+.tw-pk-b { font-size: 13px; color: var(--muted-2); line-height: 1.4; }
+.tw-pk-r { flex: none; }
+
+.tw-pk-do {
+  background: none; border: 0; font: inherit; cursor: pointer;
+  font-size: 15px; font-weight: 600; color: var(--accent); letter-spacing: -.01em;
+  padding: 10px 4px; min-height: 44px; transition: color var(--t-1);
+}
+.tw-pk-do:hover { color: var(--accent-lo); }
+.tw-pk-do:disabled { color: var(--muted); cursor: default; }
+.tw-pk-off { font-size: 13.5px; color: var(--muted); padding: 0 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tw-pk-do { transition: none; }
+}

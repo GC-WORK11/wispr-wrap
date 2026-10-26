@@ -467,5 +467,16 @@ applyRoute();
 // the lotus: opens when the laptop link is up, closes to a bud when it is not,
 // and sleeps while a full-screen page covers it
 Flower.init({ field: document.getElementById('field'), anchor: document.getElementById('composer'), top: 64 });
-on('statusbar', () => Flower.setOnline(connected()));
+on('statusbar', () => Flower.setOnline(connected() || !state.checked));
 on('route', name => { Flower.pause(name !== ''); if (!name) setTimeout(Flower.measure, 60); });
+
+// loading screen: the lotus mark blooms while the app boots. Once the page is ready it dissolves and
+// the ASCII lotus replays its sprout, so every load and refresh ends in the bloom.
+const boot = document.getElementById('boot');
+if (boot) {
+  const MIN = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1000;   // ms since navigation start
+  const finish = () => { Flower.restart(); boot.classList.add('done'); setTimeout(() => boot.remove(), 700); };
+  const go = () => setTimeout(finish, Math.max(0, MIN - performance.now()));
+  if (document.readyState === 'complete') go(); else addEventListener('load', go, { once: true });
+}
+
