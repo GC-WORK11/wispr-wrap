@@ -92,10 +92,10 @@
 .act-use {
   flex: none; appearance: none; cursor: pointer; font-family: inherit; font-size: 13.5px; font-weight: 600;
   padding: 0 18px; border-radius: 10px; border: 1px solid transparent;
-  background: var(--accent); color: var(--accent-ink);
+  background: var(--ink); color: var(--surface);
   transition: background var(--t-1), transform var(--t-1);
 }
-.act-use:hover { background: var(--accent-hi); }
+.act-use:hover { background: var(--ink-2); }
 .act-use:active { transform: scale(.95); }
 
 .act-bound { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px; }

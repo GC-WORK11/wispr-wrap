@@ -298,7 +298,8 @@ LIVE_LOCK = threading.RLock()
 LIVE = {"session": None, "listening": False, "ep": None,
         "last_match": None, "seen": 0.0,
         "rates": {}, "rate_all": deque(),
-        "observe": False, "last_action": None, "last_accept": None,
+        "observe": False, "text_mode": False,
+        "last_action": None, "last_accept": None,
         "dup_fires": 0,
         "feed": deque(maxlen=64)}
 TEACH = {"active": False, "name": "", "takes": 0, "got": 0,
@@ -854,6 +855,26 @@ def _on_segment(frames, t_ms):
             res["match"] = last
             return res
         LIVE["last_accept"] = {"gloss": m.gloss, "seg_end": seg_end}
+    if m.accepted and m.gloss and LIVE.get("text_mode") \
+            and not LIVE["observe"]:
+        # TEXT mode (Go Live Text|Control toggle): the recognised sign's
+        # word types into the laptop's focused window instead of
+        # dispatching the bound action. The word is the sign's label
+        # (what the user taught it as), falling back to the gloss.
+        word = (last.get("label") or m.gloss or "").strip()
+        if word:
+            _ACT_Q.put(lambda w=word: send_text(w + " ", "live-text"))
+        last["action"] = {"kind": "text", "typed": word,
+                          "dispatched": bool(word)}
+        res["action"] = last["action"]
+        LIVE["last_action"] = {"kind": "text", "glosses": [m.gloss],
+                               "label": last["label"], "typed": word,
+                               "dispatched": bool(word), "t_ms": t_ms}
+        _feed({"type": "type", "glosses": [m.gloss], "text": word,
+               "t_ms": t_ms})
+        LIVE["last_match"] = last
+        res["match"] = last
+        return res
     if OPS is not None:
         # composer decides: compositional sequences, profile-bound
         # actions, observe mode — and emits events the feed reports.
@@ -1065,6 +1086,7 @@ def live_state():
         lm = LIVE["last_match"] or {}
         focus = _focus_info()
         st = {"listening": LIVE["listening"],
+              "text_mode": bool(LIVE["text_mode"]),
               "session": LIVE["session"],
               "last_match": LIVE["last_match"],
               "reason": lm.get("reason", ""),
@@ -1113,11 +1135,21 @@ def _status_payload():
     out = {"ok": True, "engine": detect_engine(),
            "display": "x11" if os.environ.get("DISPLAY") else "",
            "focus": f.get("wm_class", ""), "focus_title": f.get("title", ""),
-           "live": {"on": True, "listening": lst},
+           "live": {"on": True, "listening": lst,
+                    "text_mode": bool(LIVE.get("text_mode"))},
            "last_send": LAST_SEND, "last_match": last or None,
            "confirms": live_state()["pending"],
            "bank_size": bank_size(),
            "name": os.uname().nodename}
+    # Sidebar "connected laptop" row: a 200 reply already proves the
+    # laptop link; this block is the compact descriptor the UI shows —
+    # hostname, display, whether the action layer can really reach the
+    # OS, and how many signs are taught.
+    out["laptop"] = {"connected": True, "name": out["name"],
+                     "display": out["display"],
+                     "can_act": ACT_PROVIDER is not None,
+                     "signs": out["bank_size"],
+                     "engine": out["engine"]}
     return out
 
 
@@ -1487,6 +1519,19 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+    def do_HEAD(self):
+        # Connectivity probes (the app's laptop-connected check) must not
+        # 501. Headers only, same status the GET would give: /health is
+        # open, the live surface still requires the pairing key.
+        p = self.path.split("?")[0]
+        if p == "/health":
+            return self._reply(200, b"", "text/plain")
+        if p in ("/status", "/live/state", "/act", "/bank"):
+            if not self._gate():
+                return
+            return self._reply(200, b"", "application/json")
+        return self._reply(404, b"")
+
     def do_GET(self):
         p = self.path.split("?")[0]
         if p == "/health":
@@ -1767,26 +1812,37 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 data = {}
             mode = str(data.get("mode", "")).lower()
+            # Go Live toggle: "text" = signs type words into the laptop's
+            # focused window; "control" (alias "live") = signs dispatch
+            # their bound laptop actions. "observe" reports, never fires.
+            text_mode = None
             if mode in ("observe", "rehearse", "rehearsal"):
                 observe = True
+            elif mode in ("text", "type"):
+                observe, text_mode = False, True
+            elif mode in ("control",):
+                observe, text_mode = False, False
             elif mode in ("live", "fire", "on", ""):
                 observe = bool(data.get("observe", False)) \
                     if mode == "" else False
             else:
                 return self._jreply(400, {"ok": False,
-                                          "error": "mode must be live or observe"})
+                                        "error": "mode must be text, control, live or observe"})
             with LIVE_LOCK:
                 LIVE["observe"] = observe
+                if text_mode is not None:
+                    LIVE["text_mode"] = text_mode
             if OPS is not None:
                 try:
                     OPS.set_observe(observe)
                 except Exception as e:
                     print(f"[wfd] set_observe: {e!r}", flush=True)
-            print(f"[wfd] mode -> {'observe' if observe else 'live'}",
-                  flush=True)
-            return self._jreply(200, {"ok": True,
-                                      "mode": "observe" if observe else "live",
-                                      "observe": observe})
+            mstr = "observe" if observe else \
+                   ("text" if LIVE["text_mode"] else "control")
+            print(f"[wfd] mode -> {mstr}", flush=True)
+            return self._jreply(200, {"ok": True, "mode": mstr,
+                                      "observe": observe,
+                                      "text_mode": LIVE["text_mode"]})
         if p == "/teach/record/start":
             # Teach-by-demonstration: capture real keystrokes/clicks via
             # xinput test-xi2 --root; /teach/record/stop returns the macro.

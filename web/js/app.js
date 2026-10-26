@@ -1,3 +1,4 @@
+import { Flower } from './flower.js';
 // app.js — shared kernel: auth, transport, status, router, toast, mounts.
 // Every lane module imports `App` from here. Keep it dependency-free,
 // framework-free, stdlib of the web platform only.
@@ -6,6 +7,9 @@
 // arrives once in the URL (?k=), then lives in localStorage
 const store = (() => { try { return localStorage; } catch (e) { return sessionStorage; } })();
 const K = new URLSearchParams(location.search).get('k') || store.getItem('wfk') || '';
+// ?replay opts this browser into the kp42 demo-replay seam (pose.js) — it is
+// sticky in localStorage, so the URL cleans itself and judges never see it.
+if (new URLSearchParams(location.search).has('replay')) store.setItem('wfreplay', '1');
 if (K) { store.setItem('wfk', K); if (location.search) history.replaceState(null, '', location.pathname + location.hash); }
 
 // ---------- transport ----------
@@ -24,7 +28,19 @@ async function req(method, path, body, extraHeaders) {
   }
   const r = await fetch(path, opt);
   let j = null;
-  try { j = await r.json(); } catch (e) { /* endpoints may return plain text */ }
+  /* Older wfd builds print Python's bare Infinity/NaN (a one-sign bank has no
+     runner-up, so margin=Infinity). That is not JSON: JSON.parse throws and
+     the live reading strip silently froze. Parse strictly first, then retry
+     with those literals turned into null. */
+  let txt = '';
+  try { txt = await r.text(); } catch (e) { /* network cut mid-body */ }
+  if (txt) {
+    try { j = JSON.parse(txt); }
+    catch (e) {
+      try { j = JSON.parse(txt.replace(/([:\[,]\s*)-?(?:Infinity|NaN)(?=\s*[,}\]])/g, '$1null')); }
+      catch (e2) { /* endpoints may return plain text */ }
+    }
+  }
   if (r.status === 403) App.emit('unpaired');
   return { ok: r.ok, status: r.status, json: j };
 }
@@ -51,34 +67,35 @@ const state = {
   live: { on: false, listening: false, signing: false, lastMatch: null },
   lastSend: null,          // {t_ms, ok, into, kind}
   confirms: [],            // tier>=2 actions parked for confirm
+  laptop: null,            // GET /status laptop:{connected,name,canAct,signs} (null on older daemons)
   bankSize: null,
 };
 
-const linkDot = document.getElementById('link-dot');
-const statusText = document.getElementById('status-text');
-const statusSub = document.getElementById('status-sub');
-const statusLive = document.getElementById('status-live');
+const linkDot = document.getElementById('link-dot');          // dot on the "Connected laptop" row
+const lapSub = document.getElementById('dr-laptop-s');        // its second line
+const connHint = document.getElementById('conn-hint');         // "Connect your laptop" on the home screen
+const connected = () => !!(state.online && state.paired && (!state.laptop || state.laptop.connected));
+const canAct = () => connected() && (!state.laptop || state.laptop.canAct);
 
 function renderStatus() {
-  linkDot.className = 'dot ' + (state.online ? 'on' : 'off');
-  let head, sub = '';
-  if (!state.online) { head = 'Laptop offline'; sub = 'run: wrap start'; }
-  else if (!state.paired) { head = 'Laptop found'; sub = 'needs its code'; }
+  const ok = connected();
+  if (linkDot) linkDot.className = 'dr-dot' + (ok ? ' on' : '');
+  let sub;
+  if (!state.online) sub = 'Not connected';
+  else if (!state.paired) sub = 'Needs its code';
   else {
-    head = 'Laptop connected';
-    if (state.focus) sub = 'typing into ' + state.focus;
-    else if (state.lastSend && state.lastSend.into) sub = 'last into ' + state.lastSend.into;
+    const nm = (state.laptop && state.laptop.name) || store.getItem('wfname') || 'Your laptop';
+    sub = nm + (state.focus ? ' · typing into ' + state.focus : '');
   }
-  statusText.textContent = head;
-  if (statusSub) statusSub.textContent = sub;
-  statusText.title = head + (sub ? ' · ' + sub : '');
-  statusLive.hidden = !(state.live.listening);
+  if (lapSub) lapSub.textContent = sub;
+  if (connHint) connHint.hidden = ok || !state.checked || !K;
   emit('statusbar', state);
 }
 
 async function pollHealth() {
   try { await fetch('/health', { cache: 'no-store' }); setOnline(true); }
   catch (e) { setOnline(false); }
+  if (!state.checked) { state.checked = true; renderStatus(); }
 }
 // /live/state is the status surface: listening, last match (with the engine's
 // own reason), pending confirms, focused window when the act layer reports it.
@@ -129,16 +146,28 @@ function setOnline(v) {
   if (v === state.online) return;
   state.online = v;
   emit(v ? 'online' : 'offline');
-  if (v) { pollEngine(); }
+  if (v) { pollEngine(); pollStatus(); }
   renderStatus();
 }
 pollHealth();
 setInterval(pollHealth, 3000);
 setInterval(pollState, 1200);
 setInterval(pollEngine, 15000);
+// GET /status: who the laptop is, whether it can act, how many signs it knows
+async function pollStatus() {
+  if (!state.online || !K) return;
+  const r = await req('GET', '/status').catch(() => null);
+  if (!r || !r.ok || !r.json || !r.json.laptop) return;       // older daemon: keep the /health-only behaviour
+  const l = r.json.laptop;
+  state.laptop = { connected: l.connected !== false, name: l.name || '', canAct: l.can_act !== false, signs: l.signs, engine: l.engine };
+  if (typeof l.signs === 'number') state.bankSize = l.signs;
+  if (l.name) store.setItem('wfname', l.name);
+  renderStatus();
+}
+setInterval(pollStatus, 4000);
 
 // ---------- router: hash routes = sheets ----------
-// Routes: '' or '#/' = compose, '#/live', '#/teach', '#/signs'
+// Routes: '' or '#/' = home, '#/live', '#/teach', '#/signs', '#/laptop', '#/settings'
 // A sheet module registers {el, open(), close()}; the router hides others.
 const routes = {};
 let current = '';
@@ -153,7 +182,7 @@ function route(name, mod) {
 }
 function parseHash() {
   const h = location.hash.replace(/^#\/?/, '');
-  return h === 'live' || h === 'teach' || h === 'signs' ? h : '';
+  return ['live', 'teach', 'signs', 'laptop', 'settings'].includes(h) ? h : '';
 }
 async function applyRoute() {
   const name = parseHash();
@@ -245,18 +274,20 @@ export const App = {
   store,
   api: { get: p => req('GET', p), post: (p, b, h) => req('POST', p, b, h), del: p => req('DELETE', p), put: (p, b) => req('PUT', p, b) },
   on, off, emit,
-  state, renderStatus, pollState, pollEngine,
+  state, renderStatus, pollState, pollEngine, pollStatus, connected, canAct,
   route, nav, back, routes, parseHash,
   toast, buzz, sleep, raise,
   kpFrame,
   el: {
     pill: document.getElementById('pill'),
     stage: document.getElementById('stage'),
+    composer: document.getElementById('composer'),
     toast: toastEl,
-    statusText, statusLive,
     sheetLive: document.getElementById('sheet-live'),
     sheetTeach: document.getElementById('sheet-teach'),
     sheetSigns: document.getElementById('sheet-signs'),
+    sheetLaptop: document.getElementById('sheet-laptop'),
+    sheetSettings: document.getElementById('sheet-settings'),
     sheetActions: document.getElementById('sheet-actions'),
     sheetMacro: document.getElementById('sheet-macro'),
   },
@@ -333,22 +364,31 @@ on('unpaired', () => {
   onbSkip.hidden = false;
 });
 
-// rail: Go Live toggles the live view; compose/teach/signs are nav items.
-// LIVE "off" while the view is closed is handled by live.js close().
+// Go Live = the black waveform button in the composer; everything else lives in the drawer.
+const drawer = document.getElementById('drawer'), scrim = document.getElementById('scrim'),
+      menuBtn = document.getElementById('menu');
+function openDrawer(v) {
+  drawer.classList.toggle('open', v);
+  drawer.setAttribute('aria-hidden', v ? 'false' : 'true');
+  menuBtn.setAttribute('aria-expanded', v ? 'true' : 'false');
+  scrim.hidden = !v;
+  if (v) { renderStatus(); pollEngine(); }
+}
+menuBtn.onclick = () => openDrawer(!drawer.classList.contains('open'));
+// other lanes (PRO's drawer.js) consume this instead of touching the frame
+App.drawer = { el: drawer, nav: document.getElementById('drawer-nav'), open: () => openDrawer(true), close: () => openDrawer(false),
+               toggle: () => openDrawer(!drawer.classList.contains('open')), get isOpen() { return drawer.classList.contains('open'); } };
+scrim.onclick = () => openDrawer(false);
+document.getElementById('dr-close').onclick = () => openDrawer(false);
+addEventListener('keydown', e => { if (e.key === 'Escape' && drawer.classList.contains('open')) openDrawer(false); });
+const go = name => () => { openDrawer(false); nav(name); };
 document.getElementById('tray-live').onclick = () => nav(current === 'live' ? '' : 'live');
-document.getElementById('tray-compose').onclick = () => nav('');
-document.getElementById('tray-teach').onclick = () => nav('teach');
-document.getElementById('tray-signs').onclick = () => nav('signs');
-const goSub = document.getElementById('golive-sub');
-on('route', name => {
-  const live = document.getElementById('tray-live');
-  live.classList.toggle('on', name === 'live');
-  live.setAttribute('aria-pressed', name === 'live' ? 'true' : 'false');
-  if (goSub) goSub.textContent = name === 'live' ? 'live now · tap to end' : 'sign → laptop acts';
-  document.getElementById('tray-compose').classList.toggle('on', name === '');
-  document.getElementById('tray-teach').classList.toggle('on', name === 'teach');
-  document.getElementById('tray-signs').classList.toggle('on', name === 'signs');
-});
+document.getElementById('tray-teach').onclick = go('teach');
+document.getElementById('tray-signs').onclick = go('signs');
+document.getElementById('dr-laptop').onclick = go('laptop');
+document.getElementById('dr-settings').onclick = go('settings');
+if (connHint) connHint.onclick = () => nav('laptop');
+on('route', name => { openDrawer(false); document.body.classList.toggle('sheet-open', name !== ''); });
 
 // overlay pickers (actions/macro) share z-40 — a nested pick (macro's
 // "pick action" opens the actions sheet) must paint above its parent,
@@ -360,16 +400,12 @@ function raise(el) {
   el.style.zIndex = top + 1;
 }
 
-// rail foot: honest engine + bank info once the daemon reports it
-const railEng = document.getElementById('rail-eng');
+// "My signs" count in the drawer; engine names are developer detail (?dev only)
 const railCount = document.getElementById('rail-count');
 const DEV = /[?&]dev\b/.test(location.search) || store.getItem('wfdev') === '1';
 if (DEV) document.body.classList.add('dev');
 on('statusbar', s => {
   if (railCount) railCount.textContent = s.online && s.paired && s.bankSize ? String(s.bankSize) : '';
-  if (!railEng) return;
-  // engine names are developer detail — only with ?dev or localStorage.wfdev=1
-  railEng.textContent = DEV && s.online && s.paired && s.engine && s.engine !== 'none' ? s.engine : '';
 });
 
 // service worker: vendored-shell offline + near-instant warm load
@@ -378,3 +414,9 @@ if ('serviceWorker' in navigator) {
 }
 
 applyRoute();
+
+// the lotus: opens when the laptop link is up, closes to a bud when it is not,
+// and sleeps while a full-screen page covers it
+Flower.init({ field: document.getElementById('field'), anchor: document.getElementById('composer'), top: 64 });
+on('statusbar', () => Flower.setOnline(connected()));
+on('route', name => { Flower.pause(name !== ''); if (!name) setTimeout(Flower.measure, 60); });

@@ -5,8 +5,18 @@ Usage: wfclip.py <file> [mime]
   other      -> offers: uri-list + gnome-copied-files + path text
 """
 import os, sys, urllib.parse
-from Xlib import X, display, Xatom
-from Xlib.protocol import event
+try:
+    from Xlib import X, display, Xatom
+    from Xlib.protocol import event
+except ImportError:
+    # daemon runs with a scratch HOME (tests/realrun), which orphans
+    # ~/.local/lib site-packages — resolve the real home from passwd.
+    import pwd as _pwd
+    _home = _pwd.getpwuid(os.getuid()).pw_dir
+    sys.path.append("%s/.local/lib/python%d.%d/site-packages" % (
+        _home, sys.version_info.major, sys.version_info.minor))
+    from Xlib import X, display, Xatom
+    from Xlib.protocol import event
 
 path = sys.argv[1]
 mime = sys.argv[2] if len(sys.argv) > 2 else ""

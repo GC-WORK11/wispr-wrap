@@ -175,6 +175,10 @@ async function startCapture() {
   if (window.WFFakeTrack && typeof window.WFFakeTrack.start === 'function') {
     recEl.classList.add('on');
     W.link.start(vid, null, { onFrame, onResp, onStatus });
+    /* the seam replaces the detections only — still show the real camera */
+    Pose.openCamera(vid, true).then(c => {
+      W.stream = c.stream; W.front = c.front; vid.classList.toggle('rear', !W.front);
+    }).catch(() => {});
     return;
   }
   /* dev seam: a loopback kp42 replay service (tools/demo-rec) stands in for
@@ -297,7 +301,7 @@ function buildBind() {
 }
 pickBtn.onclick = async () => {
   // spec §3: the @ picker is a laptop feature — offer pairing instead when offline
-  if (!(App.state.online && App.state.paired)) { App.emit('unpaired'); return; }
+  if (!App.canAct()) { App.emit('unpaired'); return; }
   const a = await Actions.pick({ forGloss: W.gloss });
   if (!a) return;
   W.action = a;
@@ -339,8 +343,10 @@ saveBtn.onclick = async () => {
     return;
   }
   doneT.textContent = W.gloss + ' is live';
+  const d = Actions.describe(a);
   doneM.textContent = 'Go live and sign it. Your laptop will ' +
-    Actions.describe(a) + (a.tier >= 2 ? ', after you approve it on the laptop.' : '.');
+    d.charAt(0).toLowerCase() + d.slice(1) +
+    (a.tier >= 2 ? ', after you approve it on the laptop.' : '.');
   showStep('done');
   App.buzz();
 };
