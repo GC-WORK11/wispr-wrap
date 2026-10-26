@@ -29,7 +29,7 @@ try {
     // frames of the lotus opening: load, then sample
     const t0 = Date.now();
     await page.goto(S.base + '/?k=' + S.KEY, { settle: 150 });
-    for (const [label, at] of [['0.3s', 300], ['1s', 1000], ['2s', 2000], ['4s', 4000]]) {
+    for (const [label, at] of [['0.3s', 300], ['0.6s', 600], ['1s', 1000], ['2s', 2000], ['4s', 4000]]) {
       const wait = at - (Date.now() - t0); if (wait > 0) await sleep(wait);
       await shot(`01-flower-opening-${label}`);
     }
@@ -79,6 +79,29 @@ try {
     await page.click('#lv-m-ctl'); await sleep(500);
     await page.click('#lv-x'); await sleep(900);
     await shot('12-back-home-after-live');
+  }
+  if (sets.includes('layouts')) {
+    const L = (n, w, h, mobile, dpr) => async () => {
+      await page.viewport(w, h, { mobile, dpr });
+      await page.goto(S.base + '/?k=' + S.KEY, { settle: 3200 });
+      await shot('layouts/' + n);
+    };
+    await L('tablet-820x1180', 820, 1180, true, 1)();
+    await L('laptop-1440x900', 1440, 900, false, 1)();
+    await L('small-phone-360x640', 360, 640, true, 2)();
+    await L('keyboard-open-390x520', 390, 520, true, 2)();   // visual height with the soft keyboard up
+    await page.viewport(1440, 900, { mobile: false, dpr: 1 });
+    await page.click('#menu'); await sleep(700);
+    await shot('layouts/laptop-sidebar-open');
+  }
+  if (sets.includes('offline')) {
+    // the laptop is unreachable: block /health so the app sees it as offline
+    await page.send('Network.setBlockedURLs', { urls: ['http://127.0.0.1:8877/*', S.base + '/health'] });
+    await phone();
+    await page.goto(S.base + '/?k=' + S.KEY, { settle: 4500 });
+    await shot('13-laptop-offline');
+    await page.click('#menu'); await sleep(700);
+    await shot('14-sidebar-laptop-not-connected');
   }
   if (sets.includes('unpaired')) {
     await page.send('Network.setBlockedURLs', { urls: ['http://127.0.0.1:8877/*', S.base + '/pair-info'] });
