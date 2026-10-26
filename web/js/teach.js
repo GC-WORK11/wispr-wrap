@@ -201,7 +201,7 @@ async function startCapture() {
   } catch (e) {
     camErr.hidden = false;
     camErr.textContent = e && e.name === 'NoAPI'
-      ? 'The camera needs a secure connection. Connect over USB (wrap bridge) or use the wrap tunnel.'
+      ? 'The camera needs a secure connection.'
       : 'Camera blocked. Allow camera access to perform the sign.';
   }
   try {
