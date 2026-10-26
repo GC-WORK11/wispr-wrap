@@ -113,7 +113,7 @@ TOOL_MAP = {
     "net.wifi": ("wifi", {}),
     "net.bluetooth": ("bluetooth", {}),
     "clipboard.history": ("clipboard_history", {}),
-    # quick actions (FOUNDER-SIMPLIFY-1433): one-tap laptop controls.
+    # quick actions: one-tap laptop controls.
     # close window parks for confirm via its tier; the rest are
     # non-destructive and fire immediately.
     "win.alt-tab": ("alt_tab", {}),

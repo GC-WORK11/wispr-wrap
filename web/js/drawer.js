@@ -1,4 +1,4 @@
-// drawer.js — PRO lane: sidebar gating (FOUNDER-UI-SPEC-1026 §3).
+// drawer.js — sidebar gating: laptop-only controls shown only when paired.
 // PEAK owns the drawer frame (#drawer, #menu, #scrim, row markup) and
 // App.drawer. This module only decides what the rows MEAN right now:
 // nothing laptop-powered is offered while no laptop is connected —

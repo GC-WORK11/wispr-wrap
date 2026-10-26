@@ -1,5 +1,5 @@
 // handlines.js — live hand-line canvas renderer for the Go Live view.
-// FOUNDER-SPEC-1229 §A. Pure ES module, no deps.
+// Pure ES module, no deps.
 //
 // Brand: white lines over the camera feed, ONE lotus-pink accent (#FF309C /
 // shade #F12F92). Light, premium, calm — no neon, no heavy glow, no blue.
@@ -8,7 +8,7 @@
 // space (already mirrored), relative to the VIDEO frame. We map them onto the
 // canvas like CSS `object-fit: cover` of the video element.
 
-const PINK = '#F12F92';      // FOUNDER-COLOR-1658 lotus pink (shade)
+const PINK = '#F12F92';      // brand pink (shade)
 let INK = '#ffffff';           // line colour: white over camera, ink over the light replay stage
 const PINK_HI = '#FF309C';   // lotus pink
 

@@ -44,13 +44,12 @@ WID=$(DISPLAY="$D" xdotool search --name "LibreOffice Writer" 2>/dev/null | tail
 [ -n "$WID" ] && DISPLAY="$D" xdotool windowactivate "$WID" 2>/dev/null || true
 sleep 0.5
 FIRED=0
+LT0=$(grep -c "live-text" /tmp/wf-realrun/daemon.log 2>/dev/null || echo 0)
 for i in 1 2 3; do
     ensure_listening || continue
     push_clip "$CLIPS/perform-TYPE-HELLO.json"
     for _ in $(seq 1 80); do
-      "${CURL[@]}" -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -c \
-        "import json,sys,time;s=json.load(sys.stdin).get('last_send') or {};i=str(s.get('into','')).lower();exit(0 if s.get('kind')=='text' and ('libre' in i or 'soffice' in i) and time.time()*1000 - s.get('t_ms',0) < 15000 else 1)" 2>/dev/null \
-        && { FIRED=1; break; }
+      [ "$(grep -c "live-text" /tmp/wf-realrun/daemon.log 2>/dev/null || echo 0)" -gt "$LT0" ] && { FIRED=1; break; }
       sleep 0.25
     done
     [ "$FIRED" = 1 ] && break

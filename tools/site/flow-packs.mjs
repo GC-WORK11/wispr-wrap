@@ -1,6 +1,6 @@
-// flow-packs.mjs — Ready-made signs (Hello / Namaste / I am Govinda), real run on the integrated server.
+// flow-packs.mjs — Ready-made signs (Hello / Namaste / Thank you), real run on the integrated server.
 // Hands = synthetic kp42 clips (labelled); everything else is real. No recorded takes ship with the laptop yet,
-// so Hello and I am Govinda are taught from the list in three takes; Namaste is the built-in palms-together pause.
+// so Hello and Thank you are taught from the list in three takes; Namaste is the built-in palms-together pause.
 import path from 'node:path';
 import { stack, newPage, loadClips, playAndWait, sleep, shotTo, reporter, daemon, root } from './lib.mjs';
 const OUT = path.join(root, 'proofs/ui-v2/site-packs');
@@ -49,7 +49,7 @@ try {
   await loadClips(page, ['teach-TYPE-HELLO', 'perform-TYPE-HELLO', 'palm-hold', 'namaste', 'idle']);
   // the list is the laptop's own
   const packs = (((await api('GET', '/packs')).json || {}).packs) || [];
-  check('GET /packs lists Hello, Namaste, I am Govinda', ['Hello', 'Namaste', 'I am Govinda'].every(t => packs.some(p => p.title === t)), packs.map(p => p.title + ':' + p.state).join(', '));
+  check('GET /packs lists Hello, Namaste, I am Govinda', ['Hello', 'Namaste', 'Thank you'].every(t => packs.some(p => p.title === t)), packs.map(p => p.title + ':' + p.state).join(', '));
   // Hello
   const said = await teachPack('pack.hello', '01-hello');
   check('Hello: Ready names the action', /type .?hello/i.test(said), said);
@@ -64,10 +64,10 @@ try {
   check('Hello is taught, so its tile is gone from the grid', !!(await page.waitFor(`document.querySelectorAll('.qa-tile').length >= 15 && !document.querySelector('.qa-tile[data-id="pack.hello"]')`, 12000, 'tile gone').catch(() => false)));
   await shotTo(page, OUT, '01-hello-5-grid-after');
   await page.click('#tw-x'); await sleep(600);
-  // I am Govinda (the bank holds one sign at a time: every proof sign reuses one synthetic motion)
+  // Thank you (the bank holds one sign at a time: every proof sign reuses one synthetic motion)
   await api('DELETE', '/bank?gloss=HELLO');
-  const said2 = await teachPack('pack.i-am-govinda', '02-govinda');
-  check('I am Govinda: Ready names the action', /I am Govinda/.test(said2), said2);
+  const said2 = await teachPack('pack.thank-you', '02-thankyou');
+  check('Thank you: Ready names the action', /Thank you/i.test(said2), said2);
   await perform('I-AM-GOVINDA', 'I am Govinda');
   await shotTo(page, OUT, '02-govinda-4-live');
   // Namaste: built in, palms together pauses listening

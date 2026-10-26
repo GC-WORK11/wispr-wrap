@@ -273,7 +273,7 @@ function askText(a, fallback) {
    On screen: only the content (your words, or the action you signed with a
    state icon) and primary buttons. Every status sentence goes to a hidden live
    region (#lv-act-t) for screen readers and tools; motion and icons carry the
-   meaning visually (FOUNDER-RULE-1652: no helper text, no captions). */
+   meaning visually (no helper text, no captions). */
 const T = { text: '', until: 0, timer: 0 };
 function say(text, kind = '', ms = 3200) {
   T.text = text; T.until = performance.now() + ms;

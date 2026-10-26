@@ -1,4 +1,4 @@
-// quick.js — one-tap laptop actions for the Teach screen (FOUNDER-SIMPLIFY-1433).
+// quick.js — one-tap laptop actions for the Teach screen.
 //
 // The grid is driven by the laptop itself: GET /act returns tool rows {id,label,icon,tier} for the
 // 20 one-tap actions (Devin PRO's contract). A tile shows only if the laptop reports its tool, takes its
@@ -63,12 +63,12 @@ export const TILES = [
   T('type.text', 'Type text', 'text', '', { special: 'text', alt: ['input-keyboard-symbolic'] }),
 ];
 
-/* Ready-made signs are plain tiles: tap, Record, done. The name ("Hello", "I am Govinda") is what the laptop
+/* Ready-made signs are plain tiles: tap, Record, done. The pack title (e.g. "Hello") is what the laptop
    already calls the pack, so GET /packs flips it to ready once it has three takes. Namaste is built into the
    engine (palms together) and has no tile. */
 const PACK_TILES = {
   'hello': { label: 'Hello', g: 'wave', text: 'hello' },
-  'i-am-govinda': { label: 'I am Govinda', g: 'person', text: 'I am Govinda' },
+  'thank-you': { label: 'Thank you', g: 'person', text: 'thank you' },
 };
 const packAction = (pk) => Object.assign(typeAction(pk.text), { label: pk.label, say: 'type \u201c' + pk.text + '\u201d' });
 

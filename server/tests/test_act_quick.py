@@ -203,7 +203,7 @@ class _FocusStub(ai.ActionProvider):
     """A provider whose focused window is whatever the test sets."""
 
     def __init__(self, wm_class="Xfce4-terminal", instance="xfce4-terminal",
-                 title="kiro — agent terminal"):
+                 title="editor — notes"):
         self._f = ai.FocusInfo(wid=1, wm_class=wm_class,
                                instance=instance, title=title, pid=1)
 
@@ -226,7 +226,7 @@ class TestTypeAllowGuard(unittest.TestCase):
 
     def test_allowlist_refuses_agent_terminal(self):
         os.environ["WF_TYPE_ALLOW"] = r"wispr-wrap-merge-(sink|term)"
-        p = _FocusStub(title="kiro — agent terminal")
+        p = _FocusStub(title="editor — notes")
         self.assertFalse(p.verify_focus())
 
     def test_allowlist_passes_scratch_sink_title(self):
@@ -241,7 +241,7 @@ class TestTypeAllowGuard(unittest.TestCase):
 
     def test_unset_allow_behaves_as_before(self):
         os.environ.pop("WF_TYPE_ALLOW", None)
-        p = _FocusStub(title="kiro — agent terminal")
+        p = _FocusStub(title="editor — notes")
         self.assertTrue(p.verify_focus())
 
     def test_bad_pattern_refuses_safe(self):

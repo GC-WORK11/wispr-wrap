@@ -626,7 +626,7 @@ class LinuxX11Provider(ActionProvider):
              "label": "Next workspace", "tier": 1},
             {"id": "win.to-workspace", "kind": "win",
              "label": "Move window to workspace", "tier": 1, "arg": "index"},
-            # quick actions (FOUNDER-SIMPLIFY-1433)
+            # quick actions
             {"id": "win.alt-tab", "icon": "window-switch", "kind": "win", "label": "Switch window",
              "tier": 1},
             {"id": "win.minimize", "icon": "window-minimize", "kind": "win", "label": "Minimize window",
@@ -1267,7 +1267,7 @@ class LinuxX11Provider(ActionProvider):
             return ActionResult.done(f"keys: {keys}")
         return ActionPlan(fn, describe=f"press keys {keys}", guarded=True)
 
-    # -- quick actions (FOUNDER-SIMPLIFY-1433) ------------------------------
+    # -- quick actions -------------------------------------------
     # Non-destructive by design: alt-tab cycles focus, minimize hides a
     # window, show-desktop toggles the WM desktop view, scroll is wheel
     # clicks. Close is deliberately absent here — the existing

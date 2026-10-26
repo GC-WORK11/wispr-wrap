@@ -168,7 +168,7 @@
 .tw-prev .tkv canvas { background: var(--hairline-2); }
 @media (prefers-reduced-motion: reduce) { .tw-trail { animation: none; } .tw-trail-ok { transition: none; } }
 
-/* --- quick-actions grid (FOUNDER-SIMPLIFY-1433): one tap, one primary button --- */
+/* --- quick-actions grid: one tap, one primary button --- */
 .tw-step[data-step="name"] { gap: 16px; }
 .qa-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .qa-tile {
@@ -204,7 +204,7 @@
 .qa-off p { font-size: 17px; line-height: 1.45; color: var(--muted-2); max-width: 260px; }
 .qa-off .btn { min-width: 220px; height: 54px; border-radius: 27px; font-size: 16px; }
 
-/* ===== FOUNDER-RULE-1652: no captions, headlines or helper text. Layout and icons carry the meaning. ===== */
+/* No captions, headlines or helper text. Layout and icons carry the meaning. */
 .sr-only { position: absolute !important; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
   clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
 #sheet-teach .sheet-head { padding-bottom: 0; min-height: 56px; }
@@ -251,7 +251,7 @@
 .tw-ibtn { flex: none; width: 54px; min-width: 54px; height: 54px; padding: 0; display: grid; place-items: center; border-radius: 27px; }
 .tw-ibtn svg { width: 22px; height: 22px; }
 
-/* ===== FOUNDER-COLOR-1658: page #FCFCFC, white buttons with a soft shadow, black ink, pink #FF309C only for
+/* Brand palette: page #FCFCFC, white buttons with a soft shadow, black ink, pink #FF309C only for
    selection and progress. Scoped to the Teach and picker sheets so it holds whatever the global tokens are. ===== */
 #sheet-teach, #sheet-actions {
   --bg: #FCFCFC; --surface: #FFFFFF; --ink: #0A0A0A; --ink-2: #3A3A3C;

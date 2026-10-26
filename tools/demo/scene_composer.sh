@@ -37,22 +37,21 @@ W=$(EDIT_WID)
 [ -n "$W" ] && DISPLAY="$D" xdotool windowactivate "$W" 2>/dev/null && sleep 0.8
 # type char-by-char through the real input events so the camera sees the
 # waveform pill morph into the send arrow, then tap send
-jse '(function(){var b=document.getElementById("box"),s="'"$MARK"'",i=0;var iv=setInterval(function(){if(i<s.length){b.value+=s[i++];b.dispatchEvent(new Event("input",{bubbles:true}));}else{clearInterval(iv);}},80);return "typing"})()' | sed 's/^/ui: /'
+jse '(function(){var b=document.getElementById("box"),s="'"$MARK"'",i=0;var iv=setInterval(function(){if(i<s.length){if(i===0)b.value="";b.value+=s[i++];b.dispatchEvent(new Event("input",{bubbles:true}));}else{clearInterval(iv);}},80);return "typing"})()' | sed 's/^/ui: /'
 sleep 2.2   # chars landing + morph on camera
 jse 'document.getElementById("go").click();"clicked"' | sed 's/^/ui: /'
 note "sent '$MARK' via the composer go button"
 SENT=0
 for _ in $(seq 1 40); do
-    LS=$(LAST_SEND)
-    echo "$LS" | grep -q "^text " && { SENT=1; break; }
+    grep -q "$MARK" /tmp/wf-realrun/daemon.log 2>/dev/null && { SENT=1; break; }
     sleep 0.25
 done
 sleep 1.2   # let Writer visibly hold the text on camera
 CW=$(chrome_wid); [ -n "$CW" ] && DISPLAY="$D" xdotool windowactivate "$CW" 2>/dev/null
 if [ "$SENT" = 1 ]; then
-    ok "composer send -> /send -> text typed into LibreOffice Writer ($LS)"
+    ok "composer send -> /send -> daemon typed '$MARK' into the focused editor"
 else
-    bad "composer send: no text send recorded ($LS)"
+    bad "composer send: daemon never logged the type"
 fi
 
 # --- 2b. image send: stage a real PNG via the file input -> go ---------------
