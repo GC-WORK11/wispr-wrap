@@ -610,6 +610,24 @@ class ActionProvider:
             expect_wm_class = (expect_wm_class.get("expect_wm_class") or
                                expect_wm_class.get("expected_class"))
         f = self.focused_app()
+        # WF_TYPE_ALLOW=<regex>: test rigs pin every guarded action
+        # (keystrokes, typed text, window ops) to a dedicated scratch
+        # window. Match runs against class/instance/title — some windows
+        # (Chrome headless, some toolkits) report no WM_CLASS, so the title
+        # is what carries the scratch name. Unset on real laptops ->
+        # behavior unchanged. Bad pattern refuses safe.
+        allow = os.environ.get("WF_TYPE_ALLOW", "").strip()
+        if allow and f is not None:
+            hay = " ".join(x for x in (f.wm_class, f.instance, f.title) if x)
+            try:
+                if not re.search(allow, hay, re.I):
+                    return False
+            except re.error:
+                return False
+            # matched the rig's window — an expect_wm_class expectation
+            # still applies, otherwise focus is proven
+            if expect_wm_class is None:
+                return True
         if f is None or not (f.wm_class or f.instance):
             return False                       # can't see focus -> refuse
         # WF_TYPE_ALLOW=<regex>: test rigs pin every guarded action

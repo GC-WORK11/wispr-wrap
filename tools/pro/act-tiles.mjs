@@ -7,7 +7,7 @@
 
 import path from 'node:path';
 import fs from 'node:fs';
-import { execFileSync as sh } from 'node:child_process';
+import { execFileSync as sh, spawn } from 'node:child_process';
 import { stack, reporter, daemon, sleep, root } from '../site/lib.mjs';
 
 const S = stack(process.env.SITE_ENV || '/tmp/wf-rr-pro/env');
@@ -48,8 +48,14 @@ r = await run('key.enter');
 await sleep(400);
 check('key.enter presses Enter (sink grew)', r.json.fired === true && sink().length > s0 + 10, r.json.detail);
 
-// paste: stage the clipboard, then ctrl+v
-try { sh('xclip', ['-selection', 'clipboard'], { env: X, input: 'TILE-PASTE' }); } catch {}
+// paste: stage the clipboard, then ctrl+v — xclip daemonizes to serve the
+// selection, so it must be spawned detached, never execFileSync'd.
+try {
+  const cp = spawn('xclip', ['-selection', 'clipboard'], { env: X, detached: true, stdio: ['pipe', 'ignore', 'ignore'] });
+  cp.stdin.end('TILE-PASTE');
+  cp.unref();
+} catch {}
+await sleep(400);
 const p0 = sink().length;
 r = await run('edit.paste');
 await sleep(600);
@@ -62,11 +68,11 @@ check('edit.undo dispatched (ctrl+z to focused sink)', r.json.fired === true && 
 
 // -------- 3. window tiles on the scratch term ------------------------------
 focus(scratchTitle); await sleep(600);
-const a0 = activeWin();
+const termWid = (wins().match(/(0x[0-9a-f]+)\s+\d+\s+\S+\s+wispr-wrap-merge-term/) || [])[1] || String(S.TERM_WID);
 r = await run('win.maximize');
 await sleep(600);
 let st = '';
-try { st = sh('xprop', ['-id', String(S.TERM_WID), '_NET_WM_STATE'], { env: X }).toString(); } catch {}
+try { st = sh('xprop', ['-id', termWid, '_NET_WM_STATE'], { env: X }).toString(); } catch {}
 check('win.maximize maximized the scratch window', r.json.fired === true && /MAXIMIZED/.test(st), st.trim().slice(-60));
 
 const t0 = activeWin();
@@ -95,7 +101,7 @@ await run('desktop.show'); await sleep(500);  // toggle back so later legs see w
 try { sh('xfce4-terminal', ['--title', 'disposable-close-me', '--hold', '-e', 'sleep 30'], { env: X, timeout: 5000 }); } catch {}
 await sleep(1200);
 focus('disposable-close-me'); await sleep(500);
-r = await run('win.close');
+r = await run('win.close', {}, { tier: 2 });   // the tile declares tier 2 — the confirm gate must park it
 check('win.close parks for confirm (tier 2, never direct)', !!(r.json.pending) && r.json.fired !== true, JSON.stringify(r.json).slice(0, 90));
 check('win.close left the window alive while pending', /disposable-close-me/.test(wins()), 'still listed');
 if (r.json.pending) await api('POST', '/act/confirm', { id: r.json.pending, cancel: true }).catch(() => {});
