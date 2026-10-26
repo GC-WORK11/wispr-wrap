@@ -25,6 +25,7 @@ import { Skel } from './skeleton.js';
 import { KpLink } from './live.js';
 import { Actions } from './actions.js';
 import { Packs } from './packs.js';
+import { Quick, typeAction } from './quick.js';
 
 const sheet = App.el.sheetTeach;
 if (!sheet) throw new Error('teach: #sheet-teach missing');
@@ -38,22 +39,24 @@ sheet.innerHTML = `
   <div class="sheet-body tw-body">
 
     <section class="tw-step" data-step="name">
+      <h2 class="tw-ask-t">What should it do?</h2>
+      <div class="qa-grid" id="qa-grid" role="group" aria-label="Actions"></div>
+      <div class="qa-text" id="qa-text" hidden>
+        <input class="input" id="qa-text-in" type="text" placeholder="Words to type" aria-label="Words to type"
+               autocomplete="off" autocapitalize="sentences" maxlength="120" enterkeyhint="done">
+      </div>
+      <button class="qa-link" id="tw-packs-toggle" type="button" hidden>Ready-made signs</button>
       <div class="tw-packs" id="tw-packs" hidden></div>
-      <div class="tw-ask">
-        <h2 class="tw-ask-t">What should it do?</h2>
-        <button class="tw-pickrow" id="tw-pick" type="button">
-          <span class="tw-pick-ic" id="tw-pick-ic">@</span>
-          <span class="tw-pick-tx" id="tw-pick-tx">Pick an app or action</span>
-        </button>
-        <label class="tw-namelbl" for="tw-name">Call it</label>
+      <div class="tw-compat" hidden>
+        <button id="tw-pick" type="button"><span id="tw-pick-ic">@</span><span id="tw-pick-tx">Pick an app or action</span></button>
         <input class="input" id="tw-name" type="text" placeholder="Give it a name"
                autocomplete="off" autocorrect="off" autocapitalize="off" maxlength="32" enterkeyhint="next">
         <span id="tw-gloss" class="tw-gloss" aria-hidden="true"></span>
         <div class="errline" id="tw-name-err"></div>
+        <button id="tw-name-cancel" type="button">Cancel</button>
       </div>
       <div class="tw-foot">
-        <button class="btn btn-ghost" id="tw-name-cancel">Cancel</button>
-        <button class="btn btn-primary" id="tw-name-next" disabled>Record</button>
+        <button class="btn btn-primary btn-block" id="tw-name-next" disabled>Record</button>
       </div>
     </section>
 
@@ -280,7 +283,7 @@ async function setAction(a) {
     validateName();
     return;
   }
-  const sentence = (Actions.sentence && Actions.sentence(a)) ||
+  const sentence = a.say || (Actions.sentence && Actions.sentence(a)) ||
                    (Actions.describe && Actions.describe(a)) || 'do something';
   const text = sentence.charAt(0).toUpperCase() + sentence.slice(1);
   pickTx.textContent = text; pickTx2.textContent = text;
@@ -313,6 +316,61 @@ async function openPicker() {
 let pickerQuery = '';
 pickBtn.onclick = openPicker;
 pickBtn2.onclick = openPicker;
+
+/* ---------- the one-tap quick-actions grid (FOUNDER-SIMPLIFY-1433) ----------
+   Tap a tile -> selected -> the one primary button ("Record"). The sign's name follows
+   the tile ("Switch window") unless you typed your own; duplicates get a number. */
+const qaGrid = $('qa-grid'), qaText = $('qa-text'), qaTextIn = $('qa-text-in'), packsToggle = $('tw-packs-toggle');
+let autoName = '';
+function uniqueLabel(label) {
+  let n = label, i = 2;
+  while (W.library.some(x => x.gloss === slug(n))) n = label + ' ' + (i++);
+  return n;
+}
+function applyAuto(label) {
+  if (!nameIn.value.trim() || nameIn.value === autoName) {
+    autoName = label ? uniqueLabel(label) : '';
+    nameIn.value = autoName;
+  }
+  validateName();
+}
+function quickPick(a) {
+  if (!a) { setAction(null); applyAuto(''); return; }
+  applyAuto(a.label);
+  setAction(a);
+}
+async function quickApp() {
+  if (!App.canAct()) { App.emit('unpaired'); Quick.clear(); return; }
+  const a = await Actions.pick({ title: 'Open which app?' });
+  if (!a) { Quick.clear(); Quick.resetApp(); quickPick(null); return; }
+  quickPick(a);
+  let url = null;
+  try { url = Actions.iconFor ? await Actions.iconFor(a) : null; } catch (e) { /* letter-less is fine */ }
+  Quick.setApp(a.label || 'App', url);
+}
+function showText(v) {                     // v === null hides it; '' shows it empty
+  qaText.hidden = v === null;
+  if (v === null) { qaTextIn.value = ''; return; }
+  qaTextIn.value = v;
+  setTimeout(() => qaTextIn.focus(), 60);
+}
+qaTextIn.addEventListener('input', () => {
+  const t = qaTextIn.value.trim();
+  quickPick(t ? typeAction(t) : null);
+});
+qaTextIn.addEventListener('keydown', e => { if (e.key === 'Enter' && !nameNext.disabled) { e.preventDefault(); nameNext.click(); } });
+function mountQuick() {
+  autoName = '';
+  Quick.mount(qaGrid, {
+    onPick: quickPick,
+    onOpenApp: quickApp,
+    onText: showText,
+  });
+}
+packsToggle.onclick = () => {
+  packsEl.hidden = !packsEl.hidden;
+  packsToggle.textContent = packsEl.hidden ? 'Ready-made signs' : 'Hide ready-made signs';
+};
 
 /* ---------- step 1 · name ---------- */
 function validateName() {
@@ -592,7 +650,7 @@ $('tw-retake-keep').onclick = async () => {
 
 function finishDone() {
   const a = W.action;
-  const sentence = a ? ((Actions.sentence && Actions.sentence(a)) || (Actions.describe && Actions.describe(a))) : '';
+  const sentence = a ? (a.say || (Actions.sentence && Actions.sentence(a)) || (Actions.describe && Actions.describe(a))) : '';
   doneT.textContent = 'Ready';
   doneM.textContent = sentence ? ('Your laptop will ' + sentence + '.') : ('“' + W.label + '” is ready to use.');
   showStep('done');
@@ -617,7 +675,12 @@ async function mountPacks() {
       onStart: startFromPack,   // needs_takes -> jump into Record with name+action
       onDone: () => refreshLibrary(),
     });
-  } catch (e) { packsEl.hidden = true; }
+    // quiet by default: one text link under the grid opens the list
+    const has = !packsEl.hidden;
+    packsEl.hidden = true;
+    packsToggle.hidden = !has;
+    packsToggle.textContent = 'Ready-made signs';
+  } catch (e) { packsEl.hidden = true; packsToggle.hidden = true; }
 }
 
 // a pack chosen for "Teach it": pre-fill name + a type-text action, go to Record
@@ -663,9 +726,9 @@ async function open() {
   nameNext.disabled = true;
   $('tw-title').textContent = 'Teach a sign';
   showStep('name');
-  refreshLibrary();
+  showText(null);
+  refreshLibrary().then(() => mountQuick());
   mountPacks();
-  setTimeout(() => nameIn.focus(), 250);
 }
 async function close() {
   stopCapture();
