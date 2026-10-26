@@ -1,0 +1,95 @@
+/* drawer.css — hamburger sidebar (SPEC v2 §3). Consumes app.css tokens only. */
+
+/* the trigger — quiet, top-left, above content */
+.dr-btn {
+  position: fixed; z-index: 46;
+  top: calc(env(safe-area-inset-top, 0px) + 12px); left: 12px;
+  width: 40px; height: 40px; border-radius: 50%;
+  border: none; cursor: pointer;
+  background: var(--surface); color: var(--ink-2);
+  box-shadow: var(--sh-1);
+  display: grid; place-items: center;
+  transition: transform var(--t-1) var(--ease-out), box-shadow var(--t-2);
+}
+.dr-btn:active { transform: scale(.92); }
+.dr-btn svg { width: 20px; height: 20px; }
+
+/* scrim */
+.dr-scrim {
+  position: fixed; inset: 0; z-index: 47;
+  background: rgba(28, 27, 24, .32);
+  opacity: 0; transition: opacity .24s var(--ease-out);
+}
+.dr-scrim.open { opacity: 1; }
+
+/* the panel — 84vw up to 320px, mobile-first */
+.dr {
+  position: fixed; z-index: 48;
+  top: 0; left: 0; bottom: 0;
+  width: min(84vw, 320px);
+  display: flex; flex-direction: column;
+  background: var(--surface);
+  border-right: 1px solid var(--hairline);
+  box-shadow: var(--sh-2);
+  transform: translateX(-102%);
+  transition: transform .26s var(--ease-out);
+  padding: calc(env(safe-area-inset-top, 0px) + 18px) 0 calc(env(safe-area-inset-bottom, 0px) + 14px);
+}
+.dr.open { transform: translateX(0); }
+
+.dr-head {
+  display: flex; align-items: center; gap: 9px;
+  padding: 0 20px 16px;
+  border-bottom: 1px solid var(--hairline-2);
+}
+.dr-mark { width: 20px; height: 20px; color: var(--accent); }
+.dr-brand { font-size: 16px; font-weight: 650; letter-spacing: -.01em; color: var(--ink); }
+.dr-brand span { color: var(--muted-2); font-weight: 450; }
+
+.dr-body { flex: 1; overflow-y: auto; padding: 10px 0; }
+
+/* one row: icon + label(+sub) + chevron. No boxes, no capsules. */
+.dr-row {
+  appearance: none; border: none; cursor: pointer; width: 100%;
+  display: flex; align-items: center; gap: 14px;
+  padding: 13px 20px; background: none; text-align: left;
+  transition: background var(--t-1);
+}
+.dr-row:active { background: var(--hairline-2); }
+.dr-ico { flex: none; width: 22px; height: 22px; color: var(--muted-2); display: grid; place-items: center; }
+.dr-ico svg { width: 20px; height: 20px; }
+.dr-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.dr-l { font-size: 14.5px; font-weight: 550; color: var(--ink); }
+.dr-s { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dr-go { flex: none; width: 16px; height: 16px; color: var(--muted); }
+.dr-row.dim .dr-l { color: var(--muted-2); }
+
+/* settings subview */
+.dr-subhead {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 16px 12px; font-size: 13px; font-weight: 600;
+  color: var(--muted-2); text-transform: none;
+}
+.dr-back {
+  appearance: none; border: none; background: none; cursor: pointer;
+  font-size: 20px; line-height: 1; color: var(--ink-2); padding: 2px 6px;
+}
+.dr-info { padding: 8px 20px; }
+.dr-info div {
+  display: flex; justify-content: space-between;
+  padding: 9px 0; border-top: 1px solid var(--hairline-2);
+  font-size: 13px; color: var(--muted-2);
+}
+.dr-info b { color: var(--ink); font-weight: 550; }
+
+.dr-foot {
+  padding: 12px 20px 0; border-top: 1px solid var(--hairline-2);
+  font-size: 11.5px; color: var(--muted);
+}
+
+/* on wide screens the rail is the nav — the floating button would double it.
+   (If the rail is removed entirely under the new spec this rule just never
+   applies.) */
+@media (min-width: 900px) {
+  .shell > .rail ~ * .dr-btn { display: none; }
+}
