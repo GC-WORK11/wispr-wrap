@@ -28,4 +28,4 @@ nohup.out
 proofs/
 tools/replay/out/
 # recorded demo output — videos stay local (DEMO.md documents repro)
-demo/
+/demo/

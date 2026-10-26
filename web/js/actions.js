@@ -360,7 +360,8 @@ async function build() {
     const wrap = document.createElement('div'); wrap.className = 'act-bound';
     for (const b of bound.slice(0, 12)) {
       const chip = document.createElement('span'); chip.className = 'chip accent';
-      chip.textContent = (b.gloss || '') + ' → ' + (b.label || b.argv || '');
+      const argv = Array.isArray(b.argv) ? b.argv.join(' ') : b.argv;
+      chip.textContent = (b.gloss || '') + ' → ' + (b.label || argv || '');
       wrap.appendChild(chip);
     }
     listEl.appendChild(wrap);

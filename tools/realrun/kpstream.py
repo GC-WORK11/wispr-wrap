@@ -157,8 +157,8 @@ def emit(frames, base, key, fps, quiet=False):
             if k in body:
                 v = body[k]
                 if k == "match":
-                    v = ("match=%s dist=%.3f accepted=%s" %
-                         (v.get("gloss"), v.get("dist", 0),
+                    v = ("match=%s dist=%s accepted=%s" %
+                         (v.get("gloss"), ("%.3f" % v["dist"]) if isinstance(v.get("dist"), (int, float)) else "-",
                           v.get("accepted")))
                 elif k == "action":
                     v = "action=%s" % v

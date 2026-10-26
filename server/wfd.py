@@ -3,7 +3,7 @@
 from the phone app, injects them at the laptop cursor, and fires taught
 signs' bound actions. Auth via shared pairing key; the live-sign surface
 is LAN/USB only (never through a tunnel)."""
-import hashlib, hmac, json, os, queue, re, secrets, shutil, string, subprocess, sys, tempfile, threading, time, urllib.parse
+import hashlib, hmac, json, math, os, queue, re, secrets, shutil, string, subprocess, sys, tempfile, threading, time, urllib.parse
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -57,6 +57,12 @@ BODY_CAPS = {"/pair": 16 * 1024, "/live/kp": 256 * 1024,
              "/bank": 256 * 1024}
 # live pipeline knobs — env-tunable, not hidden constants
 LIVE_MAX_FPS = int(os.environ.get("WF_LIVE_MAX_FPS", "45"))
+# One camera stream is 15-30 fps; allow a 2x burst per identity so two
+# coalesced consumers/tabs at 40 fps do not 429 each other. A single
+# abusive identity is still capped (90 fps default), and the whole daemon
+# has a 2x-global hard cap. env-tunable, not hidden.
+LIVE_BURST = max(1, int(os.environ.get("WF_LIVE_BURST", "2")))
+LIVE_MAX_CLIENTS = max(1, int(os.environ.get("WF_LIVE_MAX_CLIENTS", "16")))
 LIVE_IDLE_S = float(os.environ.get("WF_LIVE_IDLE_S", "120"))
 CONFIRM_TTL_S = float(os.environ.get("WF_CONFIRM_TTL", "120"))
 # one movement must fire once: a segment split by mid-sign hesitation
@@ -290,12 +296,14 @@ def send_file(data, name, ctype):
 
 LIVE_LOCK = threading.RLock()
 LIVE = {"session": None, "listening": False, "ep": None,
-        "last_match": None, "seen": 0.0, "rate": deque(),
-        "observe": False, "last_action": None, "last_accept": None,
+        "last_match": None, "seen": 0.0,
+        "rates": {}, "rate_all": deque(),
+        "observe": False, "text_mode": False,
+        "last_action": None, "last_accept": None,
         "dup_fires": 0,
         "feed": deque(maxlen=64)}
 TEACH = {"active": False, "name": "", "takes": 0, "got": 0,
-         "label": "", "action": None}
+         "label": "", "action": None, "session": None}
 PENDING = {}                    # confirm_id -> {gloss,label,argv,at}
 _cmd_cache = {"key": None, "rows": {}}
 LIVE_POSTS = ("/live/kp", "/live/event", "/live/listen", "/live/mode",
@@ -474,11 +482,14 @@ def bank_size():
 
 def live_reset():
     """New listen session / idle expiry: clean segmenter + session id.
-    A dangling teach is cancelled — a rotated session means the composer
-    was re-opened."""
+    An active teach is NOT touched — teach state is owned by the
+    session that began it (TEACH['session']) and ends via /teach/end,
+    /teach/cancel or a fresh /teach/begin, never by a kp-stream
+    rotation (a foreign streamer must not cancel someone's capture)."""
     LIVE.update(session=None, listening=False, last_match=None, seen=0.0,
                 last_accept=None)
-    LIVE["rate"].clear()
+    # rate counters are per-identity and self-prune; keeping them across a
+    # session change means a new tab cannot reset the limiter for free.
     LIVE["feed"].clear()
     LIVE["ep"] = endpointer.Endpointer(
         palm_sign=PALM_SIGN, namaste_sign=NAMASTE_SIGN) if endpointer else None
@@ -487,7 +498,6 @@ def live_reset():
             OPS.reset_session()
         except Exception:
             pass
-    TEACH.update(active=False, name="", takes=0, got=0, label="", action=None)
 
 
 def commands():
@@ -800,6 +810,7 @@ def _on_segment(frames, t_ms):
         if TEACH["got"] >= TEACH["takes"]:
             save_bank()
             TEACH["active"] = False
+            TEACH["session"] = None
             out["teach"]["done"] = True
         return out
     if not LIVE["listening"]:
@@ -814,11 +825,13 @@ def _on_segment(frames, t_ms):
         return res
     if m is None:
         return res
-    last = {"gloss": m.gloss, "dist": m.dist, "at_ms": t_ms,
+    def _finite(v):
+        return v if (v is None or (isinstance(v, (int, float)) and math.isfinite(v))) else None
+    last = {"gloss": m.gloss, "dist": _finite(m.dist), "at_ms": t_ms,
             "accepted": bool(m.accepted),
             "label": getattr(m, "label", "") or "",
-            "score": getattr(m, "score", None),
-            "margin": getattr(m, "margin", None),
+            "score": _finite(getattr(m, "score", None)),
+            "margin": _finite(getattr(m, "margin", None)),
             "second": getattr(m, "second_gloss", None),
             "reason": getattr(m, "reason", "")}
     # segment-split dedup: a mid-sign hesitation ends one segment and the
@@ -842,6 +855,26 @@ def _on_segment(frames, t_ms):
             res["match"] = last
             return res
         LIVE["last_accept"] = {"gloss": m.gloss, "seg_end": seg_end}
+    if m.accepted and m.gloss and LIVE.get("text_mode") \
+            and not LIVE["observe"]:
+        # TEXT mode (Go Live Text|Control toggle): the recognised sign's
+        # word types into the laptop's focused window instead of
+        # dispatching the bound action. The word is the sign's label
+        # (what the user taught it as), falling back to the gloss.
+        word = (last.get("label") or m.gloss or "").strip()
+        if word:
+            _ACT_Q.put(lambda w=word: send_text(w + " ", "live-text"))
+        last["action"] = {"kind": "text", "typed": word,
+                          "dispatched": bool(word)}
+        res["action"] = last["action"]
+        LIVE["last_action"] = {"kind": "text", "glosses": [m.gloss],
+                               "label": last["label"], "typed": word,
+                               "dispatched": bool(word), "t_ms": t_ms}
+        _feed({"type": "type", "glosses": [m.gloss], "text": word,
+               "t_ms": t_ms})
+        LIVE["last_match"] = last
+        res["match"] = last
+        return res
     if OPS is not None:
         # composer decides: compositional sequences, profile-bound
         # actions, observe mode — and emits events the feed reports.
@@ -895,7 +928,34 @@ def _norm_points(pts):
     return out
 
 
-def live_kp(data):
+def _rate_limited(key, now):
+    """Per-identity token window + a global hard cap. Appends the current
+    frame and returns True when THIS frame must be rejected.
+
+    Identity = the stream's session id when present, else the peer address
+    (two raw clients on one host share one budget). Rejected frames are not
+    counted twice; the caller only appends once. Bounded client table.
+    """
+    rates = LIVE["rates"]
+    dq = rates.get(key)
+    if dq is None:
+        if len(rates) >= LIVE_MAX_CLIENTS:
+            old = min(rates, key=lambda k: rates[k][-1] if rates[k] else 0.0)
+            rates.pop(old, None)
+        dq = rates[key] = deque()
+    dq.append(now)
+    while dq and now - dq[0] > 1.0:
+        dq.popleft()
+    if len(dq) > LIVE_MAX_FPS * LIVE_BURST:
+        return True
+    allq = LIVE["rate_all"]
+    allq.append(now)
+    while allq and now - allq[0] > 1.0:
+        allq.popleft()
+    return len(allq) > LIVE_MAX_FPS * LIVE_BURST * 2
+
+
+def live_kp(data, client=None):
     """POST /live/kp: append one keypoint frame to the session buffer."""
     if not isinstance(data, dict):
         return 400, {"ok": False, "error": "json object required"}
@@ -910,14 +970,26 @@ def live_kp(data):
     now = time.time()
     with LIVE_LOCK:
         sid = data.get("session")
-        if (sid and sid != LIVE["session"]) or \
-           (LIVE["seen"] and now - LIVE["seen"] > LIVE_IDLE_S):
+        if TEACH["active"]:
+            # A teach owns its capture stream.  The first kp frame
+            # carrying a session id claims it (or /teach/begin pre-binds
+            # via its own 'session' field); frames from any OTHER session
+            # are refused so a foreign streamer can neither cancel the
+            # teach nor contaminate its exemplars.
+            owner = TEACH.get("session")
+            if sid and owner and str(sid)[:64] != owner:
+                return 409, {"ok": False,
+                             "error": "teach in progress",
+                             "session": LIVE["session"]}
+            if sid and owner is None:
+                TEACH["session"] = str(sid)[:64]
+                LIVE["session"] = TEACH["session"]
+        elif (sid and sid != LIVE["session"]) or \
+             (LIVE["seen"] and now - LIVE["seen"] > LIVE_IDLE_S):
             live_reset()
-        rate = LIVE["rate"]
-        rate.append(now)
-        while rate and now - rate[0] > 1.0:
-            rate.popleft()
-        if len(rate) > LIVE_MAX_FPS:
+        key = ("sid:" + str(sid)[:64]) if sid else \
+              ("ip:" + str(client or "local"))
+        if _rate_limited(key, now):
             return 429, {"ok": False, "error": "rate limited"}
         if LIVE["ep"] is None:
             if endpointer is None:
@@ -939,6 +1011,7 @@ def live_kp(data):
         for ev in events:
             if ev.get("type") == "mode":
                 name = ev.get("name", "")
+                was = LIVE["listening"]
                 if name == PALM_SIGN:
                     LIVE["listening"] = True
                 elif name == NAMASTE_SIGN:
@@ -948,10 +1021,13 @@ def live_kp(data):
                             OPS.flush()  # held prefix resolves at session end
                         except Exception:
                             pass
-                LIVE["last_match"] = {
-                    "gloss": name, "dist": 0.0, "at_ms": t_ms,
-                    "accepted": True, "mode": True,
-                    "label": "listening" if LIVE["listening"] else "stopped"}
+                # a hold that changes nothing (an open hand at rest while
+                # already listening) must not replace the last sign reading
+                if LIVE["listening"] != was:
+                    LIVE["last_match"] = {
+                        "gloss": name, "dist": 0.0, "at_ms": t_ms,
+                        "accepted": True, "mode": True,
+                        "label": "listening" if LIVE["listening"] else "stopped"}
                 out["mode"] = name
             elif ev.get("type") == "segment":
                 out.update(_on_segment(ev.get("frames") or [], t_ms))
@@ -1010,6 +1086,7 @@ def live_state():
         lm = LIVE["last_match"] or {}
         focus = _focus_info()
         st = {"listening": LIVE["listening"],
+              "text_mode": bool(LIVE["text_mode"]),
               "session": LIVE["session"],
               "last_match": LIVE["last_match"],
               "reason": lm.get("reason", ""),
@@ -1058,11 +1135,21 @@ def _status_payload():
     out = {"ok": True, "engine": detect_engine(),
            "display": "x11" if os.environ.get("DISPLAY") else "",
            "focus": f.get("wm_class", ""), "focus_title": f.get("title", ""),
-           "live": {"on": True, "listening": lst},
+           "live": {"on": True, "listening": lst,
+                    "text_mode": bool(LIVE.get("text_mode"))},
            "last_send": LAST_SEND, "last_match": last or None,
            "confirms": live_state()["pending"],
            "bank_size": bank_size(),
            "name": os.uname().nodename}
+    # Sidebar "connected laptop" row: a 200 reply already proves the
+    # laptop link; this block is the compact descriptor the UI shows —
+    # hostname, display, whether the action layer can really reach the
+    # OS, and how many signs are taught.
+    out["laptop"] = {"connected": True, "name": out["name"],
+                     "display": out["display"],
+                     "can_act": ACT_PROVIDER is not None,
+                     "signs": out["bank_size"],
+                     "engine": out["engine"]}
     return out
 
 
@@ -1092,7 +1179,9 @@ def teach_begin(data):
         label = label or row["label"]
     with LIVE_LOCK:
         TEACH.update(active=True, name=name, takes=takes, got=0,
-                     label=label, action=action)
+                     label=label, action=action,
+                     session=(str(data["session"])[:64]
+                              if data.get("session") else None))
     return 200, {"ok": True, "name": name, "takes": takes}
 
 
@@ -1100,7 +1189,7 @@ def teach_end(_data):
     with LIVE_LOCK:
         was, got, name = TEACH["active"], TEACH["got"], TEACH["name"]
         TEACH.update(active=False, name="", takes=0, got=0,
-                     label="", action=None)
+                     label="", action=None, session=None)
     if got:
         save_bank()
     if not was and not got:
@@ -1358,6 +1447,17 @@ def detect_engine():
     return "none"
 
 
+def _finite(o):
+    """Non-finite floats -> None, recursively (for strict JSON)."""
+    if isinstance(o, float):
+        return o if o == o and o not in (float("inf"), float("-inf")) else None
+    if isinstance(o, dict):
+        return {k: _finite(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_finite(v) for v in o]
+    return o
+
+
 def authed(headers):
     return hmac.compare_digest(headers.get("X-WF-Key", ""), SECRET)
 
@@ -1376,7 +1476,11 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def _jreply(self, code, obj):
-        return self._reply(code, json.dumps(obj).encode(), "application/json")
+        # strict JSON: Python writes inf/nan as Infinity/NaN, which
+        # JSON.parse rejects — one infinite margin (a bank with a single
+        # sign) made the whole /live/state reply unreadable to the app.
+        return self._reply(code, json.dumps(_finite(obj)).encode(),
+                           "application/json")
 
     def _proxied(self):
         """Forwarded headers => the request came through a tunnel/proxy.
@@ -1414,6 +1518,19 @@ class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, *a):
         pass
+
+    def do_HEAD(self):
+        # Connectivity probes (the app's laptop-connected check) must not
+        # 501. Headers only, same status the GET would give: /health is
+        # open, the live surface still requires the pairing key.
+        p = self.path.split("?")[0]
+        if p == "/health":
+            return self._reply(200, b"", "text/plain")
+        if p in ("/status", "/live/state", "/act", "/bank"):
+            if not self._gate():
+                return
+            return self._reply(200, b"", "application/json")
+        return self._reply(404, b"")
 
     def do_GET(self):
         p = self.path.split("?")[0]
@@ -1631,7 +1748,7 @@ class Handler(BaseHTTPRequestHandler):
                 data = json.loads(raw)
             except Exception:
                 return self._jreply(400, {"ok": False, "error": "bad json"})
-            code, obj = live_kp(data)
+            code, obj = live_kp(data, client=self.client_address[0])
             return self._jreply(code, obj)
         if p == "/teach/begin":
             try:
@@ -1695,26 +1812,37 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 data = {}
             mode = str(data.get("mode", "")).lower()
+            # Go Live toggle: "text" = signs type words into the laptop's
+            # focused window; "control" (alias "live") = signs dispatch
+            # their bound laptop actions. "observe" reports, never fires.
+            text_mode = None
             if mode in ("observe", "rehearse", "rehearsal"):
                 observe = True
+            elif mode in ("text", "type"):
+                observe, text_mode = False, True
+            elif mode in ("control",):
+                observe, text_mode = False, False
             elif mode in ("live", "fire", "on", ""):
                 observe = bool(data.get("observe", False)) \
                     if mode == "" else False
             else:
                 return self._jreply(400, {"ok": False,
-                                          "error": "mode must be live or observe"})
+                                        "error": "mode must be text, control, live or observe"})
             with LIVE_LOCK:
                 LIVE["observe"] = observe
+                if text_mode is not None:
+                    LIVE["text_mode"] = text_mode
             if OPS is not None:
                 try:
                     OPS.set_observe(observe)
                 except Exception as e:
                     print(f"[wfd] set_observe: {e!r}", flush=True)
-            print(f"[wfd] mode -> {'observe' if observe else 'live'}",
-                  flush=True)
-            return self._jreply(200, {"ok": True,
-                                      "mode": "observe" if observe else "live",
-                                      "observe": observe})
+            mstr = "observe" if observe else \
+                   ("text" if LIVE["text_mode"] else "control")
+            print(f"[wfd] mode -> {mstr}", flush=True)
+            return self._jreply(200, {"ok": True, "mode": mstr,
+                                      "observe": observe,
+                                      "text_mode": LIVE["text_mode"]})
         if p == "/teach/record/start":
             # Teach-by-demonstration: capture real keystrokes/clicks via
             # xinput test-xi2 --root; /teach/record/stop returns the macro.

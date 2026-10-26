@@ -262,14 +262,15 @@ nameNext.onclick = async () => {
 /* ---------- step 2 · record ---------- */
 function renderTakebar() {
   takebar.textContent = '';
-  const n = Math.max(W.mode === 'add' ? 1 : NEED, W.takes.length);
+  const n = W.need || (W.mode === 'add' ? 1 : NEED);
   for (let i = 0; i < n; i++) {
     const d = document.createElement('div');
     d.className = 'tk' + (i < W.got ? ' got' : '');
     takebar.appendChild(d);
   }
   recDone.disabled = W.got < 1;
-  recDone.textContent = W.got >= NEED ? 'Next' : 'Next (' + W.got + '/' + NEED + ')';
+  recDone.textContent = W.mode === 'add' ? 'Finish'
+    : (W.got >= W.need ? 'Next' : 'Next (' + W.got + '/' + W.need + ')');
 }
 recBack.onclick = async () => {
   if (W.teaching) { await App.api.post('/teach/end', { name: W.gloss }).catch(() => {}); setTeaching(false); }
@@ -318,7 +319,7 @@ $('tw-bind-back').onclick = () => {
   showStep('record');
   if (!W.teaching && W.gloss) {
     App.api.post('/teach/begin', { name: W.gloss, takes: 5, label: W.label })
-      .then(r => { setTeaching(!!(r && r.ok)); W.need = 5; })
+      .then(r => { if (r && r.ok) { setTeaching(true); W.got = 0; W.need = 5; renderTakebar(); } })
       .catch(() => {});
   }
 };
