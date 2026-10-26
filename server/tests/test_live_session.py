@@ -251,6 +251,72 @@ class TestTextMode(unittest.TestCase):
         self.assertNotEqual(act.get("kind"), "text")
 
 
+class TestAirEvents(unittest.TestCase):
+    """Section-A Go Live events: air letters route to actions, and the
+    pointer/scroll/click helpers validate and queue real input jobs."""
+
+    def setUp(self):
+        while not wfd._ACT_Q.empty():
+            wfd._ACT_Q.get_nowait()
+        while not wfd._INJECT_Q.empty():
+            wfd._INJECT_Q.get_nowait()
+
+    def test_air_letter_c_routes_builtin(self):
+        rc, body = wfd._air_letter({"letter": "C"})
+        self.assertEqual(rc, 202)
+        self.assertEqual(body["gloss"], "AIR-C")
+        self.assertIn("Chrome", body["action"]["label"])
+        self.assertTrue(wfd._ACT_Q.get(timeout=1))  # real routing job queued
+
+    def test_air_letter_v_routes_builtin(self):
+        rc, body = wfd._air_letter({"letter": "V"})
+        self.assertEqual(rc, 202)
+        self.assertEqual(body["gloss"], "AIR-V")
+        self.assertTrue(wfd._ACT_Q.get(timeout=1))
+
+    def test_air_letter_unknown_404s(self):
+        rc, body = wfd._air_letter({"letter": "Q"})
+        self.assertEqual(rc, 404)
+        self.assertIn("AIR-Q", body["error"])
+        self.assertTrue(wfd._ACT_Q.empty())
+
+    def test_air_letter_missing_400s(self):
+        rc, _ = wfd._air_letter({})
+        self.assertEqual(rc, 400)
+        self.assertTrue(wfd._ACT_Q.empty())
+
+    def test_scroll_direction_and_notches(self):
+        rc, body = wfd._air_scroll({"dy": -3})
+        self.assertEqual(rc, 202)
+        self.assertEqual(body["scroll"]["direction"], "up")
+        self.assertEqual(body["scroll"]["notches"], 3)
+        self.assertTrue(wfd._INJECT_Q.get(timeout=1))
+        rc, body = wfd._air_scroll({"dy": 0.2, "notches": 99})
+        self.assertEqual(body["scroll"]["notches"], 24)  # capped
+        self.assertTrue(wfd._INJECT_Q.get(timeout=1))
+
+    def test_scroll_bad_input_400s(self):
+        rc, _ = wfd._air_scroll({"dy": "abc"})
+        self.assertEqual(rc, 400)
+
+    def test_pointer_clamps_and_queues(self):
+        rc, body = wfd._air_pointer({"x": 1.5, "y": -2})
+        self.assertEqual(rc, 202)
+        self.assertEqual((body["pointer"]["x"], body["pointer"]["y"]), (1.0, 0.0))
+        self.assertTrue(wfd._INJECT_Q.get(timeout=1))
+        rc, _ = wfd._air_pointer({"x": "z"})
+        self.assertEqual(rc, 400)
+
+    def test_click_default_and_button_safety(self):
+        rc, body = wfd._air_click({})
+        self.assertEqual(rc, 202)
+        self.assertEqual(body["click"]["button"], 1)
+        rc, body = wfd._air_click({"button": 9})
+        self.assertEqual(body["click"]["button"], 1)
+        self.assertTrue(wfd._INJECT_Q.get(timeout=1))
+        self.assertTrue(wfd._INJECT_Q.get(timeout=1))
+
+
 class TestDaemonHttpSurface(unittest.TestCase):
     """Real daemon: HEAD probes (the app's laptop-connected check must
     not 501), the text/control mode endpoint, and the /status laptop
