@@ -162,7 +162,7 @@ function onResp(j) {
 }
 function onStatus(s) {
   if (s === 'dead') recErr.textContent = 'This laptop runs an older wrap — update it and try again.';
-  if (s === 'denied') recErr.textContent = 'unpaired — rescan the QR.';
+  if (s === 'denied') recErr.textContent = 'Not connected — scan the code again.';
 }
 
 async function startCapture() {
@@ -240,17 +240,17 @@ nameNext.onclick = async () => {
   W.label = nameIn.value.trim(); W.gloss = slug(nameIn.value);
   const r = await App.api.post('/teach/begin',
     { name: W.gloss, takes: NEED, label: W.label }).catch(() => null);
-  if (!r) { nameErr.textContent = 'laptop unreachable — run: wrap start'; return; }
-  if (r.status === 403) { nameErr.textContent = 'unpaired — rescan the QR.'; return; }
+  if (!r) { nameErr.textContent = 'Can’t reach your laptop.'; return; }
+  if (r.status === 403) { nameErr.textContent = 'Not connected — scan the code again.'; return; }
   if (r.status === 404 || r.status === 405) {
-    nameErr.textContent = 'the laptop runs an older wrap — update it (git pull && npm run wrap) to teach signs.';
+    nameErr.textContent = 'This laptop runs an older version — update it to teach signs.';
     return;
   }
   if (r.status === 503 || (r.json && r.json.error && /signbank/.test(r.json.error))) {
     nameErr.textContent = 'This laptop can’t learn signs yet — update wrap on it first.';
     return;
   }
-  if (!r.ok) { nameErr.textContent = (r.json && r.json.error) || 'teach session refused'; return; }
+  if (!r.ok) { nameErr.textContent = App.daemonErr(r, 'Could not start — try again.'); return; }
   setTeaching(true);
   recLead.textContent = 'Do ' + W.gloss + ' once, then drop your hands. Three times, so it learns you.';
   recDone.hidden = false; recBack.textContent = 'back';
@@ -335,11 +335,10 @@ saveBtn.onclick = async () => {
   if (Array.isArray(a.argv) && a.argv.length) body.argv = a.argv;
   const r = await App.api.put('/bank', body).catch(() => null);
   W.busy = false; saveBtn.disabled = false; saveBtn.textContent = 'Finish';
-  if (!r) { bindErr.textContent = 'laptop unreachable — run: wrap start'; return; }
-  if (r.status === 403) { bindErr.textContent = 'unpaired — rescan the QR.'; return; }
+  if (!r) { bindErr.textContent = 'Can’t reach your laptop.'; return; }
+  if (r.status === 403) { bindErr.textContent = 'Not connected — scan the code again.'; return; }
   if (!r.ok) {
-    bindErr.textContent = 'the laptop refused it' +
-      (r.json && r.json.error ? ' — ' + r.json.error : ' (' + r.status + ')');
+    bindErr.textContent = App.daemonErr(r, 'Your laptop refused it — try again.');
     return;
   }
   doneT.textContent = W.gloss + ' is live';
@@ -391,7 +390,7 @@ const Teach = {
     $('tw-title').textContent = 'add a take · ' + gloss;
     const r = await App.api.post('/teach/begin', { name: gloss, takes: 1 }).catch(() => null);
     if (!r || !r.ok) {
-      App.toast(r && r.json && r.json.error ? r.json.error : 'couldn’t teach that — try again', true);
+      App.toast(App.daemonErr(r, 'Couldn’t teach that — try again'), true);
       App.nav('signs');
       return;
     }

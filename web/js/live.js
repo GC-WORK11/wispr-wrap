@@ -216,7 +216,7 @@ async function probe() {
     S.eng.up = false;
     setBadge('err', 'no live engine');
     card('Laptop needs an update',
-      'This laptop runs an older wrap. Update it (git pull && npm run wrap) and live mode comes up.',
+      'This laptop runs an older version — update it and Go Live works.',
       [mkBtn('Close', () => App.back())]);
     return;
   }

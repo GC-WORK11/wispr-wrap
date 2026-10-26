@@ -14,14 +14,11 @@ import os
 
 PACKS = [
     {"id": "hello", "gloss": "HELLO", "title": "Hello", "tier": 1,
-     "blurb": "Sign it and the word types at the laptop cursor.",
      "text": "hello"},
     {"id": "namaste", "gloss": "NAMASTE", "title": "Namaste",
-     "builtin": True,
-     "blurb": "Palms together pauses listening."},
+     "builtin": True},
     {"id": "i-am-govinda", "gloss": "I-AM-GOVINDA", "title": "I am Govinda",
-     "tier": 1, "blurb": "Sign it and the words type at the laptop cursor.",
-     "text": "I am Govinda"},
+     "tier": 1, "text": "I am Govinda"},
 ]
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "packs_data")
@@ -47,7 +44,7 @@ def list_packs(rows):
     out = []
     for p in PACKS:
         e = {"id": p["id"], "gloss": p["gloss"], "title": p["title"],
-             "blurb": p["blurb"], "takes": 0, "action": None}
+             "takes": 0, "action": None}
         if p.get("builtin"):
             e["state"] = "built-in"
         else:

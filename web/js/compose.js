@@ -169,8 +169,8 @@ async function send() {
         }
         imgOk = r.ok; into = r.json && r.json.into; ms = performance.now() - t0;
         if (imgOk) { clearStaged(); await App.sleep(450); }
-        else App.toast('The laptop said no (' + r.status + ')' + (r.json && r.json.error ? ': ' + r.json.error : ''), true);
-      } catch (e) { App.toast('Can’t reach your laptop. Run: wrap start', true); }
+        else App.toast(App.daemonErr(r, 'Couldn’t send. Try again.'), true);
+      } catch (e) { App.toast('Can’t reach your laptop.', true); }
     }
     if (text.trim()) {
       const t0 = performance.now();
@@ -178,8 +178,8 @@ async function send() {
         const r = await App.api.post('/send', { text, mode: 'type' });
         txtOk = r.ok;
         if (r.ok) { box.value = ''; grow(); into = into || (r.json && r.json.into); ms = performance.now() - t0; }
-        else App.toast((r.json && r.json.error) || ('The laptop said no (' + r.status + ')'), true);
-      } catch (e) { App.toast('Can’t reach your laptop. Run: wrap start', true); }
+        else App.toast(App.daemonErr(r, 'Couldn’t send. Try again.'), true);
+      } catch (e) { App.toast('Can’t reach your laptop.', true); }
     }
     App.emit('sent', { ok: imgOk || txtOk, into });
     if (imgOk || txtOk) {
@@ -189,7 +189,7 @@ async function send() {
       App.toast(kind + ' → ' + app(into) + ' · ' + secs(ms));
       Flower.burst(); App.buzz();
     } else if (!imgOk && !txtOk && !document.querySelector('.toast.err.show')) {
-      App.toast('Send failed. Run: wrap start', true);
+      App.toast('Couldn’t send. Try again.', true);
     }
   } finally {
     sending = false; go.disabled = false; box.focus();

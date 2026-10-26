@@ -230,6 +230,19 @@ function kpFrame(points) {
   return { t_ms: Math.round(performance.now()), seq: kpSeq++, n: points.length, hands: 2, points };
 }
 
+// daemon `error` fields are machine strings ("unpaired", "reserved mode
+// sign") — never show them raw. Map the ones we know, fall back generic.
+function daemonErr(r, fallback) {
+  const e = (r && r.json && r.json.error) || '';
+  if (r && r.status === 403 || /unpaired|pair/i.test(e)) return 'Not connected — scan the code again.';
+  if (/reserved/.test(e)) return 'That name is taken by a built-in sign.';
+  if (/too large|too big/.test(e)) return 'That file is too big to send.';
+  if (/rate|slow/.test(e)) return 'Slow down — try again.';
+  if (/name required|gloss required|required/.test(e)) return 'Give it a name first.';
+  if (/built in/.test(e)) return 'That sign is already built in.';
+  return fallback;
+}
+
 // ---------- pending-confirm strip ----------
 // tier>=2 actions park laptop-side; the daemon's /live/state exposes them
 // and POST /act/confirm {id} releases one. The composer shows them honestly.
@@ -278,6 +291,7 @@ export const App = {
   route, nav, back, routes, parseHash,
   toast, buzz, sleep, raise,
   kpFrame,
+  daemonErr,
   el: {
     pill: document.getElementById('pill'),
     stage: document.getElementById('stage'),
