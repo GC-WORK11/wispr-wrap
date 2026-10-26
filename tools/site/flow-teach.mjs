@@ -28,7 +28,9 @@ const openTeach = async (page) => {
 };
 
 // clean any prior runs so names are free
-for (const g of [GLOSS, OLD, 'TEST-BROWSER-SIGN']) await api('DELETE', '/bank?gloss=' + g);
+// scratch daemon: start from an empty bank (every proof sign reuses the same synthetic motion, so an older
+// sign with that motion would correctly win the match)
+for (const row of (((await api('GET', '/bank')).json || {}).signs || [])) await api('DELETE', '/bank?gloss=' + encodeURIComponent(row.gloss));
 
 const page = await newPage(S, { cdpPort: Number(process.env.SITE_CDP || 9016) });
 const rec = process.env.SITE_RECORD ? recorder(page, path.join(OUT, '_rec')) : null;
@@ -39,6 +41,9 @@ try {
 
   /* ---------- (a) ready-made signs from GET /packs ---------- */
   await openTeach(page);
+  // ready-made signs sit behind one quiet text link under the grid
+  await page.waitFor(`!document.querySelector('#tw-packs-toggle').hidden`, 8000, 'ready-made link');
+  await page.click('#tw-packs-toggle'); await sleep(500);
   await page.waitFor(`!document.querySelector('#tw-packs').hidden && document.querySelectorAll('#tw-packs .tw-pk').length > 0`, 8000, 'packs rendered');
   const packNames = await page.eval(`[...document.querySelectorAll('#tw-packs .tw-pk .tw-pk-n')].map(n => n.textContent)`);
   check('ready-made signs render from the real GET /packs', packNames.length >= 3, packNames.join(', '));
@@ -48,29 +53,11 @@ try {
   await shotTo(page, OUT, '01-start');
 
   /* ---------- (b) full Teach: pick action -> 3 takes -> train -> done ---------- */
-  // pick an action via the real picker (Write your own: type hello-from-site)
-  await page.click('#tw-pick');
-  await page.waitFor(`!document.querySelector('#sheet-actions').hidden`, 8000, 'picker open');
-  await sleep(1000);
-  // Write-your-own field if the new picker is in; else fall back to Type text row
-  const haveOwn = await page.eval(`!!document.querySelector('.act-own-in')`);
-  if (haveOwn) {
-    await page.eval(`(() => { const i=document.querySelector('.act-own-in'); i.value='type hello-from-site'; i.dispatchEvent(new Event('input',{bubbles:true})); })()`);
-    await sleep(400);
-    await page.eval(`(() => { const b=document.querySelector('.act-own-use') || [...document.querySelectorAll('#sheet-actions button')].find(b=>/use this/i.test(b.textContent)); if(b) b.click(); })()`);
-  } else {
-    // legacy picker: the Type text tool row
-    await page.eval(`(() => {
-      const rows=[...document.querySelectorAll('#act-list .act-row')];
-      const r=rows.find(r=>/type text/i.test(r.textContent)); if(!r) return;
-      r.click();
-      const inp=r.querySelector('.act-input'); if(inp){ inp.value='hello-from-site'; inp.dispatchEvent(new Event('input',{bubbles:true})); }
-      const use=r.querySelector('.act-use'); if(use) use.click();
-    })()`);
-  }
-  await page.waitFor(`document.querySelector('#sheet-actions').hidden`, 6000, 'picker closed with an action');
-  await sleep(300);
-  check('an action was chosen through the picker', await page.eval(`!document.querySelector('#tw-action').hidden || document.querySelector('#tw-pick-tx').textContent !== 'Pick an app or action'`), await page.eval(`document.querySelector('#tw-pick-tx').textContent`));
+  // pick the action with the one-tap grid: the "Type text" tile + the words (FOUNDER-SIMPLIFY-1433)
+  await page.waitFor(`document.querySelectorAll('.qa-tile').length >= 15`, 10000, 'quick grid');
+  await page.click('.qa-tile[data-id="text"]'); await sleep(400);
+  await page.focus('#qa-text-in'); await page.type('hello-from-site'); await sleep(400);
+  check('an action was chosen through the quick grid', await page.eval(`!document.querySelector('#tw-name-next').disabled`), await page.eval(`document.querySelector('#tw-pick-tx').textContent`));
 
   // name it + Record
   await page.focus('#tw-name');

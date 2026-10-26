@@ -12,7 +12,7 @@
  *   API/auth  network-only, never cached (keypoint/bank data must not persist)
  *   everything else same-origin: stale-while-revalidate
  */
-const VERSION = "wf-shell-v19-merged";
+const VERSION = "wf-shell-v20-merged";
 const CACHE = `wispr-wrap-${VERSION}`;
 
 const SHELL = [
@@ -27,9 +27,9 @@ const SHELL = [
   "/js/library.js", "/js/panes.js",
   "/js/laptop.js", "/js/settings.js", "/js/drawer.js", "/css/drawer.css",
   "/js/sound.js",
-  // BOOT stage: loading screen + packs shell files (sfx.js unused —
-  // sound.js is the loaded sound module)
-  "/css/boot.css", "/css/packs.css", "/js/boot.js", "/js/packs.js"
+  // BOOT stage: loading screen + packs shell files; sfx.js is SITE's
+  // boot-stage cues, quick.js is the one-tap actions grid (teach.js)
+  "/css/boot.css", "/css/packs.css", "/js/boot.js", "/js/sfx.js", "/js/packs.js", "/js/quick.js"
 ];
 const VENDOR = [
   "/vendor/mediapipe/vision_bundle.mjs",
