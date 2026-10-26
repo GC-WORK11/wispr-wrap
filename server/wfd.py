@@ -71,8 +71,8 @@ BODY_CAPS = {"/pair": 16 * 1024, "/live/kp": 256 * 1024,
              "/live/mode": 16 * 1024,
              "/send": 8 * 1024 * 1024, "/teach/begin": 64 * 1024,
              "/teach/end": 64 * 1024, "/act/confirm": 64 * 1024,
-             "/send-image": MAX_IMAGE,
              "/act/run": 16 * 1024, "/act/pointer": 4 * 1024,
+             "/send-image": MAX_IMAGE,
              "/bank": 256 * 1024}
 # live pipeline knobs — env-tunable, not hidden constants
 LIVE_MAX_FPS = int(os.environ.get("WF_LIVE_MAX_FPS", "45"))
