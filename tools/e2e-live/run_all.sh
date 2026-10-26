@@ -54,6 +54,7 @@ for g in SWIPE-R SWIPE-L PUSH-UP CIRCLE Z-SHAPE V-CHECK; do
 done
 
 # --- seed a Rust-format bank (normalized exemplars of the synthetic signs)
+seed_bank() {
 PYTHONPATH="$HERE" python3 - "$CONFIG/signbank.json" <<'PY'
 import sys
 import refmatch, synth
@@ -68,6 +69,8 @@ for name in synth.sign_paths():
 bank.save(sys.argv[1])
 print(f"seeded bank: {len(bank.templates)} glosses -> {sys.argv[1]}")
 PY
+}
+seed_bank
 
 wait_health() { # port [key] -> 0 when OUR daemon serves (authed check
     # when a key is passed — a stale squatter on the port returns /health
@@ -129,6 +132,10 @@ run "parity signbank vs matcher.rs" \
 # Proves the harness itself end-to-end (teach -> stream -> endpoint ->
 # DTW -> commands.tsv marker) and gives W1 an executable contract spec.
 STUB_PORT="$(free_port "$((PORT + 1))")"
+# the main leg's wfd.py rewrote signbank.json in its own format after
+# /teach/end — re-seed the Rust-format bank so the double sees the same
+# starting state the real daemon did.
+seed_bank
 PYTHONPATH="$HERE" python3 "$HERE/stubdaemon.py" --port "$STUB_PORT" \
     --config "$CONFIG" > "$TMP/stub.log" 2>&1 &
 STUB_PID=$!
