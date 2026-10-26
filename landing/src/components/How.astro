@@ -38,21 +38,15 @@ const outOf = (id) => stripAnsi(term.steps.find((s) => s.id === id)?.out ?? '');
 const startTail = stripAnsi(term.steps.find((s) => s.id === 'start').out)
   .split('\n').filter((l) => l.trim()).slice(-3);
 
-const CMD = {
-  clone: 'git clone https://github.com/GC-WORK11/wispr-wrap.git',
-  install: 'npm install',
-  start: 'npm run wrap',
-};
+const CMD = Object.fromEntries(term.steps.map((s) => [s.id, s.cmd]));
 const cloneOut = outOf('clone').trim();
 const installOut = outOf('install').trim();
-// `npm run wrap` prints npm's banner before the daemon's own output
-const banner = '> wispr-wrap@0.2.0 wrap\n> bin/wrap start';
 
 const PHONE = 390 / 844;
 const nodes = {
   clone:   { kind: 'term', cmd: CMD.clone, out: cloneOut },
   install: { kind: 'term', cmd: CMD.install, out: installOut },
-  start:   { kind: 'qr', cmd: CMD.start, banner, tail: startTail },
+  start:   { kind: 'qr', cmd: CMD.start, tail: startTail },
   app:     { kind: 'img', src: '/media/screens/send.webp', alt: 'The composer open on the phone, text typed and sent' },
   live:    { kind: 'img', src: '/media/screens/live.webp', alt: 'Go Live: a sign just typed its word' },
 };
@@ -121,7 +115,6 @@ const tallById = Object.fromEntries(tall.nodes.map((n) => [n.id, n]));
             {node.kind === 'qr' && (
               <div class="tc tc-qr">
                 <p class="cmd"><span class="ps">$</span> {node.cmd}</p>
-                <pre class="banner">{node.banner}</pre>
                 <svg class="qr" viewBox={`-1 -1 ${qr.w + 2} ${qr.h + 2}`} role="img" aria-label="Pairing QR code">
                   <path d={qr.d} />
                 </svg>
@@ -231,7 +224,6 @@ const tallById = Object.fromEntries(tall.nodes.map((n) => [n.id, n]));
     color: var(--muted);
     font-size: 10.5px;
   }
-  .tc-qr .banner { margin-top: 4px; color: var(--faint); }
   .qr {
     display: block;
     width: 128px;

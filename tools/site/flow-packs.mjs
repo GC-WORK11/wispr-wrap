@@ -64,12 +64,12 @@ try {
   check('Hello is taught, so its tile is gone from the grid', !!(await page.waitFor(`document.querySelectorAll('.qa-tile').length >= 15 && !document.querySelector('.qa-tile[data-id="pack.hello"]')`, 12000, 'tile gone').catch(() => false)));
   await shotTo(page, OUT, '01-hello-5-grid-after');
   await page.click('#tw-x'); await sleep(600);
-  // Thank you (the bank holds one sign at a time: every proof sign reuses one synthetic motion)
+  // Introduce yourself (the bank holds one sign at a time: every proof sign reuses one synthetic motion)
   await api('DELETE', '/bank?gloss=HELLO');
-  const said2 = await teachPack('pack.thank-you', '02-thankyou');
-  check('Thank you: Ready names the action', /Thank you/i.test(said2), said2);
-  await perform('THANK-YOU', 'Thank you');
-  await shotTo(page, OUT, '02-thankyou-4-live');
+  const said2 = await teachPack('pack.intro', '02-intro');
+  check('Introduce yourself: Ready names the action', /Introduce yourself/i.test(said2), said2);
+  await perform('INTRO', 'Introduce yourself');
+  await shotTo(page, OUT, '02-intro-4-live');
   // Namaste: built in, palms together pauses listening
   await api('POST', '/live/listen', { on: true }); await sleep(400);
   const was = ((await api('GET', '/live/state')).json || {}).listening;

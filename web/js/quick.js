@@ -68,7 +68,7 @@ export const TILES = [
    engine (palms together) and has no tile. */
 const PACK_TILES = {
   'hello': { label: 'Hello', g: 'wave', text: 'hello' },
-  'thank-you': { label: 'Thank you', g: 'person', text: 'thank you' },
+  'intro': { label: 'Introduce yourself', g: 'person', text: 'Hello, my name is' },
 };
 const packAction = (pk) => Object.assign(typeAction(pk.text), { label: pk.label, say: 'type \u201c' + pk.text + '\u201d' });
 

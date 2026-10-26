@@ -265,8 +265,8 @@ class Endpointer:
         # not a deliberate presentation: arm on hand entry (absent->present
         # after the first frame) or after the hand closes past rearm_ratio.
         # Without this, a static rest pose fires PALM-OPEN by accident
-        # (measured: 155/320 LSA64 signer-6 clips, 125 of them in the
-        # leading rest pad at ~0.47 s).
+        # (measured: 155/320 held-out benchmark signer clips, 125 of them
+        # in the leading rest pad at ~0.47 s).
         for i, h in enumerate(hands):
             st = self._palm[i]
             if h.present and not st["seen"]:
