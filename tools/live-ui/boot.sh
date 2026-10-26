@@ -29,6 +29,8 @@ log() { printf '[live-ui] %s\n' "$*" >&2; }
 die() { log "FATAL: $*"; exit 1; }
 
 teardown() {
+    # the laptop's Chrome was started by the daemon inside our scratch HOME
+    pkill -f -- "--remote-debugging-port=8962" 2>/dev/null
     for pidf in "$STATE"/pids.*; do
         [ -f "$pidf" ] || continue
         pid="$(cat "$pidf" 2>/dev/null)"
@@ -114,7 +116,39 @@ DISPLAY="$D" xdotool windowsize "$SINK_WID" 760 460 windowmove "$SINK_WID" 60 60
 
 # ---------- daemon (scratch HOME, own port, no text in logs) ----------
 rm -rf "$WFHOME"; mkdir -p "$WFHOME"
-env -i HOME="$WFHOME" DISPLAY="$D" PATH="/usr/local/bin:/usr/bin:/bin" \
+
+# ---------- the laptop's Chrome (what "C" opens and "V" opens YouTube in) ----------
+# This box has no user-namespace sandbox and no dbus, so Chrome needs --no-sandbox;
+# a PATH-shadow wrapper keeps the daemon's real launch path (the .desktop Exec ->
+# `google-chrome` on PATH, and xdg-open for URLs). The profile is seeded like a
+# laptop where Chrome has been used before (no first-run / default-browser dialogs).
+# --remote-debugging-port lets the PROOF read where a video thumbnail is and which
+# page is showing; it never drives the page (the phone's gestures do).
+BIN="$STATE/bin"; rm -rf "$BIN"; mkdir -p "$BIN"
+cat > "$BIN/google-chrome" <<'CHR'
+#!/bin/sh
+exec /usr/bin/google-chrome-stable --no-sandbox --no-first-run --no-default-browser-check \
+  --disable-dev-shm-usage --password-store=basic --disable-features=Translate,DefaultBrowserPromptRefresh \
+  --start-maximized --lang=en-US --remote-debugging-port=8962 --remote-allow-origins=http://127.0.0.1:8962 "$@"
+CHR
+chmod +x "$BIN/google-chrome"
+mkdir -p "$WFHOME/.config/google-chrome/Default" "$WFHOME/.local/share/applications"
+: > "$WFHOME/.config/google-chrome/First Run"
+printf '%s' '{"browser":{"enabled_labs_experiments":[]}}' > "$WFHOME/.config/google-chrome/Local State"
+printf '%s' '{"browser":{"has_seen_welcome_page":true,"check_default_browser":false},"profile":{"exit_type":"Normal","exited_cleanly":true},"session":{"restore_on_startup":5}}' > "$WFHOME/.config/google-chrome/Default/Preferences"
+cat > "$WFHOME/.local/share/applications/google-chrome.desktop" <<DSK
+[Desktop Entry]
+Version=1.0
+Name=Google Chrome
+Exec=$BIN/google-chrome %U
+Type=Application
+Terminal=false
+MimeType=text/html;x-scheme-handler/http;x-scheme-handler/https;
+DSK
+printf '[Default Applications]\nx-scheme-handler/http=google-chrome.desktop\nx-scheme-handler/https=google-chrome.desktop\ntext/html=google-chrome.desktop\n' > "$WFHOME/.config/mimeapps.list"
+env -i HOME="$WFHOME" DISPLAY="$D" PATH="$BIN:/usr/bin:/bin" xdg-settings set default-web-browser google-chrome.desktop 2>/dev/null || true
+
+env -i HOME="$WFHOME" DISPLAY="$D" PATH="$BIN:/usr/local/bin:/usr/bin:/bin" \
     WF_PORT="$PORT" WF_NO_LOG_TEXT=1 XDG_SESSION_TYPE=x11 LANG=C.UTF-8 \
     python3 "$SERVE/server/wfd.py" > "$STATE/wfd.log" 2>&1 &
 echo $! > "$STATE/pids.wfd"
