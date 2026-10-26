@@ -1,11 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Wispr Wrap">
-  <!-- Wispr Wrap mark: a five-petal lotus on a water line, built from one petal path, rotated. -->
-  <g>
-    <path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" transform="rotate(-58 32 46) translate(32 46) scale(.82) translate(-32 -46)" fill="#E91E63"/>
-    <path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" transform="rotate(58 32 46) translate(32 46) scale(.82) translate(-32 -46)" fill="#E91E63"/>
-    <path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" transform="rotate(-30 32 46)" fill="#D81B60"/>
-    <path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" transform="rotate(30 32 46)" fill="#D81B60"/>
-    <path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" fill="#C2185B"/>
-    <path d="M15 51.5C22 58.5 42 58.5 49 51.5" fill="none" stroke="#C2185B" stroke-width="3" stroke-linecap="round"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <path fill="#AD1457" d="M32 56 C 18 51 6 39 3 25 C 2 19 7 17 10 20 C 19 29 27 42 32 56 Z"/>
+  <path fill="#AD1457" d="M32 56 C 46 51 58 39 61 25 C 62 19 57 17 54 20 C 45 29 37 42 32 56 Z"/>
+  <path fill="#AD1457" d="M32 56 C 22 46 17 30 18 16 C 18 10 25 9 27 15 C 32 26 33 42 32 56 Z"/>
+  <path fill="#AD1457" d="M32 56 C 42 46 47 30 46 16 C 46 10 39 9 37 15 C 32 26 31 42 32 56 Z"/>
+  <path fill="#C2185B" d="M32 56 C 27 40 27 22 32 6 C 37 22 37 40 32 56 Z"/>
 </svg>

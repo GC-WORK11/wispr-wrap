@@ -105,6 +105,7 @@ sheet.innerHTML = `
 
     <section class="tw-step" data-step="train">
       <h2 class="tw-ask-t" id="tw-train-t">Learning your sign</h2>
+      <div class="tw-trails" id="tw-trails" aria-hidden="true"></div>
       <div class="tw-prog"><i id="tw-prog-bar"></i></div>
       <ul class="tw-train" id="tw-train">
         <li data-k="read"><span class="tw-tick"></span><span>Reading your three takes</span></li>
@@ -132,7 +133,7 @@ const nameIn = $('tw-name'), nameErr = $('tw-name-err'),
       pickIc = $('tw-pick-ic'), pickBtn2 = $('tw-pick2'), pickTx2 = $('tw-pick2-tx'),
       actionEl = $('tw-action'), bindErr = $('tw-bind-err'), saveBtn = $('tw-save'),
       doneT = $('tw-done-t'), doneM = $('tw-done-m'),
-      packsEl = $('tw-packs'), progBar = $('tw-prog-bar'), trainList = $('tw-train'),
+      packsEl = $('tw-packs'), progBar = $('tw-prog-bar'), trainList = $('tw-train'), trailsEl = $('tw-trails'),
       retakeEl = $('tw-retake'), retakeM = $('tw-retake-m');
 
 /* the Recording chip mirrors the daemon's capture session, nothing else */
@@ -299,7 +300,7 @@ async function setAction(a) {
   actionEl.hidden = false;
   actionEl.innerHTML =
     `<span class="tw-act-n">${esc(text)}</span>` +
-    `<span class="tw-act-w">${(a.tier >= 2) ? 'Asks you first on your laptop' : ''}</span>`;
+    `<span class="tw-act-w">${(a.tier >= 2) ? 'Asks for a yes on your laptop first' : ''}</span>`;
   saveBtn.disabled = false;
 }
 
@@ -391,13 +392,64 @@ recDone.onclick = async () => {
   if (W.action) runTrain(j); else showStep('bind');
 };
 
+/* ---------- a take, drawn as the path of the wrist(s) ----------
+   Thin deep-pink line, a dot where it starts, a ring where it ends. Mirrored for
+   the selfie camera so it looks the way you moved. animate=true draws it on. */
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function drawTake(cv, frames, animate, delay) {
+  const S = 92, dpr = Math.min(2, devicePixelRatio || 1);
+  cv.width = Math.round(S * dpr); cv.height = Math.round(S * dpr);
+  const x = cv.getContext('2d'); if (!x) return;
+  x.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const fr = (frames || []).map(f => f.points || f);
+  const paths = [];
+  for (const off of [0, 21]) {
+    const p = fr.map(pt => pt && pt[off]).filter(pt => pt && pt.score > 0.28);
+    if (p.length > 1) paths.push(p);
+  }
+  if (!paths.length) return;
+  const mx = q => (W.front ? 1 - q.x : q.x);
+  let x0 = 9, y0 = 9, x1 = -9, y1 = -9;
+  for (const p of paths) for (const q of p) {
+    x0 = Math.min(x0, mx(q)); x1 = Math.max(x1, mx(q)); y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y);
+  }
+  const pad = 14, w = Math.max(1e-3, x1 - x0), h = Math.max(1e-3, y1 - y0);
+  const sc = (S - 2 * pad) / Math.max(w, h);
+  const ox = (S - w * sc) / 2 - x0 * sc, oy = (S - h * sc) / 2 - y0 * sc;
+  const pt = q => [mx(q) * sc + ox, q.y * sc + oy];
+  const cols = ['#c2185b', '#e29ab6'];
+  const paint = k => {
+    x.clearRect(0, 0, S, S);
+    paths.forEach((p, i) => {
+      const n = Math.max(2, Math.round(p.length * k));
+      x.strokeStyle = x.fillStyle = cols[i % 2];
+      x.lineWidth = 1.9; x.lineCap = x.lineJoin = 'round';
+      x.beginPath();
+      for (let j = 0; j < n; j++) { const [a, b] = pt(p[j]); j ? x.lineTo(a, b) : x.moveTo(a, b); }
+      x.stroke();
+      const [sx, sy] = pt(p[0]); x.beginPath(); x.arc(sx, sy, 3, 0, 7); x.fill();
+      if (k >= 1) { const [ex, ey] = pt(p[p.length - 1]); x.beginPath(); x.arc(ex, ey, 4, 0, 7); x.stroke(); }
+    });
+  };
+  if (!animate || REDUCED) { paint(1); return; }
+  const T = 720; let t0 = null;
+  const step = ts => {
+    if (t0 == null) t0 = ts;
+    const u = Math.min(1, (ts - t0) / T), e = 1 - Math.pow(1 - u, 3);
+    paint(e);
+    if (u < 1) requestAnimationFrame(step);
+  };
+  paint(0.02);
+  setTimeout(() => requestAnimationFrame(step), delay || 0);
+}
+
 /* ---------- step 3 · preview + bind ---------- */
 function buildBind() {
   prevEl.textContent = '';
   W.takes.slice(-5).forEach((t, i) => {
     const row = document.createElement('div'); row.className = 'tkv';
     const cv = document.createElement('canvas');
-    Skel.drawTrail(cv, t.frames);
+    drawTake(cv, t.frames, false);
     const meta = document.createElement('div'); meta.className = 'tkv-m';
     meta.textContent = 'Take ' + (i + 1);
     row.append(cv, meta);
@@ -443,11 +495,20 @@ async function runTrain(endJson) {
   progBar.style.width = '0%';
   showStep('train');
 
-  // (1) Reading your three takes — draw the trails
+  // (1) Reading your takes — the paths you drew, one after another
   const t0 = Date.now();
-  buildBind(); // draws tw-prev trails (reused as the "reading" evidence)
+  buildBind(); // keeps #tw-prev (old path + tooling) filled too
+  trailsEl.textContent = '';
+  const shown = W.takes.slice(-3);
+  shown.forEach((t, i) => {
+    const fig = document.createElement('figure'); fig.className = 'tw-trail';
+    const cv = document.createElement('canvas');
+    const okb = document.createElement('i'); okb.className = 'tw-trail-ok';
+    fig.append(cv, okb); trailsEl.appendChild(fig);
+    drawTake(cv, t.frames, true, 150 * i);
+  });
   progBar.style.width = '33%';
-  await sleep(Math.max(0, STAGE_MIN - (Date.now() - t0)));
+  await sleep(Math.max(0, (REDUCED ? STAGE_MIN : 720 + 150 * Math.max(0, shown.length - 1)) - (Date.now() - t0)));
   tick('read');
 
   // (2) Checking it against your other signs — real held-out result
@@ -455,7 +516,16 @@ async function runTrain(endJson) {
   const tr = W.train;
   let failed = false;
   if (tr && tr.state) {
-    if (tr.state === 'trained') tick('check');
+    if (tr.state === 'trained') {
+      tick('check');
+      const lab = trainList.querySelector('li[data-k="check"] span:last-child');
+      if (lab && typeof tr.ok === 'number' && typeof tr.checked === 'number' && tr.checked > 0) {
+        lab.textContent = tr.ok === tr.checked
+          ? 'All ' + tr.checked + ' takes agree with each other'
+          : tr.ok + ' of ' + tr.checked + ' takes agree with each other';
+      }
+      trailsEl.querySelectorAll('.tw-trail-ok').forEach((b, i) => setTimeout(() => b.classList.add('on'), 90 * i));
+    }
     else if (tr.state === 'recheck' || tr.state === 'needs_retake' || tr.state === 'needs_more') failed = true;
     else tick('check');
   } else {
