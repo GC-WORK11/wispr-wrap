@@ -99,6 +99,10 @@ export class KpLink {
     this.inflight = true;
     const body = { t_ms: Math.round(t), points: pts };
     if (this.session) body.session = this.session;
+    // real video aspect lets the daemon map normalized kp to portrait sensors
+    // (Kiro B: engines assume 16:9 otherwise). Replayed streams have no video.
+    if (this.video && this.video.videoWidth)
+      body.aspect = +(this.video.videoWidth / this.video.videoHeight).toFixed(4);
     App.api.post('/live/kp', body)
       .then(r => {
         if (r.status === 403) { this.denied = true; this.stop(); if (this.onStatus) this.onStatus('denied'); return; }
