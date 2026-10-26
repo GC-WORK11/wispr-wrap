@@ -161,6 +161,7 @@ async function refresh() {
     teachBtn.disabled = true;
   } else if (r && r.status === 403) {
     bannerShow('unpaired — rescan the QR shown by wrap start');
+    rows = [];
     teachBtn.disabled = true;
   } else {
     bannerShow('laptop unreachable — run: wrap start', true);

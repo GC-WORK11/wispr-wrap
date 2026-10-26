@@ -12,7 +12,7 @@
  *   API/auth  network-only, never cached (keypoint/bank data must not persist)
  *   everything else same-origin: stale-while-revalidate
  */
-const VERSION = "wf-shell-v21-merged5";
+const VERSION = "wf-shell-v22-merged6";
 const CACHE = `wispr-wrap-${VERSION}`;
 
 const SHELL = [

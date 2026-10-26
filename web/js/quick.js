@@ -106,7 +106,7 @@ export const Quick = {
     catTools = new Map(((cat && cat.tools) || []).map(t => [t.id, t]));
     const online = !!(cat && cat.mode && cat.mode !== 'offline');
     for (const t of TILES) {
-      if (t.need && online && !catTools.has(t.need)) continue;      // the laptop can't do it: don't offer it
+      if (t.need && (!online || !catTools.has(t.need))) continue;   // the laptop can't do it: don't offer it
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'qa-tile'; b.dataset.id = t.id; b.setAttribute('aria-pressed', 'false');
       b.innerHTML = `<span class="qa-ic">${svg(t.icon)}</span><span class="qa-l">${t.label}</span>`;
