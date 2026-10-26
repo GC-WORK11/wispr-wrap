@@ -417,7 +417,7 @@ nameNext.onclick = async () => {
     nameErr.textContent = 'This laptop can’t learn signs yet — update it first.';
     return;
   }
-  if (!r.ok) { nameErr.textContent = (r.json && r.json.error) || 'Could not start — try again.'; return; }
+  if (!r.ok) { nameErr.textContent = App.daemonErr(r, 'Could not start — try again.'); return; }
   setTeaching(true);
   recLead.textContent = 'Do your “' + W.label + '” sign once, then drop your hands. Three times, so it learns you.';
   recDone.hidden = false; recBack.textContent = 'Back';
@@ -626,8 +626,7 @@ async function saveBank() {
   if (!r) { bindErr.textContent = 'Your laptop is not reachable right now.'; return false; }
   if (r.status === 403) { bindErr.textContent = 'Not connected — scan the code again.'; return false; }
   if (!r.ok) {
-    bindErr.textContent = 'Your laptop refused it' +
-      (r.json && r.json.error ? ' — ' + r.json.error : ' (' + r.status + ')');
+    bindErr.textContent = App.daemonErr(r, 'Your laptop refused it — try again.');
     return false;
   }
   return true;
@@ -744,7 +743,7 @@ const Teach = {
     $('tw-title').textContent = 'Add a take · ' + gloss;
     const r = await App.api.post('/teach/begin', { name: gloss, takes: 1 }).catch(() => null);
     if (!r || !r.ok) {
-      App.toast(r && r.json && r.json.error ? r.json.error : 'Couldn’t teach that — try again', true);
+      App.toast(App.daemonErr(r, 'Couldn’t teach that — try again'), true);
       App.nav('signs');
       return;
     }
