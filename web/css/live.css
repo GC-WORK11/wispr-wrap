@@ -42,16 +42,16 @@
 }
 #lv-cam.rear { transform: none; }
 #lv-cam.swap { opacity: 0; transition-duration: .1s; }
-.lv.replay #lv-cam { display: none; }
+.lv-view.replay #lv-cam { display: none; }
 /* no camera feed behind the lines in replay — keep the stage on the light
    palette instead of the camera black */
-.lv.replay { background: var(--bg, #fcfcfc); color: var(--lv-ink, #1c1b18); }
-.lv.replay .lv-stage { background: var(--bg, #fcfcfc); }
-.lv.replay .lv-scrim { background: linear-gradient(to top, rgba(255, 255, 255, .55), rgba(255, 255, 255, .18) 28%, rgba(255, 255, 255, 0) 44%); }
-.lv.replay .lv-line { color: var(--lv-ink, #1c1b18); }
-.lv.replay .lv-st.wait { border-color: rgba(28, 27, 24, .22); border-top-color: #1c1b18; }
-.lv.replay .lv-why { color: rgba(28, 27, 24, .55); }
-.lv.replay .lv-ring { border-color: rgba(28, 27, 24, .22); }
+.lv-view.replay { background: var(--bg, #fcfcfc); color: var(--lv-ink, #1c1b18); }
+.lv-view.replay .lv-stage { background: var(--bg, #fcfcfc); }
+.lv-view.replay .lv-scrim { background: linear-gradient(to top, rgba(255, 255, 255, .55), rgba(255, 255, 255, .18) 28%, rgba(255, 255, 255, 0) 44%); }
+.lv-view.replay .lv-line { color: var(--lv-ink, #1c1b18); }
+.lv-view.replay .lv-st.wait { border-color: rgba(28, 27, 24, .22); border-top-color: #1c1b18; }
+.lv-view.replay .lv-why { color: rgba(28, 27, 24, .55); }
+.lv-view.replay .lv-ring { border-color: rgba(28, 27, 24, .22); }
 #lv-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 #lv-skel { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
 body.dev #lv-skel { display: block; }
@@ -81,7 +81,7 @@ body.dev #lv-skel { display: block; }
 .lv-top > * { pointer-events: auto; }
 #lv-flip svg { transition: transform .55s var(--ease-out); }
 #lv-flip.spin svg { transform: rotate(180deg); }
-.lv.has-cover #lv-flip, .lv.replay #lv-flip { opacity: 0; pointer-events: none; }
+.lv.has-cover #lv-flip, .lv-view.replay #lv-flip { opacity: 0; pointer-events: none; }
 
 /* the laptop link dropped: an icon chip, no sentence */
 .lv-net {
