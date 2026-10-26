@@ -5,6 +5,7 @@
 // usage: node --experimental-websocket tools/peak/uiv2.mjs <outdir> <set[,set]> [cdp-port]
 //   sets: flower composer drawer unpaired live teach wide
 import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { launchChrome, sleep } from './cdp.mjs';
 import { loadStack } from './env.mjs';
@@ -93,6 +94,17 @@ try {
     await page.viewport(1440, 900, { mobile: false, dpr: 1 });
     await page.click('#menu'); await sleep(700);
     await shot('layouts/laptop-sidebar-open');
+  }
+  if (sets.includes('burst')) {
+    await phone();
+    await page.goto(S.base + '/?k=' + S.KEY, { settle: 3500 });
+    await page.send('Emulation.setFocusEmulationEnabled', { enabled: true }).catch(() => {});
+    try { execFileSync('xdotool', ['windowfocus', S.TERM_WID], { env: { ...process.env, DISPLAY: S.D } }); } catch (e) { /* editor focus is best-effort here */ }
+    await page.focus('#box');
+    await page.type('Ship it');
+    await sleep(500);
+    await page.click('#go');
+    for (const [n, ms] of [['0.25s', 250], ['0.7s', 450], ['1.3s', 600]]) { await sleep(ms); await shot('16-send-burst-' + n); }
   }
   if (sets.includes('offline')) {
     // the laptop is unreachable: block /health so the app sees it as offline
