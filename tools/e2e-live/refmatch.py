@@ -330,15 +330,34 @@ class RefBank:
 
     @classmethod
     def from_json_dict(cls, d):
+        # Tolerant loader: the e2e lane shares one config dir with wfd.py,
+        # whose teach-saves rewrite signbank.json in the impl layout —
+        # samples as {"traj": [[x,y]..], "shape": [..]} dicts — and a
+        # list-shaped bare-templates file is legal on the impl side too.
+        # A ref engine only reads the trajectory channel either way.
+        if isinstance(d, list):
+            d = {"templates": d}
         b = cls(reject_threshold=d.get("reject_threshold", DEFAULT_REJECT),
                 space=d.get("space", "Pixel"),
                 channels=d.get("channels", 2),
                 dim_weights=d.get("dim_weights") or [],
                 shape_dims=d.get("shape_dims") or [])
+        def _points(s):
+            if isinstance(s, dict):
+                s = s.get("traj") or []
+            out = []
+            for p in s or []:
+                try:
+                    out.append([float(p[0]), float(p[1])])
+                except (TypeError, ValueError, IndexError, KeyError):
+                    continue
+            return out
         for t in d.get("templates", []):
-            b.templates.append({"gloss": t["gloss"],
-                                "samples": [[list(map(float, p)) for p in s]
-                                            for s in t["samples"]],
+            if not isinstance(t, dict):
+                continue
+            b.templates.append({"gloss": t.get("gloss") or t.get("name"),
+                                "samples": [_points(s)
+                                            for s in t.get("samples") or []],
                                 "user_samples": t.get("user_samples", 0)})
         return b
 

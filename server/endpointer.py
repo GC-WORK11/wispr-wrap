@@ -208,7 +208,10 @@ class Endpointer:
         else:
             self._absent += 1
         if self._state == "idle":
-            if self._ema >= self.enter_v:
+            # a segment starts only on a frame that actually carries a
+            # hand — a decaying EMA tail on an absent/still frame is the
+            # residue of the LAST sign, not the start of a new one.
+            if self._ema >= self.enter_v and any(h.present for h in hands):
                 self._state = "active"
                 self._seg = list(self._pre)   # pre-roll includes this frame
                 self._seg_t0 = float(self._pre[0].get("t_ms") or 0) / 1000.0
@@ -234,6 +237,14 @@ class Endpointer:
         seg, self._seg = self._seg, []
         self._state = "idle"
         self._quiet = None
+        self._absent = 0
+        # The EMA tail that ended this segment belongs to it — reset the
+        # smoother so a just-closed sign can never re-trigger a phantom
+        # segment on the very next frame (idle re-activation must be
+        # driven by NEW energy, exactly like the stream's first segment;
+        # a genuine continuation after a maxlen cut re-arms instantly
+        # because its energy is real).
+        self._ema = None
         dur = t - self._seg_t0
         if len(seg) >= self.min_frames and dur >= self.min_seg_s:
             return {"type": "segment", "frames": seg, "dur_s": dur,
