@@ -194,6 +194,17 @@ body.sheet-open .top { display: none; }
 .dr-item .dr-dot.on { background: var(--ok); }
 .dr-count { margin-left: auto; font-size: 14px; color: var(--muted-2); }
 .dr-count:empty { display: none; }
+/* rows arrive one after the other when the drawer opens */
+.drawer .dr-brand, .drawer .dr-item, .drawer .dr-foot { opacity: 0; transform: translateX(-10px); }
+.drawer.open .dr-brand, .drawer.open .dr-item, .drawer.open .dr-foot {
+  opacity: 1; transform: none; transition: opacity .32s ease, transform .5s var(--ease-out), background var(--t-1);
+}
+.drawer.open .dr-item:nth-child(1) { transition-delay: .08s, .08s, 0s; }
+.drawer.open .dr-item:nth-child(2) { transition-delay: .12s, .12s, 0s; }
+.drawer.open .dr-item:nth-child(3) { transition-delay: .16s, .16s, 0s; }
+.drawer.open .dr-item:nth-child(4) { transition-delay: .20s, .20s, 0s; }
+.drawer.open .dr-item:nth-child(5) { transition-delay: .24s, .24s, 0s; }
+.drawer.open .dr-foot { transition-delay: .28s, .28s, 0s; }
 .dr-foot { margin-top: auto; padding: 12px 12px 0; font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
 .dr-foot svg { width: 13px; height: 13px; flex: none; }
 
