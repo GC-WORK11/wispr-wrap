@@ -57,8 +57,8 @@ const FALLBACK_TOOLS = [
     desc: 'a key combo — ctrl+alt+t, alt+Tab, media keys', tier: 1 },
   { id: 'type.text', kind: 'builtin', label: 'type text', arg: 'text',
     desc: 'type a phrase at the laptop cursor', tier: 1 },
-  { id: 'command', kind: 'command', label: 'custom command', arg: 'argv',
-    desc: 'any argv — spawned directly, never through a shell', tier: 2 },
+  { id: 'command', kind: 'command', label: 'terminal command', arg: 'argv',
+    desc: 'runs a command on your laptop — asks for a yes there first', tier: 2 },
 ];
 
 const ARG_LABEL = { app: 'app name or command', url: 'https://…', keys: 'ctrl+alt+t', text: 'text to type', argv: 'program args…', index: 'number', app_pick: 'pick below' };
@@ -146,6 +146,46 @@ function toolAction(tool, argVal) {
   if (tool.id === 'type.text' && a.args) a.argv = ['xdotool', 'type', '--', a.args.text];
   if (tool.id === 'command' && a.args) a.argv = a.args.argv;
   return a;
+}
+
+/* ---------- sentence: a natural lower-case verb phrase with the argument,
+   for the teach "Your laptop will …" line (reads like a human wrote it) ---- */
+function argOf(a) {
+  if (!a) return '';
+  const g = a.args || {};
+  if (g.text != null) return String(g.text);
+  if (g.url != null) return String(g.url);
+  if (g.keys != null) return String(g.keys);
+  if (g.id != null) return String(a.label || g.id).replace(/^open\s+/i, '');
+  if (Array.isArray(g.argv)) return g.argv.join(' ');
+  if (Array.isArray(a.argv)) return a.argv.join(' ');
+  return '';
+}
+function sentence(a) {
+  if (!a) return 'do nothing yet';
+  const tool = a.tool || '';
+  const arg = argOf(a).trim();
+  const q = s => '“' + s + '”';
+  switch (tool) {
+    case 'type.text': return arg ? 'type ' + q(arg) : 'type text at your cursor';
+    case 'open.url': return arg ? 'open ' + arg + ' in your browser' : 'open a page in your browser';
+    case 'key.press': return arg ? 'press ' + arg : 'press a key';
+    case 'app.open': return 'open ' + (arg || 'the app');
+    case 'app.focus': return 'bring ' + (a.args && (a.args.app || a.app) || 'the app') + ' to the front';
+    case 'app.close': return 'close the window';
+    case 'win.tile-left': return 'tile the window to the left';
+    case 'win.tile-right': return 'tile the window to the right';
+    case 'win.maximize': return 'maximize the window';
+    case 'win.workspace-next': return 'switch to the next workspace';
+    case 'command': return arg ? 'run ' + q(arg) + ' — after you say yes on the laptop' : 'run a command';
+    case 'macro': return 'run your steps in order';
+    case 'sys.screenshot': return 'take a screenshot';
+    case 'sys.lock': return 'lock the screen';
+  }
+  if (a.kind === 'context' || a.by_wm_class) return 'do different things depending on the open app';
+  if (a.kind === 'macro' || (a.args && a.args.steps)) return 'run your steps in order';
+  const d = describe(a);
+  return d.charAt(0).toLowerCase() + d.slice(1);
 }
 
 /* ---------- describe (library rows reuse this) ---------- */
@@ -245,7 +285,7 @@ async function build() {
       row.innerHTML =
         `<div class="act-row-top"><span class="act-dot${tier >= 2 ? ' warn' : ''}"></span>` +
         `<span class="act-name">${esc(t.label || t.id)}</span>` +
-        `<span class="chip ${tier >= 2 ? 'warn' : 'accent'}">${tier >= 2 ? 'laptop confirm' : 'instant'}</span>` +
+        `<span class="chip ${tier >= 2 ? 'warn' : 'accent'}">${tier >= 2 ? 'asks you first' : 'instant'}</span>` +
         (t.arg ? '' : '<span class="act-chev" aria-hidden="true">›</span>') + `</div>` +
         (t.desc ? `<div class="act-desc">${esc(t.desc)}</div>` : '');
       const argWrap = document.createElement('div'); argWrap.className = 'act-arg';
@@ -310,9 +350,9 @@ async function build() {
 
   /* --- advanced: macro + context + free argv --- */
   const adv = [
-    { id: '_macro', label: 'macro — chain steps', desc: 'open app → wait → type → key press… serial, stops on failure', tier: 1 },
-    { id: '_context', label: 'context — per-app rule', desc: 'the same sign does different things in different apps', tier: 1 },
-    { id: '_argv', label: 'custom command', desc: 'argv spawned directly on the laptop — never through a shell', tier: 2 },
+    { id: '_macro', label: 'macro — chain steps', desc: 'open app → wait → type → key press… in order, stops if a step fails', tier: 1 },
+    { id: '_context', label: 'per-app rule', desc: 'the same sign does different things in different apps', tier: 1 },
+    { id: '_argv', label: 'terminal command', desc: 'runs a command on your laptop — it asks for a yes there first', tier: 2 },
   ].filter(x => matches(query, x));
   if (adv.length) {
     const h = document.createElement('div'); h.className = 'act-sect'; h.textContent = 'Advanced';
@@ -323,7 +363,7 @@ async function build() {
       row.innerHTML =
         `<div class="act-row-top"><span class="act-dot${x.tier >= 2 ? ' warn' : ''}"></span>` +
         `<span class="act-name">${esc(x.label)}</span>` +
-        `<span class="chip ${x.tier >= 2 ? 'warn' : 'accent'}">${x.tier >= 2 ? 'laptop confirm' : 'instant'}</span>` +
+        `<span class="chip ${x.tier >= 2 ? 'warn' : 'accent'}">${x.tier >= 2 ? 'asks you first' : 'instant'}</span>` +
         (x.id === '_argv' ? '' : '<span class="act-chev" aria-hidden="true">›</span>') + `</div>` +
         `<div class="act-desc">${esc(x.desc)}</div>`;
       if (x.id === '_argv') {
@@ -402,5 +442,5 @@ $('act-x').onclick = () => close(null);
 sheet.addEventListener('click', e => { if (e.target === sheet) close(null); });
 sheet.addEventListener('keydown', e => { if (e.key === 'Escape') close(null); });
 
-export const Actions = { pick, catalog, describe,
+export const Actions = { pick, catalog, describe, sentence,
                          _cat: () => CAT };      // selftest debug seam

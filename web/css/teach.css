@@ -32,13 +32,6 @@
 .tw-step[data-step="name"] .input:focus { box-shadow: 0 0 0 4px rgba(0, 0, 0, .06), var(--sh-1); }
 .tw-step > .hint { font-size: 14.5px; color: var(--muted-2); line-height: 1.6; }
 
-.tw-gloss {
-  align-self: flex-start; display: inline-flex; align-items: center; gap: 8px;
-  padding: 5px 13px; border-radius: 999px; background: var(--accent-soft);
-  font-size: 12.5px; color: var(--muted-2);
-}
-.tw-gloss:empty { display: none; }
-.tw-gloss b { color: var(--accent); font-weight: 650; letter-spacing: .02em; font-family: var(--mono); font-size: 12px; }
 .errline { min-height: 18px; font-size: 13px; color: var(--danger); }
 
 .tw-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
@@ -76,26 +69,18 @@
 .tw-rec.on { opacity: 1; transform: none; }
 .tw-rec i { width: 8px; height: 8px; border-radius: 50%; background: var(--live); animation: pulse 1.2s infinite; }
 
-/* take slots fill as the laptop stores each one */
-.tw-takes { display: flex; gap: 8px; flex: none; counter-reset: tk; }
+/* take slots fill as the laptop stores each one — simple dots, no labels */
+.tw-takes { display: flex; gap: 10px; flex: none; justify-content: center; padding: 2px 0; }
 .tw-takes .tk {
-  flex: 1; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 12px;
-  border: 1px dashed #d9d3c6; font-size: 13px; font-weight: 550; color: var(--muted);
-  transition: background var(--t-3) var(--ease-out), border-color var(--t-2), color var(--t-2), transform var(--t-3) var(--ease-spring);
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 1.5px solid #d9d3c6; background: transparent;
+  transition: background var(--t-3) var(--ease-out), border-color var(--t-2), transform var(--t-3) var(--ease-spring);
 }
-.tw-takes .tk::before { counter-increment: tk; content: "Take " counter(tk); }
-.tw-takes .tk.got { border-style: solid; border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); animation: tk-pop var(--t-3) var(--ease-spring); }
-.tw-takes .tk.got::before { content: "Take " counter(tk) "  ✓"; }
-.tw-takes .tk.miss { border-style: solid; border-color: #efcfc7; background: var(--danger-soft); color: var(--danger); }
-.tw-takes .tk.miss::before { content: "Take " counter(tk) " — again"; }
-@keyframes tk-pop { from { transform: scale(.9); } to { transform: none; } }
+.tw-takes .tk.got { border-color: var(--accent); background: var(--accent); animation: tk-pop var(--t-3) var(--ease-spring); }
+.tw-takes .tk.miss { border-color: var(--danger); background: var(--danger-soft); }
+@keyframes tk-pop { from { transform: scale(.6); } to { transform: none; } }
 
-/* bind: what the laptop saw, then what to do */
-.tw-prev { display: flex; gap: 12px; flex-wrap: wrap; }
-.tkv { display: flex; flex-direction: column; gap: 6px; }
-.tkv canvas { width: 96px; height: 96px; border-radius: 16px; background: #f4f1ea; }
-.tkv-m { font-size: 12px; color: var(--muted); max-width: 96px; }
-
+/* bind: just the action picker, no boxed preview */
 .tw-bound { display: flex; flex-direction: column; gap: 10px; }
 #tw-pick { height: 56px; border-radius: 16px; justify-content: flex-start; font-size: 16px; font-weight: 500; text-align: left; padding: 0 18px; color: var(--muted-2); box-shadow: var(--sh-1); }
 #tw-pick:hover { color: var(--ink); }

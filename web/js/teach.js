@@ -34,8 +34,7 @@ sheet.innerHTML = `
     <section class="tw-step" data-step="name">
       <p class="hint">A sign is a gesture <b>you</b> choose, bound to something your laptop does.</p>
       <input class="input" id="tw-name" type="text" placeholder="Name it, e.g. open browser"
-             autocomplete="off" autocorrect="off" autocapitalize="characters" maxlength="32" enterkeyhint="next">
-      <div class="tw-gloss" id="tw-gloss"></div>
+             autocomplete="off" autocorrect="off" autocapitalize="off" maxlength="32" enterkeyhint="next">
       <div class="errline" id="tw-name-err"></div>
       <div class="tw-foot">
         <button class="btn btn-ghost" id="tw-name-cancel">Cancel</button>
@@ -61,8 +60,7 @@ sheet.innerHTML = `
     </section>
 
     <section class="tw-step" data-step="bind">
-      <p class="hint">Your laptop learned this from your three takes. Now say what it should do.</p>
-      <div class="tw-prev" id="tw-prev"></div>
+      <p class="hint">Your laptop learned this. Now say what it should do.</p>
       <div class="tw-bound" id="tw-bound">
         <button class="btn btn-ghost btn-block" id="tw-pick">@ Pick what it does</button>
         <div class="tw-action" id="tw-action" hidden></div>
@@ -88,13 +86,13 @@ sheet.innerHTML = `
 
   </div>`;
 const $ = id => sheet.querySelector('#' + id);
-const nameIn = $('tw-name'), glossPre = $('tw-gloss'), nameErr = $('tw-name-err'),
+const nameIn = $('tw-name'), nameErr = $('tw-name-err'),
       nameNext = $('tw-name-next'), stepsEl = $('tw-steps'),
       recLead = $('tw-rec-lead'), stageEl = $('tw-stage'), vid = $('tw-vid'),
       skelC = $('tw-skel'), countEl = $('tw-count'), recEl = $('tw-rec'),
       camErr = $('tw-camerr'), takebar = $('tw-takebar'), recErr = $('tw-rec-err'),
       recDone = $('tw-rec-done'), recBack = $('tw-rec-back'),
-      prevEl = $('tw-prev'), pickBtn = $('tw-pick'), actionEl = $('tw-action'),
+      pickBtn = $('tw-pick'), actionEl = $('tw-action'),
       bindErr = $('tw-bind-err'), saveBtn = $('tw-save'),
       doneT = $('tw-done-t'), doneM = $('tw-done-m');
 
@@ -225,11 +223,10 @@ function stopCapture() {
 /* ---------- step 1 · name ---------- */
 nameIn.addEventListener('input', () => {
   const g = slug(nameIn.value);
-  glossPre.innerHTML = g ? 'gloss&nbsp; <b>' + g + '</b>' : '';
   nameErr.textContent = '';
   nameNext.disabled = true;
   if (!g) return;
-  if (RESERVED.has(g)) { nameErr.textContent = g + ' is the built-in listen / stop gesture. Pick another name.'; return; }
+  if (RESERVED.has(g)) { nameErr.textContent = 'That gesture already means listen / stop. Pick another name.'; return; }
   if (W.library.some(s => s.gloss === g)) { nameErr.textContent = 'You already have a sign with that name. Add takes to it from Your signs.'; return; }
   nameNext.disabled = false;
 });
@@ -252,7 +249,7 @@ nameNext.onclick = async () => {
   }
   if (!r.ok) { nameErr.textContent = (r.json && r.json.error) || 'teach session refused'; return; }
   setTeaching(true);
-  recLead.textContent = 'Do ' + W.gloss + ' once, then drop your hands. Three times, so it learns you.';
+  recLead.textContent = 'Do your “' + W.label + '” sign once, then drop your hands. Three times, so it learns you.';
   recDone.hidden = false; recBack.textContent = 'back';
   renderTakebar();
   showStep('record');
@@ -282,27 +279,16 @@ recDone.onclick = async () => {
   buildBind(); showStep('bind');
 };
 
-/* ---------- step 3 · preview + bind ---------- */
+/* ---------- step 3 · bind ---------- */
 function buildBind() {
-  prevEl.textContent = '';
-  W.takes.slice(-5).forEach((t, i) => {
-    const row = document.createElement('div'); row.className = 'tkv';
-    const cv = document.createElement('canvas');
-    Skel.drawTrail(cv, t.frames);
-    const meta = document.createElement('div'); meta.className = 'tkv-m';
-    meta.textContent = 'take ' + (i + 1) + ' · ' + t.frames.length + ' frames' +
-      (t.hands ? '' : ' · no hands seen');
-    row.append(cv, meta);
-    prevEl.appendChild(row);
-  });
   actionEl.hidden = true;
-  pickBtn.textContent = '@ Pick what ' + W.gloss + ' does';
+  pickBtn.textContent = '@ Pick what “' + W.label + '” does';
   saveBtn.disabled = true;
 }
 pickBtn.onclick = async () => {
   // spec §3: the @ picker is a laptop feature — offer pairing instead when offline
   if (!App.canAct()) { App.emit('unpaired'); return; }
-  const a = await Actions.pick({ forGloss: W.gloss });
+  const a = await Actions.pick({ forGloss: W.gloss, title: 'What should “' + W.label + '” do?' });
   if (!a) return;
   W.action = a;
   actionEl.hidden = false;
@@ -342,19 +328,15 @@ saveBtn.onclick = async () => {
       (r.json && r.json.error ? ' — ' + r.json.error : ' (' + r.status + ')');
     return;
   }
-  doneT.textContent = W.gloss + ' is live';
-  const d = Actions.describe(a);
-  doneM.textContent = 'Go live and sign it. Your laptop will ' +
-    d.charAt(0).toLowerCase() + d.slice(1) +
-    (a.tier >= 2 ? ', after you approve it on the laptop.' : '.');
+  doneT.textContent = '“' + W.label + '” is ready';
+  doneM.textContent = 'Your laptop will ' + Actions.sentence(a) + '.';
   showStep('done');
   App.buzz();
 };
 
 async function finishAdd() {
-  doneT.textContent = 'take added';
-  doneM.textContent = W.target + ' now has ' + W.got + ' new frame' +
-    (W.got === 1 ? '' : 's') + ' to match against.';
+  doneT.textContent = 'Take added';
+  doneM.textContent = '“' + (W.label || W.target) + '” has another take now — a little surer each time.';
   showStep('done');
 }
 $('tw-done-lib').onclick = () => App.nav('signs');
@@ -370,7 +352,7 @@ async function open() {
   W.mode = 'teach'; W.target = null;
   W.gloss = ''; W.label = ''; W.takes = []; W.action = null;
   W.got = 0; W.cur = []; W.need = NEED; W.busy = false;
-  nameIn.value = ''; glossPre.textContent = ''; nameErr.textContent = '';
+  nameIn.value = ''; nameErr.textContent = '';
   nameNext.disabled = true;
   $('tw-title').textContent = 'Teach a sign';
   showStep('name');
