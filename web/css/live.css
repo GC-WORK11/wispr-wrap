@@ -30,6 +30,7 @@
 #lv-cam.rear { transform: none; }
 #lv-cam.swap { opacity: 0; transition-duration: .1s; }
 .lv.replay #lv-cam { display: none; }
+#lv-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 #lv-skel { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
 body.dev #lv-skel { display: block; }
 
