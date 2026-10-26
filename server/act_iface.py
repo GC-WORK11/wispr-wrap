@@ -112,6 +112,21 @@ TOOL_MAP = {
     "net.wifi": ("wifi", {}),
     "net.bluetooth": ("bluetooth", {}),
     "clipboard.history": ("clipboard_history", {}),
+    # quick actions (FOUNDER-SIMPLIFY-1433): one-tap laptop controls.
+    # close window parks for confirm via its tier; the rest are
+    # non-destructive and fire immediately.
+    "win.alt-tab": ("alt_tab", {}),
+    "win.minimize": ("minimize", {}),
+    "win.close": ("close_window", {}),
+    "desktop.show": ("show_desktop", {}),
+    "browser.new-tab": ("key_press", {"keys": "ctrl+t"}),
+    "browser.close-tab": ("key_press", {"keys": "ctrl+w"}),
+    "nav.scroll-up": ("scroll", {"dir": "up"}),
+    "nav.scroll-down": ("scroll", {"dir": "down"}),
+    "edit.copy": ("key_press", {"keys": "ctrl+c"}),
+    "edit.paste": ("key_press", {"keys": "ctrl+v"}),
+    "edit.undo": ("key_press", {"keys": "ctrl+z"}),
+    "key.enter": ("key_press", {"keys": "Return"}),
     "open.url": ("open_url", {}),
     "type.text": ("type_text", {}),
     "key.press": ("key_press", {}),
@@ -127,6 +142,7 @@ TYPE_TIERS = {
     "move_workspace": 1, "workspace": 1, "tile": 1, "maximize": 1,
     "move_monitor": 1,
     "key_press": 1, "type_text": 1, "open_url": 1,
+    "alt_tab": 1, "minimize": 1, "show_desktop": 1, "scroll": 1,
     "run_argv": 1, "context_dispatch": 0, "wait": 0, "macro": 0,
 }
 
