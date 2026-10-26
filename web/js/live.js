@@ -68,14 +68,13 @@ sheet.innerHTML = `
         <p class="lv-why" id="lv-why"></p>
       </div>
       <div class="lv-ask" id="lv-pend" hidden></div>
-      <div class="lv-seg" id="lv-seg" role="tablist" aria-label="What your signs do">
-        <span class="lv-thumb" aria-hidden="true"></span>
-        <button role="tab" id="lv-m-text" data-m="text" aria-selected="false">Text</button>
-        <button role="tab" id="lv-m-ctl" data-m="control" aria-selected="true">Control</button>
-      </div>
       <div class="lv-row">
-        <button class="lv-rb lv-listen" id="lv-listen" aria-pressed="false" aria-label="Resume">${ICON.hand}</button>
-        <div class="lv-wave" id="lv-wave" aria-hidden="true"><i><b></b></i><i><b></b></i><i><b></b></i><i><b></b></i><i><b></b></i></div>
+        <button class="lv-rb lv-listen" id="lv-listen" aria-pressed="false" aria-label="Resume">${ICON.hand}<i class="lv-ring" id="lv-ring" aria-hidden="true"></i></button>
+        <div class="lv-seg" id="lv-seg" role="tablist" aria-label="What your signs do">
+          <span class="lv-thumb" aria-hidden="true"></span>
+          <button role="tab" id="lv-m-text" data-m="text" aria-selected="false">Text</button>
+          <button role="tab" id="lv-m-ctl" data-m="control" aria-selected="true">Control</button>
+        </div>
         <button class="lv-rb" id="lv-x" aria-label="Close">${ICON.x}</button>
       </div>
     </div>
@@ -88,9 +87,8 @@ const viewEl = $('lv-view'), video = $('lv-cam'), skel = $('lv-skel'), morph = $
       coverEl = $('lv-cover'), cardI = $('lv-card-i'), cardT = $('lv-card-t'), cardM = $('lv-card-m'), cardB = $('lv-card-b'),
       guessEl = $('lv-guess'), actEl = $('lv-act'), actT = $('lv-act-t'), ctaBtn = $('lv-cta'), whyEl = $('lv-why'),
       pendEl = $('lv-pend'), segText = $('lv-m-text'), segCtl = $('lv-m-ctl'),
-      listenBtn = $('lv-listen'), wave = $('lv-wave'), xBtn = $('lv-x'),
+      listenBtn = $('lv-listen'), ring = $('lv-ring'), xBtn = $('lv-x'),
       badge = $('lv-badge'), badgeT = $('lv-badge-t');
-const bars = [...wave.querySelectorAll('i')];
 
 const KP_MS = 83;          // ~12 Hz hand frames (spec: 10-15 Hz)
 const ST_MS = 200;         // ~5 Hz state poll while open
@@ -557,23 +555,20 @@ App.on('sent', r => {
   else say('Couldn’t send', 'soft');
 });
 
-/* ---------- the live wave: bars follow your hands ---------- */
-const W = [.52, .82, 1, .78, .5];
-const IDLE = [.27, .6, .92, .52, .22];   // the composer button's own waveform, breathing
+/* ---------- hands seen: a quiet ring around the listen button ----------
+   it swells with how much your hands move (transform/opacity only, set at the
+   frame cadence with a CSS transition, so it stays smooth on the compositor) */
 function setBars() {
-  const paused = !S.listening || S.booting;
-  for (let i = 0; i < bars.length; i++) {
-    let v;
-    if (paused) v = .13;
-    else if (!S.hands) v = IDLE[i];
-    else v = Math.max(IDLE[i], .3 + .7 * Math.min(1, S.energy) * W[i]);
-    const s = v.toFixed(3);
-    if (bars[i]._v !== s) { bars[i]._v = s; bars[i].style.transform = 'scaleY(' + s + ')'; }
-  }
+  const on = S.listening && !S.booting && S.hands > 0;
+  const e = on ? Math.min(1, S.energy) : 0;
+  const t = on ? 'scale(' + (1.04 + .2 * e).toFixed(3) + ')' : 'scale(.92)';
+  const o = on ? (.32 + .6 * e).toFixed(2) : '0';
+  if (ring._t !== t) { ring._t = t; ring.style.transform = t; }
+  if (ring._o !== o) { ring._o = o; ring.style.opacity = o; }
 }
 function hit() {
-  wave.classList.remove('hit'); void wave.offsetWidth; wave.classList.add('hit');
-  clearTimeout(hit.t); hit.t = setTimeout(() => wave.classList.remove('hit'), 700);
+  listenBtn.classList.remove('hit'); void listenBtn.offsetWidth; listenBtn.classList.add('hit');
+  clearTimeout(hit.t); hit.t = setTimeout(() => listenBtn.classList.remove('hit'), 700);
   App.buzz();
 }
 const TIPS = [0, 4, 8, 12, 16, 20];

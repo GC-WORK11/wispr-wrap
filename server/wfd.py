@@ -792,6 +792,17 @@ if signflow_ops is not None:
         OPS = None
 
 
+def _word_for(label, gloss):
+    """The word TEXT mode types for a sign. A non-empty label is typed
+    as-is (stripped — it's what the user named the sign). With no label
+    the raw gloss is humanized: lowercased with '-'/'_' as spaces, so
+    'OPEN-NOTES' types as 'open notes' rather than the shouty gloss."""
+    label = (label or "").strip()
+    if label:
+        return label
+    return (gloss or "").replace("-", " ").replace("_", " ").strip().lower()
+
+
 def _on_segment(frames, t_ms):
     """A completed sign segment: teach captures it as an exemplar;
     a listening session matches it and routes the bound action."""
@@ -860,8 +871,9 @@ def _on_segment(frames, t_ms):
         # TEXT mode (Go Live Text|Control toggle): the recognised sign's
         # word types into the laptop's focused window instead of
         # dispatching the bound action. The word is the sign's label
-        # (what the user taught it as), falling back to the gloss.
-        word = (last.get("label") or m.gloss or "").strip()
+        # (what the user taught it as); with no label the gloss is
+        # humanized ('OPEN-NOTES' -> 'open notes').
+        word = _word_for(last.get("label"), m.gloss)
         if word:
             _ACT_Q.put(lambda w=word: send_text(w + " ", "live-text"))
         last["action"] = {"kind": "text", "typed": word,
@@ -1473,7 +1485,13 @@ class Handler(BaseHTTPRequestHandler):
                          "GET, POST, PUT, DELETE, OPTIONS")
         self.end_headers()
         if body:
-            self.wfile.write(body)
+            try:
+                self.wfile.write(body)
+            except (BrokenPipeError, ConnectionResetError):
+                # client hung up mid-reply (phone backgrounded the live
+                # poll, LAN blip) — nothing left to say, don't dump a
+                # traceback. Other write errors still propagate.
+                pass
 
     def _jreply(self, code, obj):
         # strict JSON: Python writes inf/nan as Infinity/NaN, which

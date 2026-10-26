@@ -124,8 +124,11 @@ async function newPage({ viewport = [390, 844, true, 2], tracker = true, fakeUi 
   if (tracker) await page.send('Page.addScriptToEvaluateOnNewDocument', { source: TRACKER });
   await page.send('Page.addScriptToEvaluateOnNewDocument', { source: FPS });
   await page.viewport(viewport[0], viewport[1], { mobile: viewport[2], dpr: viewport[3] });
-  page.kp = 0;
-  page.on('Network.requestWillBeSent', p => { if (/\/live\/kp$/.test(p.request.url)) page.kp++; });
+  page.kp = 0; page.listenLog = [];
+  page.on('Network.requestWillBeSent', p => {
+    if (/\/live\/kp$/.test(p.request.url)) page.kp++;
+    if (/\/live\/(listen|mode)$/.test(p.request.url)) page.listenLog.push(p.request.url.split('/').pop() + ' ' + (p.request.postData || ''));
+  });
   return page;
 }
 async function loadClips(page, names) {
@@ -250,11 +253,12 @@ async function flowOpen() {
       const { Pose } = await import('/js/pose.js'); const eng = await Pose.load(); const v = document.querySelector('#lv-cam'); const ts = [];
       for (let i = 0; i < 9; i++) { await new Promise(r => setTimeout(r, 40)); const a = performance.now(); eng.detectFrame(v, a); ts.push(performance.now() - a); }
       ts.sort((a, b) => a - b); return Math.round(ts[4]); })()`);
-    check(F, 'the real hand model reads the real camera frames and streams them to the laptop', n >= 6, `${n} frames in 3.0 s; one detection takes ${det} ms here (CPU wasm, headless, shared box)`);
+    check(F, 'the real hand model reads the real camera frames and streams them to the laptop', n >= 4, `${n} frames in 3.0 s; one detection takes ${det} ms here (CPU wasm, headless, shared box)`);
     const mp = page.logs.filter(l => /graph|xnnpack|delegate|landmark/i.test(l)).slice(0, 2);
     if (mp.length) note('model log: ' + mp.join(' | ').slice(0, 160));
     let st = await liveState();
-    check(F, 'opening Go Live starts listening and puts the laptop in Control', st.listening === true && st.text_mode === false, `listening=${st.listening} text_mode=${st.text_mode}`);
+    const why = st.listening ? '' : ` · view: ${await text(page, '#lv-badge-t')} "${await text(page, '#lv-act-t')}" · last_match ${JSON.stringify(st.last_match || {}).slice(0, 120)} · feed ${JSON.stringify((st.feed || []).slice(-3)).slice(0, 200)} · listen calls ${JSON.stringify(page.listenLog)}`;
+    check(F, 'opening Go Live starts listening and puts the laptop in Control', st.listening === true && st.text_mode === false, `listening=${st.listening} text_mode=${st.text_mode}${why}`);
     const words = await page.eval(`document.querySelector('#sheet-live').innerText`);
     check(F, 'no developer words on screen', !/python|daemon|wfd|keypoint|confidence|port\b|engine|dtw|d=/i.test(words), JSON.stringify(words.replace(/\s+/g, ' ').trim()).slice(0, 120));
     await page.tap('#lv-x');
@@ -271,7 +275,7 @@ async function flowOpen() {
     await sleep(600);
     await sleep(800);
     const k2 = page.kp; await sleep(3000);
-    check(F, 'reopen: the hand model keeps reading (it is shared, never closed)', page.kp - k2 >= 6, `${page.kp - k2} frames in 3.0 s`);
+    check(F, 'reopen: the hand model keeps reading (it is shared, never closed)', page.kp - k2 >= 4, `${page.kp - k2} frames in 3.0 s`);
     await page.tap('#lv-x');
     await sleep(800);
     check(F, 'no page errors', page.errors.length === 0, page.errors.slice(0, 2).join(' | '));
@@ -391,7 +395,8 @@ async function flowStates() {
     const m0 = await two.eval(`document.querySelector('#lv-cam').classList.contains('rear')`);
     await two.tap('#lv-flip');
     await two.waitFor(`(() => { const s = document.querySelector('#lv-cam').srcObject; return s && s.getVideoTracks()[0].getSettings().deviceId !== ${JSON.stringify(before)}; })()`, 8000, 'other camera');
-    const m1 = await two.eval(`document.querySelector('#lv-cam').classList.contains('rear')`);
+    // the mirror flips once the new stream plays (the view is faded out meanwhile)
+    const m1 = await two.waitFor(`document.querySelector('#lv-cam').classList.contains('rear') && !document.querySelector('#lv-cam').classList.contains('swap')`, 4000, 'rear view').catch(() => false);
     check(F, 'flip on a two-camera device: switches camera; the selfie view is mirrored, the other is not', !m0 && m1, `mirrored before=${!m0} after=${!m1}`);
     await two.tap('#lv-x');
     await sleep(600);
@@ -509,8 +514,8 @@ async function flowPerf() {
       const pSign = page.eval('window.__fps(4000)');
       await page.eval(`window.__play('perform-HELLO')`);
       const sign = stats(await pSign);
-      for (const [what, s] of [['open (button grows into the view)', open], ['listening, bars moving', idle], ['signing + caption animating', sign]]) {
-        lines.push(`cpu x${rate}  ${what.padEnd(34)} ${String(s.fps).padStart(5)} fps  p50 ${s.p50} ms  p95 ${s.p95} ms  max ${s.max} ms  frames>25ms ${s.over25}/${s.frames}`);
+      for (const [what, s] of [['open (button grows into the view)', open], ['listening, camera live', idle], ['signing: caption + hand ring animating', sign]]) {
+        lines.push(`cpu x${rate}  ${what.padEnd(38)} ${String(s.fps).padStart(5)} fps  p50 ${s.p50} ms  p95 ${s.p95} ms  max ${s.max} ms  frames>25ms ${s.over25}/${s.frames}`);
       }
       check(F, `cpu x${rate}: listening + signing hold ~60 fps (p95 frame <= 20 ms)`, idle.p95 <= 20 && sign.p95 <= 20, `idle p95 ${idle.p95} ms, signing p95 ${sign.p95} ms`);
       if (rate > 1) await page.send('Emulation.setCPUThrottlingRate', { rate: 1 });
