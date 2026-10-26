@@ -20,8 +20,8 @@ function pageHTML({ size, tile, pad, radius }) {
   // tile: 'none' (transparent), 'fafaf9' (opaque flat), 'rounded' (rounded tile)
   const inner = size * (1 - 2 * pad);
   let tileCss = 'background:transparent;';
-  if (tile === 'fafaf9') tileCss = 'background:#FAFAF9;';
-  if (tile === 'rounded') tileCss = `background:#FAFAF9;border-radius:${radius}px;`;
+  if (tile === 'fafaf9') tileCss = 'background:#FCFCFC;';
+  if (tile === 'rounded') tileCss = `background:#FCFCFC;border-radius:${radius}px;`;
   return `<!doctype html><html><head><meta charset="utf-8"><style>
     *{margin:0;padding:0;box-sizing:border-box}
     html,body{width:${size}px;height:${size}px;background:transparent}
@@ -53,7 +53,7 @@ async function renderPNG(page, out, opts) {
     });
   } else {
     await page.send('Emulation.setDefaultBackgroundColorOverride', {
-      color: { r: 250, g: 250, b: 249, a: 255 },
+      color: { r: 252, g: 252, b: 252, a: 255 },
     });
   }
   const clip = { x: 0, y: 0, width: opts.size, height: opts.size, scale: 1 };
@@ -74,17 +74,23 @@ async function renderPNG(page, out, opts) {
   try {
     await page.ready;
     // ---- shipped PNGs (from SVG geometry) ----
-    // icon-512 / icon-192: mark on #FAFAF9 rounded tile, ~16% padding
+    // icon-512 / icon-192: mark on #FCFCFC rounded tile, ~16% padding
     await renderPNG(page, path.join(WEB, 'icon-512.png'),
       { size: 512, tile: 'rounded', pad: 0.16, radius: 114 });
     await renderPNG(page, path.join(WEB, 'icon-192.png'),
       { size: 192, tile: 'rounded', pad: 0.16, radius: 43 });
-    // maskable: full-bleed #FAFAF9 tile, mark inside 80% safe zone -> pad 0.20
+    // maskable: full-bleed #FCFCFC tile, mark inside 80% safe zone -> pad 0.20
     await renderPNG(page, path.join(WEB, 'icon-maskable-512.png'),
       { size: 512, tile: 'fafaf9', pad: 0.20, radius: 0 });
     // apple-touch 180 opaque, modest padding
     await renderPNG(page, path.join(WEB, 'apple-touch-icon.png'),
       { size: 180, tile: 'fafaf9', pad: 0.14, radius: 0 });
+
+    // ---- plain PNG sizes (transparent mark): 16, 32, 64 ----
+    for (const s of [16, 32, 64]) {
+      await renderPNG(page, path.join(WEB, `icon-${s}.png`),
+        { size: s, tile: 'none', pad: 0.03, radius: 0 });
+    }
 
     // ---- favicon source renders (transparent mark, for ICO build) ----
     for (const s of [16, 32, 48]) {
@@ -92,7 +98,7 @@ async function renderPNG(page, out, opts) {
         { size: s, tile: 'none', pad: 0.04, radius: 0 });
     }
 
-    // ---- proof renders on #FAFAF9 at 16/64/512, DPR 1 & 2 ----
+    // ---- proof renders on #FCFCFC at 16/64/512, DPR 1 & 2 ----
     for (const s of [16, 64, 512]) {
       for (const dpr of [1, 2]) {
         const px = s * dpr;

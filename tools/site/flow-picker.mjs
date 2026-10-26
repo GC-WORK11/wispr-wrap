@@ -7,7 +7,7 @@
 // the keyboard path, and the Write-your-own previews. Screenshots at 390x844@2x
 // plus 360x640 / 768x1024 / 1280x800. Closes Chrome at the end.
 import path from 'node:path';
-import { stack, newPage, sleep, shotTo, reporter, root } from './lib.mjs';
+import { stack, newPage, sleep, shotTo, reporter, root, visibleText, isLabel } from './lib.mjs';
 
 const OUT = path.join(root, 'proofs/ui-v2/site-picker');
 const S = stack();
@@ -37,10 +37,12 @@ try {
     `${iconStats.real}/${iconStats.total} loaded`);
 
   // structure: Suggested + Apps + Actions + Write your own
-  const sects = await page.eval(`[...document.querySelectorAll('#act-list .act-sect')].map(s => s.textContent)`);
-  check('Suggested section present', sects.includes('Suggested'), sects.join(' | '));
-  check('Actions section present', sects.includes('Actions'), '');
-  check('Write your own section present', sects.includes('Write your own'), '');
+  const sects = await page.eval(`[...document.querySelectorAll('#act-list .act-sect')].map(s => s.textContent.trim())`);
+  check('no section headings: space separates, icons explain', sects.length >= 1 && sects.every(t => t === ''), sects.join('|'));
+  check('apps are an icon grid, actions a flat list, and Write your own is there',
+    await page.eval(`!!document.querySelector('#act-list .act-grid') && !!document.querySelector('#act-list .act-row') && !!document.querySelector('#act-list .act-own')`), '');
+  const vt = await visibleText(page, '#sheet-actions');
+  check('only labels on screen (no headings, helper lines or sentences)', vt.every(isLabel), vt.filter(t => !isLabel(t)).join(' | ') || vt.length + ' labels');
 
   // noise hidden (no Settings / Preferences / Bulk Rename / background helpers)
   const appNames = await page.eval(`[...document.querySelectorAll('#act-list .act-app-nm')].map(n => n.textContent)`);
@@ -70,6 +72,19 @@ try {
   await shotTo(page, OUT, '03-actions');
   const hasScreenshot = await page.eval(`[...document.querySelectorAll('#act-list .act-row .act-name')].some(n => /screenshot/i.test(n.textContent))`);
   check('Actions list shows the screenshot action', hasScreenshot, '');
+
+  /* ---- apps-only (what Teach's Open app tile uses): just the laptop's apps ---- */
+  await page.click('#act-x'); await sleep(500);
+  await page.eval(`import('/js/actions.js').then(m => { window.__p2 = m.Actions.pick({ apps: true }); })`);
+  await page.waitFor(`!document.querySelector('#sheet-actions').hidden && document.querySelectorAll('#act-list .act-app').length > 0`, 8000, 'apps-only open');
+  await sleep(800);
+  check('apps-only: icons only, no actions list, no Write your own',
+    await page.eval(`document.querySelectorAll('#act-list .act-app').length >= 5 && !document.querySelector('#act-list .act-row') && !document.querySelector('#act-list .act-own')`), '');
+  const vt2 = await visibleText(page, '#sheet-actions');
+  check('apps-only: the only text is app names and Search', vt2.every(isLabel), vt2.join(' | ').slice(0, 160));
+  await shotTo(page, OUT, '03b-apps-only');
+  await page.click('#act-x'); await sleep(500);
+  await openPicker(page, '');
 
   /* ---- Write your own: previews ---- */
   await page.eval(`(() => { const q=document.querySelector('#act-q'); q.value=''; q.dispatchEvent(new Event('input',{bubbles:true})); })()`);

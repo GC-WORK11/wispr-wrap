@@ -175,7 +175,7 @@ body.sheet-open .top { display: none; }
 .drawer.open { transform: none; box-shadow: var(--sh-pop); }
 .dr-head { display: flex; align-items: center; justify-content: space-between; padding: 2px 4px 14px 10px; }
 .dr-brand { font-size: 18px; font-weight: 600; letter-spacing: -.02em; display: flex; align-items: center; gap: 10px; }
-.dr-brand svg { width: 22px; height: 22px; color: var(--accent); }
+.dr-brand svg { width: 26px; height: 26px; }
 .dr-x { width: 44px; height: 44px; border: none; background: transparent; border-radius: 50%; font-size: 22px; color: var(--ink-2); cursor: pointer; }
 .dr-x:hover { background: var(--hairline-2); }
 .dr-nav { display: flex; flex-direction: column; gap: 2px; }
@@ -200,7 +200,7 @@ body.sheet-open .top { display: none; }
 /* ---------- first-run pairing ---------- */
 .onb { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 28px; background: var(--bg); animation: sheet-in var(--t-3) var(--ease-out); }
 .onb-in { width: 100%; max-width: 400px; display: flex; flex-direction: column; align-items: center; text-align: center; }
-.onb-mark { width: 44px; height: 44px; color: var(--accent); margin-bottom: 26px; }
+.onb-mark { width: 56px; height: 56px; margin-bottom: 24px; }
 .onb h1 { font-size: 30px; line-height: 1.12; font-weight: 600; letter-spacing: -.03em; margin-bottom: 10px; }
 .onb p { font-size: 16px; color: var(--muted-2); line-height: 1.55; max-width: 320px; margin-bottom: 28px; }
 .onb-code {
