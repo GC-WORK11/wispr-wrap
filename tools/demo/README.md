@@ -144,3 +144,21 @@ The `05-reject` assertion accepts any honest rejection — usually
 `reason=threshold` (nearest sign beat the clip under DTW but lost on
 distance) or `reason=thin-query` when a frame dropped mid-clip left the
 segment too short to score. Both are `last_match.accepted=false`.
+
+## Verified on the merged build (2026-10-26, `devin/live-merge` @ d78d2f9 + `devin-pro/app` @ f174adf)
+
+`bash tools/demo/run_all.sh` → `VERIFIED 11 pass / 0 fail`. Chapter
+integrity checked per file: `ffprobe` reports valid h264 1280x800 with
+real durations (1.6s–34.6s), and start/mid frames extracted with ffmpeg
+show full pixel range (no blank frames) and the polished app + evidence
+terminal on screen — no developer-mode screens.
+
+| chapter | mp4 | proves |
+|---|---|---|
+| 01-listen | 01-listen.mp4 | palm-hold → `PALM-OPEN` → `listening=true`; namaste → `false` (`/live/state`) |
+| 02-gate | 02-gate.mp4 | same sign while not listening → no marker, no commit |
+| 03-teach | 03-teach.mp4 | real `/teach/begin`+3-take clips ×3 glosses + `PUT /bank` argv binds; `/bank` shows 3 exemplars each |
+| 04-perform | 04-perform.mp4 | OPEN-NOTES → `/usr/bin/touch` marker; TYPE-HELLO → xdotool → real SinkEdit text (`sink.txt`) |
+| 05-reject | 05-reject.mp4 | untrained squiggle → `accepted=false` (open-set rejection) |
+| 06-confirm | 06-confirm.mp4 | LOCK (tier 2) parks `pending`; marker only after `POST /act/confirm` |
+| 07-namaste | 07-namaste.mp4 | stop listening + final `/bank` `/act` dump |
