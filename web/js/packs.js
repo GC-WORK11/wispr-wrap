@@ -1,6 +1,6 @@
 // packs.js — ready-made signs rendered inside the Teach name step.
 // TEACH stage owns this file. Real contract:
-//   GET  /packs            -> {ok, packs:[{id,gloss,title,blurb,state,takes,action}]}
+//   GET  /packs            -> {ok, packs:[{id,gloss,title,state,takes,action}]}
 //   POST /packs/install {id} -> {ok,id,gloss,takes,state,source}
 // states: ready -> "Add" (install, refresh, toast); needs_takes -> "Teach it"
 // (hands back to Teach to record the 3 takes); built-in -> "Built in" (not
@@ -34,8 +34,7 @@ function render(el, packs) {
     else if (p.state === 'built-in') right = `<span class="tw-pk-off">Built in</span>`;
     else right = `<button class="tw-pk-do" data-act="teach">Teach it</button>`;
     row.innerHTML =
-      `<div class="tw-pk-tx"><span class="tw-pk-n">${esc(p.title)}</span>` +
-      `<span class="tw-pk-b">${esc(p.blurb)}</span></div>` +
+      `<div class="tw-pk-tx"><span class="tw-pk-n">${esc(p.title)}</span></div>` +
       `<div class="tw-pk-r">${right}</div>`;
     const btn = row.querySelector('.tw-pk-do');
     if (btn) btn.onclick = () => (btn.dataset.act === 'add' ? install(p, row) : teachIt(p));

@@ -118,7 +118,7 @@ async function rebind(card, s) {
   const r = await App.api.put('/bank', body).catch(() => null);
   if (r && r.ok) { App.toast('rebound ' + s.gloss); refresh(); }
   else if (r && r.status === 403) App.toast('unpaired — rescan QR', true);
-  else App.toast('rebind failed' + (r && r.json && r.json.error ? ' — ' + r.json.error : ''), true);
+  else App.toast(App.daemonErr(r, 'Couldn’t save that — try again.'), true);
 }
 
 function startRename(card, s, row) {

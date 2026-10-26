@@ -276,6 +276,19 @@ function kpFrame(points) {
   return { t_ms: Math.round(performance.now()), seq: kpSeq++, n: points.length, hands: 2, points };
 }
 
+// daemon `error` fields are machine strings ("unpaired", "reserved mode
+// sign") — never show them raw. Map the ones we know, fall back generic.
+function daemonErr(r, fallback) {
+  const e = (r && r.json && r.json.error) || '';
+  if (r && r.status === 403 || /unpaired|pair/i.test(e)) return 'Not connected — scan the code again.';
+  if (/reserved/.test(e)) return 'That name is taken by a built-in sign.';
+  if (/too large|too big/.test(e)) return 'That file is too big to send.';
+  if (/rate|slow/.test(e)) return 'Slow down — try again.';
+  if (/name required|gloss required|required/.test(e)) return 'Give it a name first.';
+  if (/built in/.test(e)) return 'That sign is already built in.';
+  return fallback;
+}
+
 // ---------- pending-confirm strip ----------
 // tier>=2 actions park laptop-side; the daemon's /live/state exposes them
 // and POST /act/confirm {id} releases one. The composer shows them honestly.
@@ -325,6 +338,7 @@ export const App = {
   route, nav, back, routes, parseHash,
   toast, buzz, sleep, raise,
   kpFrame,
+  daemonErr,
   el: {
     pill: document.getElementById('pill'),
     stage: document.getElementById('stage'),
@@ -469,13 +483,8 @@ Flower.init({ field: document.getElementById('field'), anchor: document.getEleme
 on('statusbar', () => Flower.setOnline(connected() || !state.checked));
 on('route', name => { Flower.pause(name !== ''); if (!name) setTimeout(Flower.measure, 60); });
 
-// loading screen: the lotus mark blooms while the app boots. Once the page is ready it dissolves and
-// the ASCII lotus replays its sprout, so every load and refresh ends in the bloom.
-const boot = document.getElementById('boot');
-if (boot) {
-  const MIN = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1000;   // ms since navigation start
-  const finish = () => { Flower.restart(); boot.classList.add('done'); setTimeout(() => boot.remove(), 700); };
-  const go = () => setTimeout(finish, Math.max(0, MIN - performance.now()));
-  if (document.readyState === 'complete') go(); else addEventListener('load', go, { once: true });
-}
-
+// loading screen (boot.js owns readiness + the fade): when it hands over, the ASCII lotus replays its sprout
+// from a bud, so every load and refresh ends in the bloom. Without a splash (or after bfcache restore) replay now.
+if (document.getElementById('boot') && !(window.__boot && window.__boot.done)) addEventListener('wl:boot-done', () => Flower.restart(), { once: true });
+else Flower.restart();
+addEventListener('pageshow', e => { if (e.persisted) Flower.restart(); });   // back/forward restore: bloom again

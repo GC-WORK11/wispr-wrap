@@ -7,6 +7,8 @@ import { App } from './app.js';
 const sheet = App.el.sheetSettings;
 if (!sheet) throw new Error('settings: #sheet-settings missing');
 
+const devMode = /[?&]dev\b/.test(location.search) || App.store.getItem('wfdev') === '1';
+
 sheet.innerHTML = `
   <div class="sheet-head">
     <h1>Settings</h1>
@@ -17,11 +19,10 @@ sheet.innerHTML = `
       <span class="st-t">Vibrate on send</span>
       <input type="checkbox" id="st-vibrate" class="st-sw">
     </label>
-    <label class="st-row">
+    ${devMode ? `<label class="st-row">
       <span class="st-t">Replayed gestures<span class="st-s">For demos and recordings only — hands move themselves</span></span>
       <input type="checkbox" id="st-replay" class="st-sw">
-    </label>
-    <p class="hint st-note">Camera video never leaves this phone.</p>
+    </label>` : ''}
   </div>`;
 
 sheet.querySelector('#st-x').onclick = App.back;
@@ -37,9 +38,9 @@ vib.onchange = () => App.store.setItem('wfvib', vib.checked ? '1' : '0');
 
 // replay seam — the same flag pose.js checks; needs ?replay once or this
 // toggle. Honest label, off by default, judges never see it on.
-rep.checked = App.store.getItem('wfreplay') === '1';
-// demo-only switch: not for users — shown with ?dev only
-if (!(/[?&]dev\b/.test(location.search) || App.store.getItem('wfdev') === '1')) rep.closest('label').hidden = true;
-rep.onchange = () => App.store.setItem('wfreplay', rep.checked ? '1' : '0');
+if (rep) {
+  rep.checked = App.store.getItem('wfreplay') === '1';
+  rep.onchange = () => App.store.setItem('wfreplay', rep.checked ? '1' : '0');
+}
 
 App.route('settings', { el: sheet });

@@ -55,11 +55,8 @@ function renderSettings() {
     <div class="pn-group">Go Live</div>
     <div class="pn-row"><span class="pn-k">Open in</span>
       <span class="pn-seg" role="tablist"><button role="tab" data-m="control" aria-selected="${mode !== 'text'}">Control</button><button role="tab" data-m="text" aria-selected="${mode === 'text'}">Text</button></span></div>
-    <div class="pn-group">Privacy</div>
-    <p class="hint pn-p">Camera video never leaves this phone. Only hand points are sent, and only to your own laptop. Nothing is stored in the cloud.</p>
     <div class="pn-group">This phone</div>
     <button class="btn btn-ghost pn-btn" id="pn-unpair2">Disconnect from this laptop</button>
-    <p class="pn-foot">Wispr Wrap · open source</p>
   </div>`;
   set.querySelector('[data-close]').onclick = () => App.back();
   set.querySelector('#pn-hap').onclick = e => {
