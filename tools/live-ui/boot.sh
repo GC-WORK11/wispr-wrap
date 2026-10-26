@@ -98,7 +98,7 @@ fi
 # ---------- X server + WM ----------
 setsid Xvfb "$D" -screen 0 1280x800x24 -nolisten tcp </dev/null >/dev/null 2>&1 &
 echo $! > "$STATE/pids.xvfb"
-for _ in $(seq 1 50); do DISPLAY="$D" xdpyinfo >/dev/null 2>&1 && break; sleep 0.2; done
+for _ in $(seq 1 150); do DISPLAY="$D" xdpyinfo >/dev/null 2>&1 && break; sleep 0.2; done
 DISPLAY="$D" xdpyinfo >/dev/null 2>&1 || die "Xvfb $D did not come up"
 DISPLAY="$D" setsid xfwm4 --compositor=off </dev/null >/dev/null 2>&1 &
 echo $! > "$STATE/pids.wm"
