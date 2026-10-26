@@ -33,7 +33,7 @@ VERIFIERS=(
     pair_send send_media text_mode live_sign open_app focus_app
     close_window tile
     workspace volume screenshot macro context picker observe record
-    confirm auth
+    confirm auth section_a
 )
 
 declare -A STATUS WHY

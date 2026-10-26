@@ -977,6 +977,154 @@ def _rate_limited(key, now):
     return len(allq) > LIVE_MAX_FPS * LIVE_BURST * 2
 
 
+# --- Go Live section-A events (air-writing, pointer, scroll, click) ---
+# The phone camera view traces gestures client-side and POSTs semantic
+# events to /live/event; the laptop does the real OS work through the
+# same provider/injection lanes a matched sign uses.
+AIR_LETTERS = {
+    # letter -> builtin action when no commands.tsv AIR-X row overrides.
+    "C": {"kind": "app", "tool": "app.open", "id": "google-chrome",
+          "label": "open Chrome"},
+    "V": {"kind": "builtin", "tool": "open.url",
+          "args": {"url": "https://www.youtube.com"},
+          "label": "open YouTube"},
+}
+
+_SCR_GEOM = {"w": None, "h": None}
+
+
+def _screen_size():
+    if _SCR_GEOM["w"] is None:
+        try:
+            out = sh("xdotool", "getdisplaygeometry").stdout.split()
+            _SCR_GEOM["w"], _SCR_GEOM["h"] = int(out[0]), int(out[1])
+        except Exception:
+            _SCR_GEOM["w"], _SCR_GEOM["h"] = 1920, 1080
+    return _SCR_GEOM["w"], _SCR_GEOM["h"]
+
+
+def _air_letter(data):
+    """An air-traced letter -> its action. commands.tsv rows named
+    AIR-<L> win (user-bindable); otherwise the builtin table: C -> open
+    Chrome, V -> open YouTube. Routes through route_gloss on _ACT_Q so
+    tier gating / pending confirms behave exactly like a real sign."""
+    letter = _norm_gloss(data.get("letter"))[:1]
+    if not letter or not letter.isalpha():
+        return 400, {"ok": False, "error": "letter required"}
+    gkey = "AIR-" + letter
+    row = commands().get(gkey)
+    if row:
+        action = {"argv": row["argv"], "tier": row["tier"],
+                  "label": row["label"]}
+    else:
+        action = AIR_LETTERS.get(letter)
+    if action is None:
+        return 404, {"ok": False, "error": "no action bound to " + gkey,
+                     "letter": letter}
+    label = action.get("label") or gkey
+
+    def job():
+        res = route_gloss(gkey, action, action.get("tier", 0))
+        with LIVE_LOCK:
+            LIVE["last_action"] = {
+                "kind": "air-letter", "letter": letter, "label": label,
+                "dispatched": True,
+                "ok": bool(res.get("fired") or res.get("pending")),
+                "result": {k: res.get(k) for k in
+                           ("routed", "fired", "pending", "refused",
+                            "detail") if res.get(k) is not None},
+                "t_ms": now_ms()}
+            _feed({"type": "air-letter", "letter": letter, "label": label,
+                   "result": {k: res.get(k) for k in
+                              ("routed", "fired", "pending", "refused")
+                              if res.get(k) is not None},
+                   "t_ms": now_ms()})
+    _ACT_Q.put(job)
+    return 202, {"ok": True, "letter": letter, "gloss": gkey,
+                 "action": {"label": label}, "queued": True}
+
+
+def _air_scroll(data):
+    """One-finger slide -> real wheel events on the window under the
+    pointer. dy > 0 = scroll down (button 5), dy < 0 = up (button 4);
+    'notches' overrides the computed click count."""
+    try:
+        dy = float(data.get("dy", data.get("delta", 0.0)))
+    except (TypeError, ValueError):
+        return 400, {"ok": False, "error": "dy required"}
+    try:
+        notches = int(data.get("notches") or 0) or \
+                  min(24, max(1, int(round(abs(dy)))))
+    except (TypeError, ValueError):
+        notches = 1
+    notches = max(1, min(24, notches))
+    btn = "4" if dy < 0 else "5"
+    _INJECT_Q.put(lambda: subprocess.run(
+        ["xdotool", "click", "--repeat", str(notches), btn], timeout=15))
+    _feed({"type": "scroll", "dy": dy, "notches": notches,
+           "t_ms": now_ms()})
+    return 202, {"ok": True, "scroll": {
+        "dy": dy, "notches": notches,
+        "direction": "up" if dy < 0 else "down"}}
+
+
+def _air_pointer(data):
+    """Finger cursor -> real mousemove. x,y normalized 0..1 over the
+    laptop screen; optional 'click'/'button' taps after the move (the
+    video-select gesture: hover then pinch/dwell)."""
+    try:
+        x = min(1.0, max(0.0, float(data.get("x"))))
+        y = min(1.0, max(0.0, float(data.get("y"))))
+    except (TypeError, ValueError):
+        return 400, {"ok": False, "error": "x,y required"}
+    w, h = _screen_size()
+    px, py = int(x * w), int(y * h)
+    try:
+        btn = int(data.get("click") or data.get("button") or 0)
+    except (TypeError, ValueError):
+        btn = 0
+
+    def job():
+        subprocess.run(["xdotool", "mousemove", str(px), str(py)],
+                       timeout=10)
+        if btn:
+            time.sleep(0.06)
+            subprocess.run(["xdotool", "click", str(btn)], timeout=10)
+    _INJECT_Q.put(job)
+    return 202, {"ok": True, "pointer": {"x": x, "y": y,
+                                          "px": [px, py],
+                                          "click": btn or None}}
+
+
+def _air_click(data):
+    """Dwell/pinch select -> real click at the current (or given)
+    pointer position."""
+    try:
+        btn = int(data.get("button", 1))
+    except (TypeError, ValueError):
+        btn = 1
+    if btn not in (1, 2, 3):
+        btn = 1
+    try:
+        x, y = float(data["x"]), float(data["y"])
+        pos = True
+    except (KeyError, TypeError, ValueError):
+        pos = False
+
+    def job():
+        if pos:
+            w, h = _screen_size()
+            subprocess.run(["xdotool", "mousemove",
+                            str(int(min(max(x, 0.0), 1.0) * w)),
+                            str(int(min(max(y, 0.0), 1.0) * h))],
+                           timeout=10)
+            time.sleep(0.06)
+        subprocess.run(["xdotool", "click", str(btn)], timeout=10)
+    _INJECT_Q.put(job)
+    _feed({"type": "click", "button": btn, "t_ms": now_ms()})
+    return 202, {"ok": True, "click": {"button": btn}}
+
+
 def live_kp(data, client=None):
     """POST /live/kp: append one keypoint frame to the session buffer."""
     if not isinstance(data, dict):
@@ -1847,6 +1995,11 @@ class Handler(BaseHTTPRequestHandler):
             # composer-side gesture-meter events: palm_open -> start
             # listening, namaste -> stop. Same semantics as the
             # endpointer's mode events; idempotent.
+            # Go Live section-A events: air-letter (traced glyph ->
+            # bound/builtin laptop action), pointer (normalized finger
+            # cursor -> mousemove), scroll (finger slide -> wheel),
+            # click/dwell/pinch (select). All real xdotool/provider work,
+            # queued on the input workers.
             try:
                 data = json.loads(raw or b"{}")
             except Exception:
@@ -1863,6 +2016,14 @@ class Handler(BaseHTTPRequestHandler):
                         except Exception:
                             pass
                 lst = LIVE["listening"]
+            if typ in ("air", "air_letter", "air-letter", "letter"):
+                return self._jreply(*_air_letter(data))
+            if typ in ("scroll", "wheel"):
+                return self._jreply(*_air_scroll(data))
+            if typ in ("pointer", "cursor", "move"):
+                return self._jreply(*_air_pointer(data))
+            if typ in ("click", "tap", "press", "dwell", "pinch"):
+                return self._jreply(*_air_click(data))
             return self._jreply(200, {"ok": True, "listening": lst})
         if p == "/live/mode":
             # {"mode":"live"|"observe"} — observe computes + reports
