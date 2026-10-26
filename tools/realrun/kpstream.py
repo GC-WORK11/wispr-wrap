@@ -120,8 +120,11 @@ def palm_hold(n=12):
     """Held open palm on the active hand (parked hand also open — the
     endpointer fires on whichever hand qualifies)."""
     path = [(0.50, 0.55)]
+    # jitter must stay well under the endpointer's hold_v (0.6 pw/s):
+    # 0.001/frame at ~66ms already produced 0.27-0.92 pw/s wrist speeds
+    # and PALM-OPEN never fired. 0.0001 keeps a whisper of sensor noise.
     return synth.render_clip(path, n_motion=n, lead=0, tail=0, absent=0,
-                             jitter=0.001)
+                             jitter=0.0001)
 
 
 def namaste_hold(n=12):

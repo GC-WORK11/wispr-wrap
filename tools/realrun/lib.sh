@@ -37,11 +37,14 @@ load_env() {
 # --- HTTP --------------------------------------------------------------
 # call METHOD PATH [body-or-@file] [extra curl args...]
 #   -> prints "<http_code>" ; body lands in $CALL_BODY (temp file)
-CALL_BODY=""
+# Allocate the body file once at source time: callers often run `code=$(call …)`
+# in a command-substitution subshell — a mktemp inside call() would leave the
+# parent's $CALL_BODY empty and call_body()/call_json() silently reading "".
+# Writing to the same preallocated file survives the subshell.
+CALL_BODY="$(mktemp /tmp/realrun-body.XXXXXX)"
 call() {
     local m="$1" p="$2" body="${3:-}"
     if [ $# -ge 3 ]; then shift 3; else shift $#; fi
-    CALL_BODY="$(mktemp /tmp/realrun-body.XXXXXX)"
     local code
     if [ -n "$body" ]; then
         case "$body" in
@@ -60,7 +63,7 @@ call() {
 # unauthenticated call (auth-gate probes)
 call_noauth() {
     local m="$1" p="$2" body="${3:-}"
-    CALL_BODY="$(mktemp /tmp/realrun-body.XXXXXX)"
+    [ -n "$CALL_BODY" ] || CALL_BODY="$(mktemp /tmp/realrun-body.XXXXXX)"
     local code
     if [ -n "$body" ]; then
         code=$(curl -sS -o "$CALL_BODY" -w '%{http_code}' -X "$m" \

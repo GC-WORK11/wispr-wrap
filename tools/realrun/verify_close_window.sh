@@ -10,7 +10,7 @@ LOG="$PROOF/run.log"; : > "$LOG"
 exec > >(tee -a "$LOG") 2>&1
 
 have xmessage || verdict UNVERIFIABLE "xmessage absent"
-DISPLAY="$D" setsid xmessage -center "realrun-close-me" </dev/null >/dev/null 2>&1 &
+DISPLAY="$D" setsid xmessage -name realrun-close-me -center "close me by sign" </dev/null >/dev/null 2>&1 &
 sleep 1.2
 DISPLAY="$D" wmctrl -l > "$PROOF/before.txt"
 grep -q realrun-close-me "$PROOF/before.txt" || verdict FAILED "target window never appeared"
