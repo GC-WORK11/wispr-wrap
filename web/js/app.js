@@ -64,13 +64,15 @@ const state = {
   live: { on: false, listening: false, signing: false, lastMatch: null },
   lastSend: null,          // {t_ms, ok, into, kind}
   confirms: [],            // tier>=2 actions parked for confirm
+  laptop: null,            // GET /status laptop:{connected,name,canAct,signs} (null on older daemons)
   bankSize: null,
 };
 
 const linkDot = document.getElementById('link-dot');          // dot on the "Connected laptop" row
 const lapSub = document.getElementById('dr-laptop-s');        // its second line
 const connHint = document.getElementById('conn-hint');         // "Connect your laptop" on the home screen
-const connected = () => !!(state.online && state.paired);
+const connected = () => !!(state.online && state.paired && (!state.laptop || state.laptop.connected));
+const canAct = () => connected() && (!state.laptop || state.laptop.canAct);
 
 function renderStatus() {
   const ok = connected();
@@ -79,7 +81,7 @@ function renderStatus() {
   if (!state.online) sub = 'Not connected';
   else if (!state.paired) sub = 'Needs its code';
   else {
-    const nm = store.getItem('wfname') || 'Your laptop';
+    const nm = (state.laptop && state.laptop.name) || store.getItem('wfname') || 'Your laptop';
     sub = nm + (state.focus ? ' · typing into ' + state.focus : '');
   }
   if (lapSub) lapSub.textContent = sub;
@@ -141,13 +143,25 @@ function setOnline(v) {
   if (v === state.online) return;
   state.online = v;
   emit(v ? 'online' : 'offline');
-  if (v) { pollEngine(); }
+  if (v) { pollEngine(); pollStatus(); }
   renderStatus();
 }
 pollHealth();
 setInterval(pollHealth, 3000);
 setInterval(pollState, 1200);
 setInterval(pollEngine, 15000);
+// GET /status: who the laptop is, whether it can act, how many signs it knows
+async function pollStatus() {
+  if (!state.online || !K) return;
+  const r = await req('GET', '/status').catch(() => null);
+  if (!r || !r.ok || !r.json || !r.json.laptop) return;       // older daemon: keep the /health-only behaviour
+  const l = r.json.laptop;
+  state.laptop = { connected: l.connected !== false, name: l.name || '', canAct: l.can_act !== false, signs: l.signs, engine: l.engine };
+  if (typeof l.signs === 'number') state.bankSize = l.signs;
+  if (l.name) store.setItem('wfname', l.name);
+  renderStatus();
+}
+setInterval(pollStatus, 4000);
 
 // ---------- router: hash routes = sheets ----------
 // Routes: '' or '#/' = home, '#/live', '#/teach', '#/signs', '#/laptop', '#/settings'
@@ -257,7 +271,7 @@ export const App = {
   store,
   api: { get: p => req('GET', p), post: (p, b, h) => req('POST', p, b, h), del: p => req('DELETE', p), put: (p, b) => req('PUT', p, b) },
   on, off, emit,
-  state, renderStatus, pollState, pollEngine, connected,
+  state, renderStatus, pollState, pollEngine, pollStatus, connected, canAct,
   route, nav, back, routes, parseHash,
   toast, buzz, sleep, raise,
   kpFrame,
@@ -358,6 +372,9 @@ function openDrawer(v) {
   if (v) { renderStatus(); pollEngine(); }
 }
 menuBtn.onclick = () => openDrawer(!drawer.classList.contains('open'));
+// other lanes (PRO's drawer.js) consume this instead of touching the frame
+App.drawer = { el: drawer, nav: document.getElementById('drawer-nav'), open: () => openDrawer(true), close: () => openDrawer(false),
+               toggle: () => openDrawer(!drawer.classList.contains('open')), get isOpen() { return drawer.classList.contains('open'); } };
 scrim.onclick = () => openDrawer(false);
 document.getElementById('dr-close').onclick = () => openDrawer(false);
 addEventListener('keydown', e => { if (e.key === 'Escape' && drawer.classList.contains('open')) openDrawer(false); });
