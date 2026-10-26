@@ -137,7 +137,7 @@ export class KpLink {
     const body = { t_ms: Math.round(performance.timeOrigin + t - 1.78e12), points: pts };
     if (this.session) body.session = this.session;
     // real video aspect lets the daemon map normalized kp to portrait sensors
-    // (Kiro B: engines assume 16:9 otherwise). Replayed streams have no video.
+    // engines assume 16:9 otherwise. Replayed streams have no video.
     if (this.video && this.video.videoWidth)
       body.aspect = +(this.video.videoWidth / this.video.videoHeight).toFixed(4);
     App.api.post('/live/kp', body)

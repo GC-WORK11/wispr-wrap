@@ -1,4 +1,4 @@
-// flow-air.mjs — §A proof (PRO lane): on the merged build, real daemon,
+// flow-air.mjs — §A proof: on the merged build, real daemon,
 // real Chrome @390x844, real X11:
 //   air-written C -> Chrome opens        (UI pose -> /live/event {type:'air'})
 //   air-written V -> YouTube opens

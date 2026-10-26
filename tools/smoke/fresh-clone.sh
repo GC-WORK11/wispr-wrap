@@ -8,7 +8,7 @@
 set -u
 BRANCH="${1:-oss/clean}"
 REPO="${2:-/workspace/wispr-wrap-merge}"
-OPS_DIR="${OPS_DIR:-/workspace/kiro-acct5/ops}"
+OPS_DIR="${OPS_DIR:-$PWD/ops}"
 mkdir -p "$OPS_DIR" 2>/dev/null || OPS_DIR=/tmp
 LOG="$OPS_DIR/fresh-clone-$(date +%H%M%S).log"
 WF_PORT="${WF_PORT:-8791}"

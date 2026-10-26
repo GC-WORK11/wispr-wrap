@@ -1,4 +1,4 @@
-// laptop.js — PRO lane: the "Connected laptop" page (#/laptop).
+// laptop.js — the "Connected laptop" page (#/laptop).
 // One honest status surface: is the laptop there, what is it called,
 // what is it doing — and the way back in (a code) when it isn't.
 import { App } from './app.js';

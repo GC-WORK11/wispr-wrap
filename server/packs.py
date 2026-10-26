@@ -1,9 +1,9 @@
-"""packs.py — prefilled Teach packs (FOUNDER-SPEC-1229 §B).
+"""packs.py — prefilled Teach packs.
 
-One tap installs a ready-made sign: hello and i-am-govinda bind the
-word(s) they type at the laptop cursor; namaste is the reserved
-palms-together pause gesture the daemon already owns — shown for
-information, never bindable (teach refuses reserved glosses).
+One tap installs a ready-made sign: hello and intro bind the text they
+type at the laptop cursor; namaste is the reserved palms-together pause
+gesture the daemon already owns — shown for information, never bindable
+(teach refuses reserved glosses).
 
 Takes are honest: install loads recorded kp42 frame lists from
 server/packs_data/<id>/*.json when they exist ("real-takes"), else the
@@ -17,8 +17,8 @@ PACKS = [
      "text": "hello"},
     {"id": "namaste", "gloss": "NAMASTE", "title": "Namaste",
      "builtin": True},
-    {"id": "i-am-govinda", "gloss": "I-AM-GOVINDA", "title": "I am Govinda",
-     "tier": 1, "text": "I am Govinda"},
+    {"id": "intro", "gloss": "INTRO", "title": "Introduce yourself",
+     "tier": 1, "text": "Hello, my name is"},
 ]
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "packs_data")

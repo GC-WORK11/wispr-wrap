@@ -11,7 +11,8 @@ that still leave the dominant hand unambiguous to any reasonable
 score/motion hand picker.
 
 The motion grammar is deliberately small and motion-DISTINCT — the same
-honest scope matcher.rs claims (swipes, circle, push, shapes), not ASL.
+honest scope matcher.rs claims (swipes, circle, push, shapes), not a real
+sign vocabulary.
 Each sign renders with hold lead-in/tail and an optional hands-away
 tail so an endpointer sees a clean segment however it cuts (motion
 threshold, stillness, or disappearance).

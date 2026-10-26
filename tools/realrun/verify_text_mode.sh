@@ -3,7 +3,7 @@
 #   teach a sign (label "verify-text") -> POST /live/mode text ->
 #   palm (listening) -> perform the sign -> the word is TYPED into the
 #   focused real editor (SinkEdit), the sign's action does NOT fire.
-# This is the sign-to-text half of the founder's Text|Control toggle.
+# This is the sign-to-text half of the Text|Control toggle.
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$HERE/lib.sh"; load_env

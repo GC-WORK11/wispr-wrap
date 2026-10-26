@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""record_action — teach a sign by DEMONSTRATING the action (founder 17:06).
+"""record_action — teach a sign by DEMONSTRATING the action.
 
 The user presses Record, does the thing on the laptop (types a command,
 hits shortcuts, clicks, waits for a window), presses Stop, and gets a
@@ -74,7 +74,7 @@ for audit and re-normalization — the recorded keys may be sensitive
 
 to_bank_action(macro) wraps steps as {"kind":"macro","tier":2,"steps":..}
 for PUT /bank; to_tool_steps(steps) adapts to the app-contract
-{tool,args,delay_ms} step shape if W10's engine reads that instead.
+{tool,args,delay_ms} step shape if a future engine reads that instead.
 
 KEYCODES -> KEYSYMS
 ===================

@@ -1,4 +1,4 @@
-// settings.js — PRO lane: the Settings page (#/settings).
+// settings.js — the Settings page (#/settings).
 // Only what is real and local to this phone. No account, no cloud,
 // nothing that pretends to configure the laptop — that all lives on
 // the laptop itself.

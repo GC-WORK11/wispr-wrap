@@ -1,12 +1,12 @@
 # The 5-minute judge path
 
-**clone → run → scan → teach a sign → sign it → an app opens.** No founder, no GPU,
+**clone → run → scan → teach a sign → sign it → an app opens.** No sign-in, no GPU,
 no model download beyond one vendored WASM. Total budget: under 5 minutes.
 
 Every step is stamped:
 
 - **VERIFIED** — works on `main` today, re-checked 2026-10-25
-- **PENDING** — written for the target state of `devin/live-merge`; the endpoint or
+- **PENDING** — written for the target state of the merged build; the endpoint or
   UI it names is mid-merge and not landed yet. `tools/judge-smoke.sh` reports these
   as `pend` until they exist.
 
@@ -140,28 +140,17 @@ PENDING 2026-10-25. Failure modes when it lands:
 |---|---|---|
 | clone → daemon → QR | VERIFIED | this doc re-run on `2493c53`; smoke covers it |
 | pair (QR / code / usb) | VERIFIED | `tools/judge-smoke.sh` exercises `/pair` + `/pair-info` |
-| text / image / file → cursor | VERIFIED | shipped on `main`, daily-driven by the founder |
+| text / image / file → cursor | VERIFIED | shipped and in daily use |
 | teach wizard + bank write | PENDING | endpoints mid-merge; `judge-smoke` watches for them |
 | sign → action | PENDING | needs `/live/kp` + endpointer + matcher |
 | per-user taught-sign recall | UNMEASURED | will land in `BENCH.md` (eval lane) — no claim until then |
 | sign-end → action latency | UNMEASURED | ~50–90 ms expected on LAN; `BENCH.md` gets the real p50/p95 |
 
 If any PENDING row is still 404 when you read this, the merge is in flight —
-`git log --oneline devin/live-merge` shows what's landed.
+`git log --oneline` shows what's landed.
 
 ---
 
-## naming — proposals only, founder decides
+## naming
 
-"Wispr Wrap" is unofficial-bridge branding; the merged product is its own thing.
-Shortlist (no code renamed until a pick lands):
-
-| name | read |
-|---|---|
-| **signwrap** | says the merge plainly; keeps the wrap lineage and CLI |
-| **livewrap** | the Live button is the product; slightly vague about *what* is live |
-| **handflow** | Flow's interaction model for hands; cleanest break, loses "wrap" |
-| **openpalm** | the listen gesture; warmer, least descriptive |
-
-`signwrap` is the least-confusing upgrade path (`wrap` → `signwrap`), `handflow`
-the strongest standalone brand. Founder picks; docs updated after the call.
+The product ships as **Sign-Flow**; the daemon binary and CLI stay `wrap`.

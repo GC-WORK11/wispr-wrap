@@ -3,7 +3,7 @@
 //   POST /send        {text, mode:'type'}        -> {ok, into}
 //   POST /send-image  blob (sniffed)             -> {ok, into, mime, kb}
 //   POST /send-file   blob + X-File-Name         -> {ok, into, path, mb}
-// Layout per the founder spec: round + , white pill, black waveform (Go Live)
+// Layout per the target design: round + , white pill, black waveform (Go Live)
 // that turns into the send arrow when there is something to send. No mic.
 // The lotus (flower.js) reacts: it charges while you type and bursts on send.
 import { App } from './app.js';
