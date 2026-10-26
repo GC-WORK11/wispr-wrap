@@ -46,6 +46,7 @@ except ImportError:
     teach_train = None
 
 PORT = int(os.environ.get("WF_PORT", "8741"))
+BOUND_PORT = PORT  # set to the real port after bind (fallback may differ)
 BASE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(BASE)
 WEB = os.path.join(ROOT, "web")
@@ -124,8 +125,9 @@ def all_ips():
         for line in out.splitlines():
             p = line.split()
             ifname, addr = p[1], p[3].split("/")[0]
-            if ifname.startswith(("docker", "veth", "br-", "virbr", "lo")):
-                continue  # host-internal nets — phone can never reach these
+            if ifname.startswith(("docker", "veth", "br-", "virbr", "lo")) or \
+                addr.startswith("169.254."):
+                continue  # host-internal / link-local nets — a phone can never reach these
             (wifi if ifname.startswith(("wl", "wlan")) else other).append(addr)
         return wifi + other
     except Exception:
@@ -2071,7 +2073,7 @@ class Handler(BaseHTTPRequestHandler):
                           for h in self.headers)
             if self.client_address[0] != "127.0.0.1" or proxied:
                 return self._reply(403, b"localhost only")
-            out = json.dumps({"ip": lan_ip(), "ips": all_ips(), "port": PORT,
+            out = json.dumps({"ip": lan_ip(), "ips": all_ips(), "port": BOUND_PORT,
                               "key": SECRET, "code": PAIR_CODE,
                               "name": os.uname().nodename}).encode()
             return self._reply(200, out, "application/json")
@@ -2556,7 +2558,25 @@ class Handler(BaseHTTPRequestHandler):
         self._reply(204)
 
 
+def serve(host, preferred, handler, tries=12):
+    """Bind preferred port, falling back to the next free one. Returns
+    (server, port) or (None, preferred) when the whole window is busy."""
+    for p in range(preferred, preferred + tries):
+        try:
+            return ThreadingHTTPServer((host, p), handler), p
+        except OSError:
+            continue
+    return None, preferred
+
+
 if __name__ == "__main__":
-    print(f"[wfd] listening on http://0.0.0.0:{PORT} (key: {KEY_FILE})", flush=True)
+    srv, BOUND_PORT = serve("0.0.0.0", PORT, Handler)
+    if srv is None:
+        print(f"[wfd] ports {PORT}-{PORT + 11} all busy — giving up",
+              file=sys.stderr, flush=True)
+        sys.exit(1)
+    print(f"[wfd] listening on http://0.0.0.0:{BOUND_PORT} (key: {KEY_FILE})", flush=True)
+    if BOUND_PORT != PORT:
+        print(f"[wfd] port {PORT} was busy — fell back to {BOUND_PORT}", flush=True)
     print(f"[wfd] pair code: {PAIR_CODE} (valid until stop)", flush=True)
-    ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+    srv.serve_forever()
