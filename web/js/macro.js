@@ -27,8 +27,8 @@ sheet.innerHTML = `
     </div>
     <div class="sheet-body" id="mc-body"></div>
     <div class="sheet-foot">
-      <button class="btn-ghost btn-block" id="mc-cancel">cancel</button>
-      <button class="btn-primary btn-block" id="mc-done" disabled>bind macro</button>
+      <button class="btn btn-ghost btn-block" id="mc-cancel">cancel</button>
+      <button class="btn btn-primary btn-block" id="mc-done" disabled>bind macro</button>
     </div>
   </div>`;
 const $ = id => sheet.querySelector('#' + id);

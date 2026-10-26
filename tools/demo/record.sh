@@ -27,7 +27,7 @@ case "${1:-}" in
         [ -f "$PIDF" ] || die "no recording running ($PIDF missing)"
         REC_PID=$(cat "$PIDF"); rm -f "$PIDF"
         OUT=$(cat "$DEMO_STATE/rec.out" 2>/dev/null)
-        rec_stop
+        rec_stop "$OUT"
         ;;
     "")
         echo "usage: record.sh <name> <secs> | start <name> | stop" >&2
@@ -38,6 +38,6 @@ case "${1:-}" in
         OUT="$PROOFS/$NAME.mp4"
         rec_start "$OUT"
         sleep "$SECS"
-        rec_stop
+        rec_stop "$OUT"
         ;;
 esac

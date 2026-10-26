@@ -35,6 +35,9 @@ load_env
 RUNLOG="$DEMO_STATE/run.log"; : > "$RUNLOG"
 EVID_PID=""
 cleanup() {
+    # scene recordings run via record.sh start (subprocess owns REC_PID);
+    # its pidfile is the source of truth so an early exit never orphans ffmpeg.
+    [ -f "$DEMO_STATE/rec.pid" ] && bash "$HERE/record.sh" stop 2>/dev/null
     rec_stop 2>/dev/null || true
     [ -n "$EVID_PID" ] && kill "$EVID_PID" 2>/dev/null
 }
@@ -52,7 +55,8 @@ rec_done() { bash "$HERE/record.sh" stop; }
 
 # clip via the REPLAY path — returns when the page has drained the queue.
 play() { # play <clip> [tries] — push until queue drains (page pulled it all)
-    local f="$CLIPS/$1" i
+    local f="$1" i
+    case "$f" in /*) ;; *) f="$CLIPS/$f";; esac   # accept bare name or full path
     for i in 1 2 3; do
         push_clip "$f" && wait_drain 120 && return 0
         note "clip $1 push/drain attempt $i failed — retry"
@@ -144,8 +148,11 @@ for G in OPEN-NOTES TYPE-HELLO LOCK; do
     for try in 1 2 3; do
         call POST /teach/begin "{\"name\":\"$G\",\"takes\":3,\"label\":\"$G\"}"
         play "teach-$G.json"
+        # the page keeps streaming to the daemon for ~10s after the queue
+        # drains — wait for the daemon-side take counter, not just /pull.
+        wait_state 's["teach"]["got"]>=3 or not s["teach"]["active"]' 90 0.25
         got=$(curl -sS -H "X-WF-Key: $KEY" "$BASE/live/state" | \
-              python3 -c "import json,sys;t=json.load(sys.stdin)['teach'];print(t['got'] if not t['active'] or t['got']<t['takes'] else t['takes'])")
+              python3 -c "import json,sys;print(json.load(sys.stdin)['teach']['got'])")
         [ "$got" -ge 3 ] && { TAUGHT=1; break; }
         note "  teach $G try $try: got=$got/3 — re-begin"
         call POST /teach/end '{}' >/dev/null; sleep 0.4
@@ -194,7 +201,8 @@ rec_done
 # ---------- 05 reject -------------------------------------------------------
 scene "05-reject  (untrained sign -> honest rejection)"
 rec "05-reject"
-wait_state 's.get("listening")' 10 0.2 || play palm-hold.json
+wait_state 's.get("listening")' 10 0.2 \
+    || { play palm-hold.json; wait_state 's.get("listening")' 60 0.25; }
 push_clip "$CLIPS/reject.json"
 rej=0
 for _ in $(seq 1 60); do
@@ -210,7 +218,8 @@ rec_done
 scene "06-confirm  (tier-2 action parks for confirm -> /act/confirm fires)"
 rec "06-confirm"
 rm -f "$MARKERS/lock-confirmed"
-wait_state 's.get("listening")' 10 0.2 || play palm-hold.json
+wait_state 's.get("listening")' 10 0.2 \
+    || { play palm-hold.json; wait_state 's.get("listening")' 60 0.25; }
 pend=0
 for try in 1 2; do
     push_clip "$CLIPS/perform-LOCK.json"

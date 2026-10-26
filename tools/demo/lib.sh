@@ -32,11 +32,17 @@ req()  { have "$1" || die "required tool missing: $1"; }
 
 load_env() {
     [ -f "$REALRUN_STATE/env" ] || die "realrun stack env missing ($REALRUN_STATE/env) — run tools/demo/boot.sh"
+    # the realrun env exports its own HERE/ROOT/STATE — pin ours first and
+    # restore afterwards or "$HERE/record.sh" resolves into tools/realrun.
+    local _h="$HERE" _r="$ROOT" _c="$CLIPS"
     # shellcheck disable=SC1090
     . "$REALRUN_STATE/env"          # D PORT BASE KEY SINK MARKERS TERM_WID ...
-    [ -f "$DEMO_ENV" ] && . "$DEMO_ENV"   # CHROME_PID REPLAY_PID REPLAY_OWNER
+    [ -f "$DEMO_ENV" ] && . "$DEMO_ENV"   # CHROME_WID REPLAY REPLAY_OWNER
+    HERE="$_h"; ROOT="$_r"; CLIPS="$_c"
     export DISPLAY="$D"
     mkdir -p "$PROOFS"
+    # replay route tag = this daemon's port = the page's Origin port
+    RT=(-H "X-Replay-Route: $PORT")
 }
 
 # --- HTTP (authed daemon calls, evidence-logged) ---------------------------
@@ -59,13 +65,25 @@ call() { # call METHOD PATH [body] -> prints "<code>", body in $CALL_BODY
 call_body() { cat "$CALL_BODY"; }
 
 # --- replay queue (:8877) ---------------------------------------------------
-qclear() { curl -sS -X POST "$REPLAY/clear" >/dev/null 2>&1; }
-qpush() { # qpush <clip.json> -> http code; queues frames for the PAGE to pull
-    log "+ replay /clip <- $(basename "$1") ($(python3 -c "import json;print(len(json.load(open('$1'))['frames']))") frames)"
-    curl -sS -o /dev/null -w '%{http_code}' -X POST \
-        -H 'Content-Type: application/json' --data-binary "@$1" "$REPLAY/clip"
+# The demo lane tags clips with X-Replay-Route: $PORT — under
+# replay_split.py only the composer whose Origin port matches drains them
+# (shared box: several composers may pull :8877; untagged traffic lands in
+# the "default" queue for everyone else, exactly like upstream).
+RT=(-H "X-Replay-Route: ${PORT:-8874}")
+qclear() { curl -sS -X POST "${RT[@]}" "$REPLAY/clear" >/dev/null 2>&1; }
+qpush() { # qpush <clip.json> -> prints ONLY the http code on stdout
+    local n code
+    n=$(python3 -c "import json;print(len(json.load(open('$1'))['frames']))" 2>/dev/null || echo '?')
+    code=$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
+        "${RT[@]}" -H 'Content-Type: application/json' \
+        --data-binary "@$1" "$REPLAY/clip")
+    # log AFTER the curl — and never to stdout: callers capture $(qpush) and
+    # compare it to 200, so stdout must carry the code alone.
+    printf '[demo %s] + replay /clip <- %s (%s frames) -> %s\n' \
+        "$(date +%H:%M:%S)" "$(basename "$1")" "$n" "$code" >&2
+    printf '%s' "$code"
 }
-qstats() { curl -sS "$REPLAY/stats" 2>/dev/null; }
+qstats() { curl -sS "${RT[@]}" "$REPLAY/stats" 2>/dev/null; }
 
 # --- daemon state waits -----------------------------------------------------
 _jqstate() { # python one-liner over GET /live/state; args = expr in `s`
@@ -105,17 +123,30 @@ push_clip() { qclear; sleep 0.15; [ "$(qpush "$1")" = 200 ]; }
 
 # page_drain_wait — the replayed path only flows while the page's live/teach
 # sheet is open AND its pull loop is fed; verify the queue is draining.
-queue_drained() { [ "$(curl -sS "$REPLAY/health" | python3 -c "import json,sys;print(json.load(sys.stdin)['queued'])")" = 0 ]; }
+queue_drained() { [ "$(curl -sS "${RT[@]}" "$REPLAY/health" | python3 -c "import json,sys;print(json.load(sys.stdin)['queued'])" 2>/dev/null)" = 0 ]; }
 wait_drain() { # wait_drain [tries] — queue empty again
     local i; for i in $(seq 1 "${1:-120}"); do queue_drained && return 0; sleep 0.25; done
     log "queue did not drain (is the live sheet open?)"; return 1
 }
 
 # --- windows on :97 ----------------------------------------------------------
-chrome_wid() { DISPLAY="$D" xdotool search --name "Wispr Wrap" 2>/dev/null | tail -1; }
+# Shared box: other agents run their own chrome on the same display. Resolve
+# OUR window by the chrome pid recorded at boot (pids.chrome), falling back
+# to the page title — never `--class chrome | tail -1` (that grabs a
+# foreign window when several chromes share :97).
+chrome_wid() {
+    local cp w
+    cp=$(cat "$DEMO_STATE/pids.chrome" 2>/dev/null)
+    if [ -n "$cp" ]; then
+        for w in $(DISPLAY="$D" xdotool search --pid "$cp" 2>/dev/null); do
+            DISPLAY="$D" xdotool getwindowname "$w" 2>/dev/null | grep -q "Wispr Wrap" && { echo "$w"; return 0; }
+        done
+    fi
+    DISPLAY="$D" xdotool search --name "Wispr Wrap" 2>/dev/null | tail -1
+}
 chrome_nav() { # chrome_nav '#/live' — same-doc hash nav (no reload) via ctrl+l
     local frag="$1" wid
-    wid=$(DISPLAY="$D" xdotool search --class chrome 2>/dev/null | tail -1)
+    wid=$(chrome_wid)
     [ -n "$wid" ] || { log "chrome_nav: no chrome window"; return 1; }
     DISPLAY="$D" xdotool windowactivate --sync "$wid" 2>/dev/null
     sleep 0.15
@@ -128,7 +159,7 @@ chrome_nav() { # chrome_nav '#/live' — same-doc hash nav (no reload) via ctrl+
 
 layout() { # chrome left 940x800, evidence terminal right 340x800
     local cw ew
-    cw=$(DISPLAY="$D" xdotool search --class chrome 2>/dev/null | tail -1)
+    cw=$(chrome_wid)
     [ -n "$cw" ] && DISPLAY="$D" wmctrl -i -r "$cw" -e "0,0,0,940,800"
     ew=$(DISPLAY="$D" xdotool search --name "wf-demo-evidence" 2>/dev/null | tail -1)
     [ -n "$ew" ] && DISPLAY="$D" wmctrl -i -r "$ew" -e "0,940,0,340,800"
@@ -144,7 +175,7 @@ rec_start() { # rec_start <file.mp4>
     REC_PID=$!
     log "recording -> $1 (pid $REC_PID)"
 }
-rec_stop() {
+rec_stop() { # rec_stop <file.mp4>
     [ -n "$REC_PID" ] || return 0
     kill -INT "$REC_PID" 2>/dev/null
     for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
@@ -152,6 +183,6 @@ rec_stop() {
     done
     kill -0 "$REC_PID" 2>/dev/null && kill "$REC_PID" 2>/dev/null
     wait "$REC_PID" 2>/dev/null
-    log "recorded $1 ($(du -h "$1" 2>/dev/null | cut -f1))"
+    log "recorded ${1:-} ($(du -h "$1" 2>/dev/null | cut -f1))"
     REC_PID=""
 }

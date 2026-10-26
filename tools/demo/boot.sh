@@ -42,15 +42,30 @@ done
 # ---------- 1. realrun stack --------------------------------------------------
 log "boot realrun stack (:97 / :8874)"
 bash "$ROOT/tools/realrun/setup.sh"
+# the realrun env exports its own HERE/ROOT — re-pin ours after sourcing
+_dh="$HERE"; _dr="$ROOT"
 . "$REALRUN_STATE/env"
+HERE="$_dh"; ROOT="$_dr"; unset _dh _dr
 
 # ---------- 2. replay service :8877 -------------------------------------------
+# The composer hardcodes http://127.0.0.1:8877. On this shared box the lane
+# must be ORIGIN-PARTITIONED or several composers drain one queue (clips
+# pushed for demo A land in daemon B). tools/demo/replay_split.py is a
+# drop-in superset: untagged traffic keeps upstream behaviour exactly.
 REPLAY_OWNER=0
-if curl -sf "$REPLAY/health" >/dev/null 2>&1; then
-    log "replay service already healthy on :8877 (reusing — the queue is a shared singleton by design)"
+SPLIT=$(curl -sf "$REPLAY/health" | python3 -c "import json,sys;print('1' if json.load(sys.stdin).get('split') else '0')" 2>/dev/null || echo 0)
+if curl -sf "$REPLAY/health" >/dev/null 2>&1 && [ "$SPLIT" = 1 ]; then
+    log "replay_split already healthy on :8877 (reusing)"
 else
-    log "starting replay_server.py on :8877"
-    nohup python3 "$ROOT/tools/demo-rec/replay_server.py" \
+    if [ "$SPLIT" = 0 ] && curl -sf "$REPLAY/health" >/dev/null 2>&1; then
+        # a non-partitioned server is up: replace it (fully compatible —
+        # foreign consumers keep working on the default queue)
+        pid=$(ss -tlnp 2>/dev/null | grep ':8877 ' | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2)
+        log "replacing unpartitioned replay server (pid $pid) with replay_split.py"
+        [ -n "$pid" ] && kill "$pid" 2>/dev/null && sleep 0.4
+    fi
+    log "starting replay_split.py on :8877"
+    nohup python3 "$HERE/replay_split.py" \
         > "$DEMO_STATE/replay.log" 2>&1 &
     echo $! > "$DEMO_STATE/pids.replay"
     REPLAY_OWNER=1
@@ -77,7 +92,7 @@ echo $! > "$DEMO_STATE/pids.chrome"
 
 WID=""
 for _ in $(seq 1 75); do
-    WID=$(DISPLAY="$D" xdotool search --class chrome 2>/dev/null | tail -1)
+    WID=$(for w in $(DISPLAY="$D" xdotool search --pid "$(cat "$DEMO_STATE/pids.chrome" 2>/dev/null)" 2>/dev/null); do DISPLAY="$D" xdotool getwindowname "$w" 2>/dev/null | grep -qi chrome && { echo "$w"; break; }; done)
     [ -n "$WID" ] && break
     sleep 0.2
 done
