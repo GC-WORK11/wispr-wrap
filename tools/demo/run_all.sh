@@ -89,7 +89,8 @@ sleep 1.2
 layout
 sleep 0.5
 
-# go live: same-document hash nav keeps ?k= key in the page's memory
+# go live: hash nav to the live sheet. (?k= was already moved into
+# localStorage by app.js on first load — a reload would still be paired.)
 note "nav chrome -> #/live (composer live sheet)"
 chrome_nav "#/live"
 sleep 2.0
@@ -111,7 +112,7 @@ scene "01-listen  (palm-open hold -> listening; namaste -> stop)"
 rec "01-listen"
 play_until palm-hold.json 's.get("listening")' \
     "palm-hold -> daemon mode=PALM-OPEN -> listening=true" 3
-curl -sS -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -m json.tool
+"${CURL[@]}" -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -m json.tool
 play_until namaste.json 'not s.get("listening")' \
     "namaste -> mode=NAMASTE -> listening=false" 3
 rec_done
@@ -128,7 +129,7 @@ if [ -f "$MARKERS/open-notes" ]; then
 else
     ok "no marker while not listening — the palm gate gates actions"
 fi
-curl -sS -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -c "import json,sys;s=json.load(sys.stdin);print('  last_match:',s['last_match'])"
+"${CURL[@]}" -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -c "import json,sys;s=json.load(sys.stdin);print('  last_match:',s['last_match'])"
 rec_done
 
 # ---------- 03 teach + bind 3 signs -----------------------------------------
@@ -146,12 +147,12 @@ for G in OPEN-NOTES TYPE-HELLO LOCK; do
     sleep 0.3
     TAUGHT=0
     for try in 1 2 3; do
-        call POST /teach/begin "{\"name\":\"$G\",\"takes\":3,\"label\":\"$G\"}"
+        call POST /teach/begin "{\"name\":\"$G\",\"takes\":3,\"label\":\"$G\"}" >/dev/null
         play "teach-$G.json"
         # the page keeps streaming to the daemon for ~10s after the queue
         # drains — wait for the daemon-side take counter, not just /pull.
         wait_state 's["teach"]["got"]>=3 or not s["teach"]["active"]' 90 0.25
-        got=$(curl -sS -H "X-WF-Key: $KEY" "$BASE/live/state" | \
+        got=$("${CURL[@]}" -H "X-WF-Key: $KEY" "$BASE/live/state" | \
               python3 -c "import json,sys;print(json.load(sys.stdin)['teach']['got'])")
         [ "$got" -ge 3 ] && { TAUGHT=1; break; }
         note "  teach $G try $try: got=$got/3 — re-begin"
@@ -161,7 +162,7 @@ for G in OPEN-NOTES TYPE-HELLO LOCK; do
     if [ "$TAUGHT" != 1 ]; then bad "teach $G never reached 3 takes"; continue; fi
     # bind through the real PUT /bank (writes commands.tsv)
     body=$(python3 -c "import json;d=json.loads('''$BINDINGS''')['$G'];d['gloss']='$G';print(json.dumps(d))")
-    call PUT /bank "$body"
+    call PUT /bank "$body" >/dev/null
     call GET /bank >/dev/null
     if call_body | python3 -c "import json,sys;r=[x for x in json.load(sys.stdin)['signs'] if x['gloss']=='$G'];assert r and r[0].get('taught') and r[0]['n_exemplars']>=3 and r[0].get('bound'), r"; then
         ok "$G taught (3 exemplars) + bound: $(call_body | python3 -c "import json,sys;r=[x for x in json.load(sys.stdin)['signs'] if x['gloss']=='$G'][0];print(r.get('argv'))")"
@@ -172,45 +173,59 @@ done
 rec_done
 
 # ---------- 04 perform ------------------------------------------------------
+# perform_expect <clip> <probe-file> <desc> — ensure listening, push the
+# clip, poll for the OS effect; retry twice (a daemon restart mid-scene
+# drops `listening`, so each retry re-palms first).
+perform_expect() {
+    local clip="$1" probe="$2" desc="$3" i
+    for i in 1 2 3; do
+        ensure_listening || { note "  perform $desc: still not listening"; continue; }
+        push_clip "$clip"
+        wait_marker "$probe" 90 && return 0
+        note "  perform $desc attempt $i: no effect yet"
+    done
+    return 1
+}
+
 scene "04-perform  (palm -> perform -> real OS effects)"
 rec "04-perform"
 rm -f "$MARKERS/open-notes"
 : > "$SINK"
-play_until palm-hold.json 's.get("listening")' "listening on" 3
-push_clip "$CLIPS/perform-OPEN-NOTES.json"
-wait_marker "$MARKERS/open-notes" 80 \
+perform_expect "$CLIPS/perform-OPEN-NOTES.json" "$MARKERS/open-notes" \
+    "OPEN-NOTES" \
     && ok "OPEN-NOTES matched -> argv fired -> $MARKERS/open-notes" \
-    || { play "$CLIPS/perform-OPEN-NOTES.json"; wait_marker "$MARKERS/open-notes" 80 \
-         && ok "OPEN-NOTES marker (retry)" || bad "OPEN-NOTES never fired"; }
-curl -sS -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -c "import json,sys;print('  last_match:',json.load(sys.stdin)['last_match'])"
+    || bad "OPEN-NOTES never fired"
+"${CURL[@]}" -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -c "import json,sys;print('  last_match:',json.load(sys.stdin)['last_match'])"
 
 note "TYPE-HELLO -> xdotool types into the real SinkEdit editor"
-push_clip "$CLIPS/perform-TYPE-HELLO.json"
-ok_sink=0
-for _ in $(seq 1 60); do grep -q "hello-from-the-demo-sign" "$SINK" 2>/dev/null && { ok_sink=1; break; }; sleep 0.25; done
-if [ "$ok_sink" = 1 ]; then
+# probe = sink.txt containing the typed string (not just mtime)
+sink_probe() { grep -q "hello-from-the-demo-sign" "$SINK" 2>/dev/null; }
+for i in 1 2 3; do
+    ensure_listening || continue
+    push_clip "$CLIPS/perform-TYPE-HELLO.json"
+    for _ in $(seq 1 80); do sink_probe && break; sleep 0.25; done
+    sink_probe && break
+    note "  TYPE-HELLO attempt $i: sink unchanged"
+done
+if sink_probe; then
     ok "TYPE-HELLO fired -> text in sink.txt: $(cat "$SINK")"
 else
-    play "$CLIPS/perform-TYPE-HELLO.json"
-    for _ in $(seq 1 60); do grep -q "hello-from-the-demo-sign" "$SINK" 2>/dev/null && { ok_sink=1; break; }; sleep 0.25; done
-    [ "$ok_sink" = 1 ] && ok "TYPE-HELLO text in sink.txt (retry)" \
-                      || bad "TYPE-HELLO never reached sink.txt"
+    bad "TYPE-HELLO never reached sink.txt"
 fi
 rec_done
 
 # ---------- 05 reject -------------------------------------------------------
 scene "05-reject  (untrained sign -> honest rejection)"
 rec "05-reject"
-wait_state 's.get("listening")' 10 0.2 \
-    || { play palm-hold.json; wait_state 's.get("listening")' 60 0.25; }
+ensure_listening
 push_clip "$CLIPS/reject.json"
 rej=0
 for _ in $(seq 1 60); do
-    acc=$(curl -sS -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -c "import json,sys;m=json.load(sys.stdin).get('last_match') or {};print('Y' if (m.get('accepted') is False and not m.get('mode')) else 'N')" 2>/dev/null)
+    acc=$("${CURL[@]}" -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -c "import json,sys;m=json.load(sys.stdin).get('last_match') or {};print('Y' if (m.get('accepted') is False and not m.get('mode')) else 'N')" 2>/dev/null)
     [ "$acc" = Y ] && { rej=1; break; }
     sleep 0.25
 done
-[ "$rej" = 1 ] && ok "rejected: $(curl -sS -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -c "import json,sys;m=json.load(sys.stdin)['last_match'];print(m['gloss'],m['dist'],m['accepted'],m.get('reason'))")" \
+[ "$rej" = 1 ] && ok "rejected: $("${CURL[@]}" -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -c "import json,sys;m=json.load(sys.stdin)['last_match'];print(m['gloss'],m['dist'],m['accepted'],m.get('reason'))")" \
               || bad "no honest rejection in last_match"
 rec_done
 
@@ -218,13 +233,13 @@ rec_done
 scene "06-confirm  (tier-2 action parks for confirm -> /act/confirm fires)"
 rec "06-confirm"
 rm -f "$MARKERS/lock-confirmed"
-wait_state 's.get("listening")' 10 0.2 \
-    || { play palm-hold.json; wait_state 's.get("listening")' 60 0.25; }
+ensure_listening
 pend=0
-for try in 1 2; do
+for try in 1 2 3; do
+    ensure_listening || continue   # a mid-scene daemon restart drops the flag
     push_clip "$CLIPS/perform-LOCK.json"
     for _ in $(seq 1 60); do
-        PID=$(curl -sS -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -c "import json,sys;p=json.load(sys.stdin)['pending'];print(p[0]['id'] if p else '')" 2>/dev/null)
+        PID=$("${CURL[@]}" -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -c "import json,sys;p=json.load(sys.stdin)['pending'];print(p[0]['id'] if p else '')" 2>/dev/null)
         [ -n "$PID" ] && { pend=1; break; }
         sleep 0.25
     done
@@ -232,7 +247,7 @@ for try in 1 2; do
 done
 if [ "$pend" = 1 ]; then
     note "LOCK matched tier-2 -> parked pending id=$PID (NOT fired yet: $([ -f "$MARKERS/lock-confirmed" ] && echo BAD || echo none))"
-    call POST /act/confirm "{\"id\":\"$PID\"}"
+    call POST /act/confirm "{\"id\":\"$PID\"}" >/dev/null
     wait_marker "$MARKERS/lock-confirmed" 40 \
         && ok "confirm released -> $MARKERS/lock-confirmed" \
         || bad "confirm released but marker missing"
@@ -246,7 +261,7 @@ scene "07-namaste  (stop listening) + final evidence"
 rec "07-namaste"
 play_until namaste.json 'not s.get("listening")' "namaste -> listening=false" 3
 note "final daemon state:"
-curl -sS -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -m json.tool
+"${CURL[@]}" -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -m json.tool
 note "GET /bank:"
 call GET /bank >/dev/null; call_body | python3 -m json.tool
 note "GET /act:"
@@ -259,4 +274,8 @@ log "===================== RESULT: $PASS pass / $FAIL fail =====================
 printf '%s\t%d pass / %d fail — replayed keypoints through chrome -> real wfd.py :%s -> real OS effects\n' \
     "$( [ "$FAIL" = 0 ] && echo VERIFIED || echo FAILED )" "$PASS" "$FAIL" "$PORT" > "$PROOFS/RESULT"
 cat "$PROOFS/RESULT"
+# evidence: run.log never carries the pairing key (boot.sh's ?k= line is
+# printed to the caller's stdout, not teed here) — safe to publish.
+cp "$RUNLOG" "$PROOFS/run.log"
+ls -la "$PROOFS"
 exit "$([ "$FAIL" = 0 ] && echo 0 || echo 1)"

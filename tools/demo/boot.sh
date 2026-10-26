@@ -53,11 +53,11 @@ HERE="$_dh"; ROOT="$_dr"; unset _dh _dr
 # pushed for demo A land in daemon B). tools/demo/replay_split.py is a
 # drop-in superset: untagged traffic keeps upstream behaviour exactly.
 REPLAY_OWNER=0
-SPLIT=$(curl -sf "$REPLAY/health" | python3 -c "import json,sys;print('1' if json.load(sys.stdin).get('split') else '0')" 2>/dev/null || echo 0)
-if curl -sf "$REPLAY/health" >/dev/null 2>&1 && [ "$SPLIT" = 1 ]; then
+SPLIT=$("${CURL[@]}" -f "$REPLAY/health" | python3 -c "import json,sys;print('1' if json.load(sys.stdin).get('split') else '0')" 2>/dev/null || echo 0)
+if "${CURL[@]}" -f "$REPLAY/health" >/dev/null 2>&1 && [ "$SPLIT" = 1 ]; then
     log "replay_split already healthy on :8877 (reusing)"
 else
-    if [ "$SPLIT" = 0 ] && curl -sf "$REPLAY/health" >/dev/null 2>&1; then
+    if [ "$SPLIT" = 0 ] && "${CURL[@]}" -f "$REPLAY/health" >/dev/null 2>&1; then
         # a non-partitioned server is up: replace it (fully compatible —
         # foreign consumers keep working on the default queue)
         pid=$(ss -tlnp 2>/dev/null | grep ':8877 ' | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2)
@@ -70,10 +70,10 @@ else
     echo $! > "$DEMO_STATE/pids.replay"
     REPLAY_OWNER=1
     for _ in $(seq 1 40); do
-        curl -sf "$REPLAY/health" >/dev/null 2>&1 && break; sleep 0.2
+        "${CURL[@]}" -f "$REPLAY/health" >/dev/null 2>&1 && break; sleep 0.2
     done
 fi
-curl -sf "$REPLAY/health" >/dev/null 2>&1 || die "replay service did not come up on :8877"
+"${CURL[@]}" -f "$REPLAY/health" >/dev/null 2>&1 || die "replay service did not come up on :8877"
 
 # ---------- 3. chrome on :97 ----------------------------------------------------
 rm -rf "$PROFILE"; mkdir -p "$PROFILE"
@@ -107,8 +107,8 @@ done
 log "chrome up: wid=$WID title='$TITLE'"
 
 # ---------- 4. health summary + env -------------------------------------------
-curl -sf "$BASE/health" >/dev/null || die "daemon /health failed on $BASE"
-CODE=$(curl -sS -o /dev/null -w '%{http_code}' -H "X-WF-Key: $KEY" "$BASE/live/state")
+"${CURL[@]}" -f "$BASE/health" >/dev/null || die "daemon /health failed on $BASE"
+CODE=$("${CURL[@]}" -o /dev/null -w '%{http_code}' -H "X-WF-Key: $KEY" "$BASE/live/state")
 [ "$CODE" = 200 ] || die "/live/state -> $CODE (key mismatch?)"
 
 cat > "$DEMO_STATE/env" <<EOF

@@ -46,20 +46,26 @@ load_env() {
 }
 
 # --- HTTP (authed daemon calls, evidence-logged) ---------------------------
+# Every curl is bounded: a wedged-but-listening socket otherwise stalls a
+# scene indefinitely (seen: foreign agent restarted the shared daemon
+# mid-run -> 22 min dead air). 8s is generous for loopback; callers retry.
+CURL=(curl -sS --connect-timeout 3 --max-time 8)
 CALL_BODY=""
-call() { # call METHOD PATH [body] -> prints "<code>", body in $CALL_BODY
+call() { # call METHOD PATH [body] -> prints ONLY "<code>" on stdout
+    # evidence lines go to stderr so $(call) captures the code alone and
+    # `call ... >/dev/null` keeps the curl/response in the log.
     local m="$1" p="$2" body="${3:-}"
     CALL_BODY="$(mktemp /tmp/demo-body.XXXXXX)"
     local code args=()
     if [ -n "$body" ]; then
         args=(-H 'Content-Type: application/json' --data-binary "$body")
-        log "+ curl -X $m $BASE$p $body"
+        log "+ curl -X $m $BASE$p $body" >&2
     else
-        log "+ curl -X $m $BASE$p"
+        log "+ curl -X $m $BASE$p" >&2
     fi
-    code=$(curl -sS -o "$CALL_BODY" -w '%{http_code}' -X "$m" \
+    code=$("${CURL[@]}" -o "$CALL_BODY" -w '%{http_code}' -X "$m" \
         -H "X-WF-Key: $KEY" "${args[@]}" "$BASE$p")
-    log "  -> $code $(head -c 220 "$CALL_BODY")"
+    log "  -> $code $(head -c 220 "$CALL_BODY")" >&2
     printf '%s' "$code"
 }
 call_body() { cat "$CALL_BODY"; }
@@ -70,11 +76,11 @@ call_body() { cat "$CALL_BODY"; }
 # (shared box: several composers may pull :8877; untagged traffic lands in
 # the "default" queue for everyone else, exactly like upstream).
 RT=(-H "X-Replay-Route: ${PORT:-8874}")
-qclear() { curl -sS -X POST "${RT[@]}" "$REPLAY/clear" >/dev/null 2>&1; }
+qclear() { "${CURL[@]}" -X POST "${RT[@]}" "$REPLAY/clear" >/dev/null 2>&1; }
 qpush() { # qpush <clip.json> -> prints ONLY the http code on stdout
     local n code
     n=$(python3 -c "import json;print(len(json.load(open('$1'))['frames']))" 2>/dev/null || echo '?')
-    code=$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
+    code=$("${CURL[@]}" -o /dev/null -w '%{http_code}' -X POST \
         "${RT[@]}" -H 'Content-Type: application/json' \
         --data-binary "@$1" "$REPLAY/clip")
     # log AFTER the curl — and never to stdout: callers capture $(qpush) and
@@ -83,11 +89,11 @@ qpush() { # qpush <clip.json> -> prints ONLY the http code on stdout
         "$(date +%H:%M:%S)" "$(basename "$1")" "$n" "$code" >&2
     printf '%s' "$code"
 }
-qstats() { curl -sS "${RT[@]}" "$REPLAY/stats" 2>/dev/null; }
+qstats() { "${CURL[@]}" "${RT[@]}" "$REPLAY/stats" 2>/dev/null; }
 
 # --- daemon state waits -----------------------------------------------------
 _jqstate() { # python one-liner over GET /live/state; args = expr in `s`
-    curl -sS -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -c "
+    "${CURL[@]}" -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -c "
 import json,sys
 s=json.load(sys.stdin)
 print(bool($1))"
@@ -109,7 +115,7 @@ wait_marker() { # wait_marker PATH [tries]
     log "marker timeout: $p"; return 1
 }
 last_match_gloss() {
-    curl -sS -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -c "
+    "${CURL[@]}" -H "X-WF-Key: $KEY" "$BASE/live/state" | python3 -c "
 import json,sys
 m=(json.load(sys.stdin).get('last_match') or {})
 print(m.get('gloss',''))"
@@ -123,10 +129,24 @@ push_clip() { qclear; sleep 0.15; [ "$(qpush "$1")" = 200 ]; }
 
 # page_drain_wait — the replayed path only flows while the page's live/teach
 # sheet is open AND its pull loop is fed; verify the queue is draining.
-queue_drained() { [ "$(curl -sS "${RT[@]}" "$REPLAY/health" | python3 -c "import json,sys;print(json.load(sys.stdin)['queued'])" 2>/dev/null)" = 0 ]; }
+queue_drained() { [ "$("${CURL[@]}" "${RT[@]}" "$REPLAY/health" | python3 -c "import json,sys;print(json.load(sys.stdin)['queued'])" 2>/dev/null)" = 0 ]; }
 wait_drain() { # wait_drain [tries] — queue empty again
     local i; for i in $(seq 1 "${1:-120}"); do queue_drained && return 0; sleep 0.25; done
     log "queue did not drain (is the live sheet open?)"; return 1
+}
+
+# ensure_listening — a stale 'listening=true' never survives a daemon
+# restart or a foreign clip storm; re-palm whenever the flag is down.
+ensure_listening() {
+    wait_state 's.get("listening")' 8 0.25 && return 0
+    local i
+    for i in 1 2 3; do
+        push_clip "$CLIPS/palm-hold.json" || continue
+        wait_drain 60
+        wait_state 's.get("listening")' 40 0.25 && return 0
+    done
+    log "could not enter listening"
+    return 1
 }
 
 # --- windows on :97 ----------------------------------------------------------
