@@ -50,22 +50,58 @@ else
     bad "composer send: sink unchanged ($BEFORE -> $NOW)"
 fi
 
-# --- 3. drawer: hamburger -> laptop row + nav ---------------------------------
-jse 'document.getElementById("menu").click(); "menu"' >/dev/null
+# --- 2b. image send: stage a real PNG via the file input -> go ---------------
+W=$(SINK_WID)
+[ -n "$W" ] && DISPLAY="$D" xdotool windowactivate "$W" 2>/dev/null && sleep 0.5
+# a tiny real PNG (32x32 pink square), built in-page and staged through the
+# composer's own file input — the same handler a tap on the photo picker hits.
+STAGED=$(jse '(function(){
+  var c=document.createElement("canvas");c.width=c.height=32;
+  var x=c.getContext("2d");x.fillStyle="#FF309C";x.fillRect(0,0,32,32);
+  var u=c.toDataURL("image/png").split(",")[1];
+  var b=Uint8Array.from(atob(u),function(ch){return ch.charCodeAt(0)});
+  var f=new File([b],"photo.png",{type:"image/png"});
+  var dt=new DataTransfer();dt.items.add(f);
+  var inp=document.getElementById("file")||document.getElementById("fileany");
+  inp.files=dt.files;inp.dispatchEvent(new Event("change",{bubbles:true}));
+  var a=document.getElementById("attach");
+  return a&&!a.hidden?"staged":"not-staged";})()')
+note "image staged via #file input: $STAGED"
+sleep 0.9
+jse 'document.getElementById("go").click();"sent"' >/dev/null
+IMGOK=0
+for _ in $(seq 1 24); do
+  DISPLAY="$D" xclip -selection clipboard -t TARGETS -o 2>/dev/null | grep -q "image/png" && { IMGOK=1; break; }
+  sleep 0.25
+done
+[ "$IMGOK" = 1 ] && ok "image send -> clipboard holds image/png on the laptop" \
+                || bad "image send: no image/png clipboard target"
 sleep 1.0
-OPEN=$(jse 'document.getElementById("drawer").getAttribute("aria-hidden")')
-note "drawer aria-hidden=$OPEN"
-[ "$OPEN" = "false" ] && ok "drawer opened" || bad "drawer did not open"
-sleep 1.4   # drawer visible on camera
+CW=$(chrome_wid); [ -n "$CW" ] && DISPLAY="$D" xdotool windowactivate "$CW" 2>/dev/null
 
-# --- 4. teach sheet: quick actions grid ---------------------------------------
-chrome_nav '#/teach'
-sleep 2.0
-N_TILES=$(jse 'document.querySelectorAll("#sheet-teach button").length')
-note "teach sheet buttons: $N_TILES"
-[ "${N_TILES:-0}" -gt 3 ] 2>/dev/null && ok "teach sheet rendered ($N_TILES controls)" || bad "teach sheet thin"
+# --- 2c. file send: stage notes.txt via fileany -> go -> laptop disk ---------
+UPLOADS=/tmp/wf-realrun/home/wf-uploads
+FBEFORE=$(ls "$UPLOADS" 2>/dev/null | wc -l)
+jse '(function(){
+  var f=new File(["hello from the phone"],"wrap-note.txt",{type:"text/plain"});
+  var dt=new DataTransfer();dt.items.add(f);
+  var inp=document.getElementById("fileany")||document.getElementById("file");
+  inp.files=dt.files;inp.dispatchEvent(new Event("change",{bubbles:true}));
+  return "staged";})()' | sed "s/^/ui: /"
+sleep 0.9
+jse 'document.getElementById("go").click();"sent"' >/dev/null
+FILEOK=0
+for _ in $(seq 1 24); do
+  ls "$UPLOADS" 2>/dev/null | grep -q "wrap-note.txt" && { FILEOK=1; break; }
+  sleep 0.25
+done
+FPATH=$(ls -t "$UPLOADS"/*wrap-note.txt 2>/dev/null | head -1)
+[ "$FILEOK" = 1 ] && ok "file send -> saved to laptop: $(basename "$FPATH" 2>/dev/null)" \
+                  || bad "file send: nothing in $UPLOADS"
+sleep 1.0
+CW=$(chrome_wid); [ -n "$CW" ] && DISPLAY="$D" xdotool windowactivate "$CW" 2>/dev/null
 
-# --- 5. back to live for the sign scenes ---------------------------------------
+# --- 3. back to live (drawer + teach sheets get their own clip: scene_sheets) -
 chrome_nav '#/live'
 sleep 1.0
 bash "$HERE/record.sh" stop
