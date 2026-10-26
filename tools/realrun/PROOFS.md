@@ -70,7 +70,7 @@ Per feature: `before.txt after.txt diff.txt shot.png run.log RESULT`.
 | screenshot | sign -> real PNG of the display (header+size) via bound argv | proofs/realrun/screenshot | `tools/realrun/verify_screenshot.sh` | VERIFIED |
 | macro | sign -> multi-effect chain (user argv) + engine kind:macro routed via provider | proofs/realrun/macro | `tools/realrun/verify_macro.sh` | VERIFIED |
 | context | same sign -> different effect per focused app (user argv + engine context_dispatch) | proofs/realrun/context | `tools/realrun/verify_context.sh` | VERIFIED |
-| picker | GET /act app row -> new real window; type.text row -> real typing into the focused editor | proofs/realrun/picker | `tools/realrun/verify_picker.sh` | VERIFIED |
+| picker | GET /act app row -> new real window; type.text row -> real typing; sys.screenshot row -> real PNG | proofs/realrun/picker | `tools/realrun/verify_picker.sh` | VERIFIED |
 | observe | POST /live/mode observe: match + would-fire reported, no dispatch; live control fires | proofs/realrun/observe | `tools/realrun/verify_observe.sh` | VERIFIED |
 | record | real XI2 input -> macro.json (type/keys/click steps, mode 600) | proofs/realrun/record | `tools/realrun/verify_record.sh` | VERIFIED |
 | confirm | tier-2 sign parks; /act/confirm fires; cancel buries | proofs/realrun/confirm | `tools/realrun/verify_confirm.sh` | VERIFIED |
