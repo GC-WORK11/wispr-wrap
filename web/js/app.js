@@ -7,6 +7,9 @@ import { Flower } from './flower.js';
 // arrives once in the URL (?k=), then lives in localStorage
 const store = (() => { try { return localStorage; } catch (e) { return sessionStorage; } })();
 const K = new URLSearchParams(location.search).get('k') || store.getItem('wfk') || '';
+// ?replay opts this browser into the kp42 demo-replay seam (pose.js) — it is
+// sticky in localStorage, so the URL cleans itself and judges never see it.
+if (new URLSearchParams(location.search).has('replay')) store.setItem('wfreplay', '1');
 if (K) { store.setItem('wfk', K); if (location.search) history.replaceState(null, '', location.pathname + location.hash); }
 
 // ---------- transport ----------

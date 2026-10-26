@@ -77,7 +77,7 @@ fi
 
 # ---------- 3. chrome on :97 ----------------------------------------------------
 rm -rf "$PROFILE"; mkdir -p "$PROFILE"
-URL="http://127.0.0.1:$PORT/?k=$KEY"
+URL="http://127.0.0.1:$PORT/?k=$KEY&replay"
 log "launching chrome -> $URL"
 DISPLAY="$D" setsid google-chrome \
     --user-data-dir="$PROFILE" \

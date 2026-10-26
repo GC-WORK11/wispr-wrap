@@ -118,8 +118,10 @@ export const Pose = {
   error: null,
   SIZE_BYTES,
 
-  /** Returns a replay engine when the demo-rec service is up, else null. */
+  /** Returns a replay engine only for ?replay browsers with the service up. */
   async replay() {
+    // the seam is invisible to everyone else: no flag -> we never probe :8877
+    if (App.store.getItem('wfreplay') !== '1') return null;
     if (replayProbed === undefined) {
       try {
         const ctl = new AbortController();

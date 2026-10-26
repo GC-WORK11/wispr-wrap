@@ -29,7 +29,7 @@
 }
 .tw-step[data-step="name"] > .hint b { color: var(--accent); font-weight: 550; font-family: var(--serif); font-style: italic; letter-spacing: -.01em; }
 .tw-step[data-step="name"] .input { font-size: 19px; padding: 17px 20px; border-radius: 18px; box-shadow: var(--sh-1); letter-spacing: -.01em; }
-.tw-step[data-step="name"] .input:focus { box-shadow: 0 0 0 4px var(--ring), var(--sh-1); }
+.tw-step[data-step="name"] .input:focus { box-shadow: 0 0 0 4px rgba(0, 0, 0, .06), var(--sh-1); }
 .tw-step > .hint { font-size: 14.5px; color: var(--muted-2); line-height: 1.6; }
 
 .tw-gloss {
