@@ -94,7 +94,7 @@ function attachMenu() {
     } else if (!menu) document.removeEventListener('pointerdown', h);
   }), 0);
 }
-plus.onclick = attachMenu;
+plus.onclick = () => fileany.click();          // one tap: the system picker offers photos, videos and files
 addEventListener('keydown', e => { if (e.key === 'Escape' && menu) closeMenu(); });
 file.onchange = () => { const f = file.files[0]; if (f) stageFile(f, f.name); file.value = ''; };
 fileany.onchange = () => { const f = fileany.files[0]; if (f) stageFile(f, f.name); fileany.value = ''; };
@@ -183,9 +183,9 @@ async function send() {
         const onProg = (frac) => {
           const pct = Math.round(frac * 100);
           setProgress(frac);
-          App.toast('Sending ' + noun + '… ' + pct + '%');
+          App.toast('Sending… ' + pct + '%');
         };
-        App.toast('Sending ' + noun + '… 0%');
+        App.toast('Sending… 0%');
         setProgress(0);
         if (st.isVideo || !isImg) {
           r = await App.api.upload('/send-file', st.blob,
@@ -200,10 +200,10 @@ async function send() {
         if (r.aborted) { sending = false; go.disabled = false; return; }  // cancelUpload already spoke
         imgOk = r.ok; into = r.json && r.json.into; ms = performance.now() - t0;
         if (imgOk) { clearStaged(); await App.sleep(450); }
-        else if (r.status === 0) App.toast(sizeMB > 15 ? 'That ' + noun + ' is too big to send right now.' : 'Can’t reach your laptop. Run: wrap start', true);
-        else if (r.status === 413) App.toast('That ' + noun + ' is too big to send.', true);
-        else App.toast('The laptop said no (' + r.status + ')' + (r.json && r.json.error ? ': ' + r.json.error : ''), true);
-      } catch (e) { uploadAbort = null; setProgress(null); App.toast('Can’t reach your laptop. Run: wrap start', true); }
+        else if (r.status === 0) App.toast(sizeMB > 15 ? 'That file is too big to send right now.' : 'Can’t reach your laptop', true);
+        else if (r.status === 413) App.toast('That file is too big to send.', true);
+        else App.toast((r.json && r.json.error) || 'Couldn’t send. Try again.', true);
+      } catch (e) { uploadAbort = null; setProgress(null); App.toast('Can’t reach your laptop', true); }
     }
     if (text.trim()) {
       const t0 = performance.now();
@@ -211,18 +211,18 @@ async function send() {
         const r = await App.api.post('/send', { text, mode: 'type' });
         txtOk = r.ok;
         if (r.ok) { box.value = ''; grow(); into = into || (r.json && r.json.into); ms = performance.now() - t0; }
-        else App.toast((r.json && r.json.error) || ('The laptop said no (' + r.status + ')'), true);
-      } catch (e) { App.toast('Can’t reach your laptop. Run: wrap start', true); }
+        else App.toast((r.json && r.json.error) || 'Couldn’t send. Try again.', true);
+      } catch (e) { App.toast('Can’t reach your laptop', true); }
     }
     App.emit('sent', { ok: imgOk || txtOk, into });
     if (imgOk || txtOk) {
       const kind = imgOk && txtOk ? 'Text and file' : imgOk ? 'File' : 'Text';
       App.state.lastSend = { t_ms: Date.now(), ok: true, into, kind };
       App.renderStatus();
-      App.toast(kind + ' → ' + app(into) + ' · ' + secs(ms));
+      App.toast('Sent');
       Flower.burst(); App.buzz();
     } else if (!imgOk && !txtOk && !document.querySelector('.toast.err.show')) {
-      App.toast('Send failed. Run: wrap start', true);
+      App.toast('Couldn’t send. Try again.', true);
     }
   } finally {
     sending = false; go.disabled = false; box.focus();

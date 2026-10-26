@@ -124,16 +124,10 @@ const canAct = () => connected() && (!state.laptop || state.laptop.canAct);
 function renderStatus() {
   const ok = connected();
   if (linkDot) linkDot.className = 'dr-dot' + (ok ? ' on' : '');
-  let sub;
-  if (!state.online) sub = 'Not connected';
-  else if (!state.paired) sub = 'Needs its code';
-  else {
-    const nm = (state.laptop && state.laptop.name) || store.getItem('wfname') || 'Your laptop';
-    sub = nm + (state.focus ? ' · typing into ' + state.focus : '');
-  }
+  const sub = ok ? 'Connected' : '';
   if (lapSub) lapSub.textContent = sub;
   // spec: laptop features exist only while a laptop is connected; otherwise one "Connect your laptop" row
-  for (const id of ['tray-teach', 'tray-signs']) { const el = document.getElementById(id); if (el) el.hidden = !ok; }
+  for (const id of ['tray-teach', 'tray-signs', 'dr-laptop']) { const el = document.getElementById(id); if (el) el.hidden = !ok; }
   const dc = document.getElementById('dr-connect'); if (dc) dc.hidden = ok;
   if (connHint) connHint.hidden = ok || !state.checked || !K;
   emit('statusbar', state);
