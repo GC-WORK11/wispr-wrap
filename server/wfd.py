@@ -3,7 +3,7 @@
 from the phone app, injects them at the laptop cursor, and fires taught
 signs' bound actions. Auth via shared pairing key; the live-sign surface
 is LAN/USB only (never through a tunnel)."""
-import hashlib, hmac, json, os, queue, re, secrets, shutil, string, subprocess, sys, tempfile, threading, time, urllib.parse
+import hashlib, hmac, json, math, os, queue, re, secrets, shutil, string, subprocess, sys, tempfile, threading, time, urllib.parse
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -493,11 +493,13 @@ def _on_segment(frames, t_ms):
         return res
     if m is None:
         return res
-    last = {"gloss": m.gloss, "dist": m.dist, "at_ms": t_ms,
+    def _finite(v):
+        return v if (v is None or (isinstance(v, (int, float)) and math.isfinite(v))) else None
+    last = {"gloss": m.gloss, "dist": _finite(m.dist), "at_ms": t_ms,
             "accepted": bool(m.accepted),
             "label": getattr(m, "label", "") or "",
-            "score": getattr(m, "score", None),
-            "margin": getattr(m, "margin", None),
+            "score": _finite(getattr(m, "score", None)),
+            "margin": _finite(getattr(m, "margin", None)),
             "second": getattr(m, "second_gloss", None),
             "reason": getattr(m, "reason", "")}
     if m.accepted and m.gloss:
