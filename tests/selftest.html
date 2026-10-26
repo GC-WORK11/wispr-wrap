@@ -141,7 +141,7 @@ async function main() {
   $('tw-done-lib').click();
   await until(() => $$('#lib-list .lib-card').length, 'library card');
   [...$$('#lib-list .lib-card .lib-b')]
-    .find(b => b.textContent === '+ take').click();
+    .find(b => b.textContent === 'Add a take').click();
   await until(() => $$('.tw-step')[1] && $$('.tw-step')[1].classList.contains('on'),
               'add-take record step');
   await doTake(1);
@@ -157,7 +157,7 @@ async function main() {
   /* --- library: rename label --- */
   await until(() => $$('#lib-list .lib-card').length, 'library card again');
   [...$$('#lib-list .lib-card .lib-b')]
-    .find(b => b.textContent === 'rename').click();
+    .find(b => b.textContent === 'Rename').click();
   await until(() => $$('#lib-list .lib-rename input').length,
               'rename input');
   const rin = $$('#lib-list .lib-rename input')[0];
@@ -171,10 +171,10 @@ async function main() {
 
   /* --- library: delete --- */
   [...$$('#lib-list .lib-card .lib-b')]
-    .find(b => b.textContent === 'delete').click();
+    .find(b => b.textContent === 'Delete').click();
   await sleep(120);
   [...$$('#lib-list .lib-card .lib-b')]
-    .find(b => b.textContent === 'sure?').click();
+    .find(b => b.textContent === 'Sure?').click();
   await until(() => !$$('#lib-list .lib-card').length, 'sign deleted');
   const b3 = await (await fetch('/bank',
     { headers: { 'X-WF-Key': KEY } })).json();
