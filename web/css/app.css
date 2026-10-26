@@ -181,7 +181,7 @@ body.sheet-open .top { display: none; }
 .dr-nav { display: flex; flex-direction: column; gap: 2px; }
 .dr-item {
   appearance: none; border: none; background: transparent; cursor: pointer; text-align: left;
-  display: flex; align-items: center; gap: 16px; min-height: 56px; padding: 8px 12px; border-radius: 16px;
+  display: flex; align-items: center; gap: 16px; min-height: 60px; padding: 8px 14px; border-radius: 16px;
   font-size: 17px; font-weight: 450; letter-spacing: -.01em; color: var(--ink);
   transition: background var(--t-1), transform var(--t-1);
 }

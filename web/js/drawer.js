@@ -6,7 +6,7 @@
 import { App } from './app.js';
 
 const nav = App.drawer && App.drawer.nav;
-if (nav) {
+if (nav && !document.getElementById('dr-connect')) {   // PEAK's frame already has the single "Connect your laptop" row
   // the connect call-to-action — inserted above the nav rows, only while
   // the laptop link is down. Tapping it opens the Laptop page, which
   // carries the code entry.

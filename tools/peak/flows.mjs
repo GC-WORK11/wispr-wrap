@@ -105,11 +105,11 @@ async function flowSend() {
     await shot(page, dir, '02-typed-send-arrow');
     check('the waveform becomes the send arrow once there is text', await page.eval(`document.querySelector('#pill').classList.contains('ready')`));
     await page.click('#go');
-    await waitToast(page, '→', 'text delivered');
+    await waitToast(page, 'Sent', 'text delivered');
     await shot(page, dir, '03-text-delivered');
     check('text lands in the real editor', await sinkHas(before, 'Hello from the phone, typed for real'), 'sink.txt got the text');
     const t1 = await toast(page);
-    check('status line shows target + latency', /Text → .+ · \d+ ms|Text → .+ · [\d.]+ s/.test(t1), t1);
+    check('quiet status line says Sent', /^Sent$/.test(t1.trim()), t1);
 
     // photo (generated PNG: no people), video (tiny generated webm), file
     const dirTmp = '/tmp/peak-send'; fs.mkdirSync(dirTmp, { recursive: true });
@@ -125,7 +125,7 @@ async function flowSend() {
       await shot(page, dir, `0${n}-${label}-staged`);
       sh('xdotool', ['windowfocus', S.TERM_WID]); await sleep(200);
       await page.click('#go');
-      await waitToast(page, '→', label + ' delivered');
+      await waitToast(page, 'Sent', label + ' delivered');
       await shot(page, dir, `0${n + 1}-${label}-delivered`);
       check(label + ' delivered', true, (await toast(page)).trim());
       n += 2; await sleep(2300);

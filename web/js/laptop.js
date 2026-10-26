@@ -15,10 +15,7 @@ sheet.innerHTML = `
     <p class="lp-state" id="lp-state">Checking…</p>
     <p class="hint lp-sub" id="lp-sub"></p>
     <div class="lp-rows" id="lp-rows"></div>
-    <p class="hint lp-help" id="lp-help" hidden>
-      On your laptop run <code>wrap pair</code> — it shows a short code.
-      Type that code here and you are connected. Nothing else to set up.
-    </p>
+    <p class="hint lp-help" id="lp-help" hidden></p>
     <div class="lp-foot">
       <button class="btn btn-primary" id="lp-connect" hidden>Enter a code</button>
       <button class="btn btn-ghost" id="lp-forget" hidden>Forget this laptop</button>
@@ -58,15 +55,11 @@ function render() {
   const s = App.state;
   const ok = App.connected();
   const name = (s.laptop && s.laptop.name) || App.store.getItem('wfname') || '';
-  stateEl.textContent = ok ? ('Connected' + (name ? ' to ' + name : '')) : 'Not connected';
+  stateEl.textContent = ok ? 'Connected' : 'Not connected';
   stateEl.classList.toggle('on', ok);
-  subEl.textContent = ok
-    ? (s.focus ? 'Typing into ' + s.focus + '.' : 'Ready — what you send lands at the cursor.')
-    : 'This phone is not linked to a laptop.';
+  subEl.textContent = ok ? name : 'Enter the code your laptop shows.';
   rowsEl.textContent = '';
   if (ok) {
-    if (typeof s.bankSize === 'number' && s.bankSize > 0)
-      rowsEl.appendChild(row('Signs it knows', String(s.bankSize)));
     if (s.confirms.length)
       rowsEl.appendChild(row('Waiting for a yes', String(s.confirms.length)));
   }

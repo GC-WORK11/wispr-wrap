@@ -41,14 +41,11 @@
   <div class="card">
     <svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" transform="rotate(-58 32 46) translate(32 46) scale(.82) translate(-32 -46)" fill="#E91E63"/><path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" transform="rotate(58 32 46) translate(32 46) scale(.82) translate(-32 -46)" fill="#E91E63"/><path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" transform="rotate(-30 32 46)" fill="#D81B60"/><path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" transform="rotate(30 32 46)" fill="#D81B60"/><path d="M32 7C38 15 40.5 26 32 46C23.5 26 26 15 32 7Z" fill="#C2185B"/><path d="M15 51.5C22 58.5 42 58.5 49 51.5" fill="none" stroke="#C2185B" stroke-width="3" stroke-linecap="round"/></svg>
     <h1>Connect your laptop</h1>
-    <div class="sub">Enter the address and code your laptop is showing.</div>
+    <div class="sub">Enter the address and code your laptop shows.</div>
     <input id="addr" placeholder="Laptop address, e.g. 10.0.0.2:8741" inputmode="url" autocapitalize="none" autocorrect="off" autocomplete="off">
     <input id="code" class="code" placeholder="Code" maxlength="8" autocapitalize="characters" autocorrect="off" autocomplete="off">
     <button id="go">Connect</button>
     <div class="err" id="err"></div>
-    <div class="hint">The address and code are printed by <code>wrap start</code>.<br>
-      On a USB cable? Run <code>wrap bridge</code> and the app pairs itself.<br>
-      Or scan the QR code with your camera.</div>
   </div>
 <script>
 const err=document.getElementById('err'), addr=document.getElementById('addr'),
