@@ -36,6 +36,14 @@ try:
     import record_action         # teach-by-demonstration input capture
 except ImportError:
     record_action = None
+try:
+    import packs                 # prefilled Teach packs (§B)
+except ImportError:
+    packs = None
+try:
+    import teach_train           # held-out-take training check (§B)
+except ImportError:
+    teach_train = None
 
 PORT = int(os.environ.get("WF_PORT", "8741"))
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -303,12 +311,12 @@ LIVE = {"session": None, "listening": False, "ep": None,
         "dup_fires": 0,
         "feed": deque(maxlen=64)}
 TEACH = {"active": False, "name": "", "takes": 0, "got": 0,
-         "label": "", "action": None, "session": None}
+         "label": "", "action": None, "session": None, "frames": []}
 PENDING = {}                    # confirm_id -> {gloss,label,argv,at}
 _cmd_cache = {"key": None, "rows": {}}
 LIVE_POSTS = ("/live/kp", "/live/event", "/live/listen", "/live/mode",
               "/teach/begin", "/teach/end", "/teach/record/start",
-              "/teach/record/stop", "/act/confirm")
+              "/teach/record/stop", "/act/confirm", "/packs/install")
 
 
 def now_ms():
@@ -805,6 +813,8 @@ def _on_segment(frames, t_ms):
                 print(f"[wfd] add_exemplar: {e!r}", flush=True)
         if ok:
             TEACH["got"] += 1
+            TEACH["frames"].append(frames)
+            TEACH["frames"] = TEACH["frames"][-5:]
         out = {"teach": {"name": TEACH["name"], "got": TEACH["got"],
                          "takes": TEACH["takes"], "ok": ok}}
         if TEACH["got"] >= TEACH["takes"]:
@@ -1179,7 +1189,7 @@ def teach_begin(data):
         label = label or row["label"]
     with LIVE_LOCK:
         TEACH.update(active=True, name=name, takes=takes, got=0,
-                     label=label, action=action,
+                     label=label, action=action, frames=[],
                      session=(str(data["session"])[:64]
                               if data.get("session") else None))
     return 200, {"ok": True, "name": name, "takes": takes}
@@ -1188,14 +1198,22 @@ def teach_begin(data):
 def teach_end(_data):
     with LIVE_LOCK:
         was, got, name = TEACH["active"], TEACH["got"], TEACH["name"]
+        takes_frames = list(TEACH.get("frames") or [])
         TEACH.update(active=False, name="", takes=0, got=0,
-                     label="", action=None, session=None)
+                     label="", action=None, session=None, frames=[])
     if got:
         save_bank()
     if not was and not got:
         return 409, {"ok": False, "error": "not teaching"}
+    train = {"state": "needs_more", "takes": got,
+             "checked": 0, "ok": 0, "worst_dist": None}
+    if teach_train is not None and takes_frames and name:
+        try:
+            train = teach_train.verify(name, takes_frames)
+        except Exception as e:
+            train["error"] = str(e)[:120]
     return 200, {"ok": True, "name": name, "exemplars": got,
-                 "done": got > 0}
+                 "done": got > 0, "train": train}
 
 
 def bank_rows():
@@ -1560,6 +1578,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self._jreply(503, {"ok": False,
                                           "error": "signbank unavailable"})
             return self._jreply(200, {"ok": True, "signs": bank_rows()})
+        if p == "/packs":
+            if not self._gate():
+                return
+            if packs is None:
+                return self._jreply(503, {"ok": False,
+                                          "error": "packs unavailable"})
+            return self._jreply(200, {"ok": True,
+                                      "packs": packs.list_packs(bank_rows())})
         if p == "/status":
             if not self._gate():
                 return
@@ -1763,6 +1789,20 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 data = {}
             code, obj = teach_end(data)
+            return self._jreply(code, obj)
+        if p == "/packs/install":
+            if packs is None or BANK is None:
+                return self._jreply(503, {"ok": False,
+                                          "error": "packs unavailable"})
+            try:
+                data = json.loads(raw or b"{}")
+            except Exception:
+                return self._jreply(400, {"ok": False, "error": "bad json"})
+            code, obj = packs.install_pack(
+                str(data.get("id", "")), bank_rows(), bank_put,
+                lambda g, f, l: BANK.add_exemplar(g, f, label=l))
+            if code == 200 and obj.get("ok"):
+                save_bank()
             return self._jreply(code, obj)
         if p == "/live/listen":
             try:
