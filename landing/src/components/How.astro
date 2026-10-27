@@ -142,6 +142,9 @@ const tallById = Object.fromEntries(tall.nodes.map((n) => [n.id, n]));
       { threshold: 0.12, rootMargin: '280px 0px' },
     );
     io.observe(board);
+    // a slow or jumpy scroll can skip the observer's window — never leave the
+    // board blank: after the arming timeout the nodes draw regardless.
+    setTimeout(() => board.classList.add('is-drawn'), 9000);
     let raf = 0;
     const syncScroll = () => {
       raf = 0;

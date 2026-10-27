@@ -7,6 +7,9 @@
 //       (WYSIWYS: what you see is what the matcher scores).
 //     - opts: {video?: HTMLVideoElement,   // enables object-fit:cover mapping
 //              mirror?: bool,              // selfie preview flips x
+//              fit?: bool,                 // videoless: zoom the drawing to the
+//                                         // tracked points' box (what the
+//                                         // matcher sees, magnified)
 //              accent, dim, jointR, minScore}
 //   Skel.drawTrail(canvas, frames, opts?)
 //     - frames: [{t_ms, points}] take recording — draws the wrist paths plus
@@ -59,6 +62,22 @@ export const Skel = {
     // object-fit:cover mapping so points land exactly on the video image;
     // without a video element, normalized coords map onto the whole canvas.
     let px = p => (mirror ? 1 - p.x : p.x) * W, py = p => p.y * H;
+    const v0 = o.video;
+    if (o.fit && !(v0 && v0.videoWidth && v0.videoHeight)) {
+      let x0 = 1, y0 = 1, x1 = 0, y1 = 0;
+      for (const p of pts) {
+        if (!p || p.score <= minS) continue;
+        if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x;
+        if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y;
+      }
+      if (x1 > x0 && y1 > y0) {
+        const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+        const s = Math.min(0.72 / (x1 - x0), 0.72 / (y1 - y0), 8);
+        const m = Math.min(W, H);
+        px = p => W / 2 + ((mirror ? 1 - p.x : p.x) - cx) * s * m;
+        py = p => H / 2 + (p.y - cy) * s * m;
+      }
+    }
     const v = o.video;
     if (v && v.videoWidth && v.videoHeight) {
       const vw = v.videoWidth, vh = v.videoHeight;

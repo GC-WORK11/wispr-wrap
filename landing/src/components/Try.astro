@@ -10,6 +10,8 @@
 
   <div class="stage-wrap" data-try>
     <div class="stage" data-try-stage>
+      <video class="demo" src="/media/loops/try-live.mp4" poster="/media/loops/try-live.jpg"
+             muted autoplay loop playsinline preload="auto" aria-hidden="true"></video>
       <video data-try-video playsinline muted autoplay></video>
       <canvas data-try-skel></canvas>
       <canvas data-try-ink></canvas>
@@ -81,7 +83,9 @@
     transition: opacity 0.5s var(--ease-out);
   }
   video.mir { transform: scaleX(-1); }
-  .is-live video { opacity: 1; }
+  video.demo { opacity: 1; object-fit: contain; background: var(--surface); }
+  .is-live video[data-try-video] { opacity: 1; }
+  .is-live video.demo { opacity: 0; }
   canvas[data-try-skel], canvas[data-try-ink] {
     position: absolute;
     inset: 0;

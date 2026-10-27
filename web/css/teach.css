@@ -311,7 +311,7 @@
 .tw-stage, .tw-stage.replay { background: #EEEEF0; box-shadow: var(--soft); }
 .tw-stage::after { box-shadow: none; }
 .tw-camerr { background: rgba(255, 255, 255, .9); color: var(--ink); font-size: 16px; }
-.tw-ghost { color: rgba(255, 255, 255, .85); filter: drop-shadow(0 1px 4px rgba(0, 0, 0, .35)); }
+.tw-ghost { color: rgba(90, 90, 100, .34); filter: none; }
 .tw-rec { background: rgba(255, 255, 255, .92); border-color: transparent; }
 
 #sheet-teach .sheet-x svg, #sheet-actions .sheet-x svg, #sheet-macro .sheet-x svg { width: 20px; height: 20px; display: block; margin: auto; }

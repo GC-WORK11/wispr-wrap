@@ -177,7 +177,7 @@ function setBadge(cls, txt) {
   badgeT.textContent = txt;
 }
 function renderEng() {
-  engEl.textContent = S.eng.name ? ' · ' + S.eng.name : '';
+  engEl.textContent = '';
 }
 
 /* ---------- overlay card ---------- */
@@ -229,7 +229,7 @@ async function probe() {
 }
 function engDown() {
   S.eng.up = false;
-  engEl.textContent = ' · offline';
+  engEl.textContent = '';
   setBadge('err', 'offline');
 }
 
@@ -430,7 +430,8 @@ async function boot() {
       setBadge('', 'idle');
       S.link.start(video, S.engine, {
         onFrame: (pts, t) => {
-          Skel.draw(skel, pts, { video: null, mirror: false });
+          Skel.draw(skel, pts, { video: null, mirror: false, fit: true,
+            accent: 'rgba(216,27,122,.92)', dim: 'rgba(216,27,122,.45)' });
           feedHold(pts, t);
         },
         onResp: onKpResp,

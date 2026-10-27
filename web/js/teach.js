@@ -131,7 +131,8 @@ function showStep(name) {
 
 /* ---------- kp capture ---------- */
 function onFrame(pts, t) {
-  Skel.draw(skelC, pts, { video: vid, mirror: W.front });
+  Skel.draw(skelC, pts, { video: vid, mirror: W.front, fit: true,
+    accent: 'rgba(216,27,122,.92)', dim: 'rgba(216,27,122,.45)' });
   W.cur.push({ t_ms: Math.round(t), points: pts });
   if (W.cur.length > 400) W.cur.shift();
 }
