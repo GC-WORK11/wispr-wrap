@@ -44,12 +44,12 @@ WID=$(DISPLAY="$D" xdotool search --name "LibreOffice Writer" 2>/dev/null | tail
 [ -n "$WID" ] && DISPLAY="$D" xdotool windowactivate "$WID" 2>/dev/null || true
 sleep 0.5
 FIRED=0
-LT0=$(grep -c "live-text" $WFD_LOG 2>/dev/null || echo 0)
+LT0=$(grep -c "live-text" "$WFD_LOG" 2>/dev/null || true)
 for i in 1 2 3; do
     ensure_listening || continue
     push_clip "$CLIPS/perform-TYPE-HELLO.json"
     for _ in $(seq 1 80); do
-      [ "$(grep -c "live-text" $WFD_LOG 2>/dev/null || echo 0)" -gt "$LT0" ] && { FIRED=1; break; }
+      [ "$(grep -c "live-text" "$WFD_LOG" 2>/dev/null || true)" -gt "$LT0" ] && { FIRED=1; break; }
       sleep 0.25
     done
     [ "$FIRED" = 1 ] && break
