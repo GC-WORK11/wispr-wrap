@@ -43,3 +43,32 @@ off in product runs). 6/6 PASS; shots in proofs/ui-v2/shots-390/
 (Bulk Rename, Chrome, LibreOffice…); Go Live Control renders clean,
 no engine/d=/ms/URL text. No product copy changes needed — everything
 user-visible was already compliant after the b560574 toast/desc cuts.
+
+## 2026-10-28 — teach exemplar-save "regression" diagnosed: streamer contamination (devin)
+
+While waiting on PRO's `devin-pro/app` teach fix, reproduced the reported
+symptom on live-merge @ 7092bd2 (daemon :8875, env `-i` stack, display :96):
+`/teach/begin` ok → 176 kp frames POSTed, all 200 → `/teach/end`
+`exemplars: 0, takes: 0`, zero segment events in `/live/kp` replies.
+
+Diagnosis: **environmental, not a code regression on this tree**.
+- `wfd.live_kp` in-process on the same tree + clip: teach captures fine
+  (`got:1, done:True`).
+- Fresh daemon (same code, port 8892, same key file): exemplar saves
+  immediately.
+- The failing :96 daemon had leftover proof-harness Chrome pages
+  (`/tmp/pro-chrome-9233/9234`, opened by shots-390 dry runs) still
+  pumping `/live/kp` frames. After killing them, the same push sequence
+  on the same daemon saved the exemplar.
+
+The real robustness hole this exposes (worth PRO's fix covering):
+during `TEACH["active"]` the 409 guard only refuses frames carrying a
+DIFFERENT `session` once an owner binds — **frames with NO `session`
+field always feed the endpointer**, so a foreign sid-less streamer
+interleaves zeros into the capture and segments silently never form.
+A stale page/tab anywhere on the LAN (or a second open app window)
+poisons every teach on that daemon until it stops streaming.
+
+Cleanup done: proof-Chrome instances killed, test glosses removed,
+bank = HELLO only. shots-390 `@ picker` check updated for the `.act-app`
+tile grid (6/6 on the :96 stack) — commit 4effb7e.
