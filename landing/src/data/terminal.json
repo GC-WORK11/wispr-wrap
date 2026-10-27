@@ -4,9 +4,9 @@
   "steps": [
     {
       "id": "clone",
-      "cmd": "git clone https://github.com/GC-WORK11/wispr-wrap.git",
-      "ran": "git clone --progress <local worktree> wispr-wrap",
-      "out": "Cloning into 'wispr-wrap'...\ndone.\n"
+      "cmd": "git clone https://github.com/GC-WORK11/sign-flow.git",
+      "ran": "git clone --progress <local worktree> sign-flow",
+      "out": "Cloning into 'sign-flow'...\ndone.\n"
     },
     {
       "id": "install",
