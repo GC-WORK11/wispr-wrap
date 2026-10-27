@@ -12,8 +12,8 @@
  *   API/auth  network-only, never cached (keypoint/bank data must not persist)
  *   everything else same-origin: stale-while-revalidate
  */
-const VERSION = "wf-shell-v30-merge";
-const CACHE = `wispr-wrap-${VERSION}`;
+const VERSION = "wf-shell-v31-rename";
+const CACHE = `signflow-${VERSION}`;
 
 const SHELL = [
   "/", "/index.html", "/pair.html", "/manifest.webmanifest", "/icon.svg",
@@ -64,7 +64,7 @@ self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(
-        keys.filter((k) => k.startsWith("wispr-wrap-") && k !== CACHE)
+        keys.filter((k) => (k.startsWith("signflow-") || k.startsWith("wispr-wrap-")) && k !== CACHE)
             .map((k) => caches.delete(k))
       ))
       .then(() => self.clients.claim())

@@ -1,0 +1,54 @@
+THIRD-PARTY NOTICES
+===================
+
+Sign-Flow (working title: Wispr Wrap) vendors the following third-party
+components. All other code in this repository is first-party and uses only
+the Python standard library and browser platform APIs.
+
+1. MediaPipe Tasks Vision — @mediapipe/tasks-vision 1.1.1
+   ----------------------------------------------------
+   Copyright Google LLC. Licensed under the Apache License, Version 2.0.
+   https://www.apache.org/licenses/LICENSE-2.0
+
+   Vendored files:
+     web/vendor/mediapipe/vision_bundle.mjs
+     web/vendor/mediapipe/wasm/vision_wasm_internal.{js,wasm}        (SIMD)
+     web/vendor/mediapipe/wasm/vision_wasm_nosimd_internal.{js,wasm} (no-SIMD fallback)
+
+   Source: the npm package via the jsDelivr mirror. Exact source URLs and
+   sha256 pins are recorded in web/vendor/mediapipe/MANIFEST; provenance
+   and layout notes are in web/vendor/mediapipe/NOTICE.md. Re-fetch and
+   re-verify with tools/fetch-vendor.sh (--check for offline verification).
+
+2. hand_landmarker.task — MediaPipe hand landmark model (float16, v1)
+   ----------------------------------------------------------------
+   Copyright Google LLC.
+
+   Vendored file: web/vendor/mediapipe/models/hand_landmarker.task
+   Source URL and sha256 pin: web/vendor/mediapipe/MANIFEST.
+   Model card: https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker
+   (full card PDF: "Model Card Hand Tracking (Lite_Full) with Fairness
+   Oct 2021", storage.googleapis.com/mediapipe-assets).
+
+   License: Apache License, Version 2.0 — verified in the "LICENSED
+   UNDER" section of the official model card PDF (retrieved
+   2026-10-27). Apache-2.0 permits commercial use and redistribution
+   with attribution. Google's MediaPipe team has publicly confirmed the
+   models are available for commercial use under Apache-2.0.
+
+   Model-card usage notes (honest scope, not license restrictions):
+   trained on a limited dataset and marked experimental; not tested in
+   low-light/low-end-device conditions; surveillance and identity
+   recognition are explicitly out of scope for the model.
+
+3. QR Code generator library (Python)
+   ----------------------------------
+   Copyright (c) Project Nayuki. MIT License.
+   https://www.nayuki.io/page/qr-code-generator-library
+
+   Vendored file: server/qrcodegen.py. The full MIT license text is
+   reproduced in the file header.
+
+------------------------------------------------------------------------
+If you believe a notice here is incomplete or incorrect, please open an
+issue: https://github.com/GC-WORK11/sign-flow/issues
