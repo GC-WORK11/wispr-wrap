@@ -28,6 +28,9 @@ const check = (name, ok, detail = '') => {
 };
 
 const page = await launchChrome({ port: PORT, profile: `/tmp/landing-shots-${PORT}`, origin: BASE });
+// headless Chrome defaults prefers-reduced-motion=reduce; emulate no-preference
+// so the autoplay loops are actually playing in proof shots.
+await page.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
 const logErrors = [];
 page.on('Log.entryAdded', (e) => {
   if (e.entry && (e.entry.level === 'error')) logErrors.push(e.entry.source + ': ' + e.entry.text);

@@ -15,11 +15,15 @@ const { title, description } = Astro.props;
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="preload" href="/media/screens/send.webp" as="image" />
+    <link rel="preload" href="/media/clips/live-poster.png" as="image" />
     <script is:inline>document.documentElement.classList.add('js');</script>
   </head>
   <body>
     <slot />
+    <script is:inline>
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches)
+        document.querySelectorAll('video[data-loop]').forEach(v => { v.autoplay = false; v.pause(); });
+    </script>
   </body>
 </html>
 
@@ -64,6 +68,7 @@ const { title, description } = Astro.props;
   }
   ::selection { background: rgb(255 48 156 / 0.16); }
   h1, h2, p { margin: 0; }
+  [hidden] { display: none !important; }
   img { display: block; }
   button { font: inherit; color: inherit; }
   a { color: inherit; text-decoration: none; }
