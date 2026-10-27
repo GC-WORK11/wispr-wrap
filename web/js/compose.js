@@ -112,6 +112,64 @@ stage.addEventListener('drop', e => {
   if (f) stageFile(f, f.name);
 });
 
+/* ---------- @ target: pick an open laptop window; sends land there ---------- */
+let target = null, winMenu = null;
+const tchip = document.createElement('button');
+tchip.className = 'tchip'; tchip.type = 'button'; tchip.hidden = true;
+tchip.setAttribute('aria-label', 'Change target window');
+pill.insertBefore(tchip, pill.querySelector('.row'));
+function setTarget(w) {
+  target = w;
+  tchip.hidden = !w;
+  if (w) tchip.innerHTML = '<span class="tchip-at">@</span><span class="tchip-n"></span><span class="tchip-x" aria-hidden="true">×</span>',
+         tchip.querySelector('.tchip-n').textContent = w.title;
+}
+tchip.onclick = e => {
+  if (e.target.classList.contains('tchip-x')) { setTarget(null); box.focus(); return; }
+  openWinMenu('');
+};
+function closeWinMenu() { if (winMenu) { winMenu.remove(); winMenu = null; } }
+async function openWinMenu(query) {
+  closeMenu(); closeWinMenu();
+  winMenu = document.createElement('div');
+  winMenu.className = 'attach-menu win-menu'; winMenu.setAttribute('role', 'menu');
+  composer.appendChild(winMenu);
+  const m = winMenu;
+  let wins = [];
+  try {
+    const r = await App.api.get('/windows');
+    wins = (r.ok && r.json && r.json.windows) || [];
+  } catch (e) { /* offline */ }
+  if (m !== winMenu) return;
+  const q = (query || '').toLowerCase();
+  const rows = wins.filter(w => !q || (w.title + ' ' + w.app).toLowerCase().includes(q));
+  if (!rows.length) {
+    const n = document.createElement('div'); n.className = 'win-empty';
+    n.textContent = wins.length ? 'No match' : 'No open windows';
+    m.appendChild(n); return;
+  }
+  for (const w of rows.slice(0, 12)) {
+    const b = document.createElement('button');
+    b.className = 'attach-item win-item'; b.setAttribute('role', 'menuitem');
+    b.innerHTML = '<span class="win-t"></span><span class="win-a"></span>';
+    b.querySelector('.win-t').textContent = w.title;
+    b.querySelector('.win-a').textContent = w.app;
+    b.onclick = () => {
+      setTarget(w); closeWinMenu();
+      box.value = box.value.replace(/(^|\s)@[^\s@]*$/, '$1'); grow(); box.focus();
+    };
+    m.appendChild(b);
+  }
+}
+box.addEventListener('input', () => {
+  const m = box.value.match(/(^|\s)@([^\s@]*)$/);
+  if (m) openWinMenu(m[2]); else closeWinMenu();
+});
+document.addEventListener('pointerdown', e => {
+  if (winMenu && !winMenu.contains(e.target) && e.target !== box && !tchip.contains(e.target)) closeWinMenu();
+});
+addEventListener('keydown', e => { if (e.key === 'Escape' && winMenu) closeWinMenu(); });
+
 /* ---------- image squeeze (same recipe as the original composer) ---------- */
 const MAXD = 1280, JPEG_Q = 0.82, PASS_MAX = 900 * 1024;
 async function squeeze(blob) {
@@ -149,12 +207,14 @@ async function send() {
         let r;
         if (st.isVideo || !isImg) {
           r = await App.api.post('/send-file', st.blob,
-            { 'Content-Type': st.blob.type || 'application/octet-stream',
-              'X-File-Name': encodeURIComponent(st.name) });
+            Object.assign({ 'Content-Type': st.blob.type || 'application/octet-stream',
+              'X-File-Name': encodeURIComponent(st.name) },
+              target ? { 'X-WF-Window': target.id } : {}));
         } else {
           const b = await squeeze(st.blob);
           r = await App.api.post('/send-image', b,
-            { 'Content-Type': b.type || 'application/octet-stream' });
+            Object.assign({ 'Content-Type': b.type || 'application/octet-stream' },
+              target ? { 'X-WF-Window': target.id } : {}));
         }
         imgOk = r.ok; into = r.json && r.json.into;
         if (imgOk) { clearStaged(); await App.sleep(450); }
@@ -163,7 +223,7 @@ async function send() {
     }
     if (text.trim()) {
       try {
-        const r = await App.api.post('/send', { text, mode: 'type' });
+        const r = await App.api.post('/send', target ? { text, mode: 'type', window: target.id } : { text, mode: 'type' });
         txtOk = r.ok;
         if (r.ok) { box.value = ''; grow(); into = into || (r.json && r.json.into); }
         else App.toast(App.daemonErr(r, 'Couldn’t send. Try again.'), true);
@@ -185,7 +245,12 @@ async function send() {
 }
 go.onclick = send;
 box.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+    e.preventDefault();
+    const first = winMenu && winMenu.querySelector('.win-item');
+    if (first) { first.click(); return; }
+    send();
+  }
 });
 
 App.on('text:send', () => send());

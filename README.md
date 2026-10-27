@@ -144,6 +144,9 @@ server/qrcodegen.py vendored QR generator (see Licenses)
 server/tests/       unit + contract suite
 web/                phone UI — composer, Go Live, Teach, settings (vanilla JS)
 web/vendor/         vendored MediaPipe hand landmarker (offline, no CDN)
+web/js/contribute.js opt-in training samples queue (landmarks only, no upload)
+cloud/contribute/   Cloudflare Worker for opt-in samples (not deployed)
+PRIVACY.md          what the app keeps, and what it never collects
 tools/smoke/        fresh-clone end-to-end smoke
 tools/pro/          real-X11 proof drivers (act tiles, air letters, mode split)
 tools/realrun/      realrun verification gate
@@ -162,7 +165,33 @@ All components are commercial-compatible:
 | QR Code generator (vendored `server/qrcodegen.py`) | MIT — © Project Nayuki | header of the file |
 | MediaPipe Tasks Vision + hand-landmarker model (vendored `web/vendor/mediapipe/`) | Apache-2.0 — © Google | `web/vendor/mediapipe/NOTICE.md` + `MANIFEST` |
 
+`cloud/contribute/` uses only dev tooling (TypeScript Apache-2.0, Wrangler MIT OR Apache-2.0, workers-types MIT OR Apache-2.0); nothing from it ships in the app.
+
 No GPL/AGPL, non-commercial, or research-only licensed code ships in this tree.
+
+## Roadmap
+
+Today every sign is personal: it is taught on your phone and matched on your laptop. The next step is a shared sign-to-text model that works before you teach anything.
+
+That model will be trained only on samples people choose to share. Sharing is an opt-in setting, **Share training samples (beta)**, off by default. When it is on, each Teach take is kept on the phone as hand landmarks only. Upload is not live in this release. See [`PRIVACY.md`](PRIVACY.md) for exactly what is and is not collected.
+
+```mermaid
+flowchart LR
+  A[Phone: Teach take] --> B[Hand landmarks only]
+  B --> C[(Local queue on phone<br/>capped, deletable)]
+  C -. opt-in upload<br/>not live yet .-> D[Cloudflare Worker<br/>POST /v1/samples]
+  D --> E{Schema check<br/>+ rate limit}
+  E -- valid --> F[(R2 bucket)]
+  E -- invalid --> X[Rejected]
+  F -. future .-> G[Shared sign-to-text model]
+```
+
+| Stage | State |
+|---|---|
+| Opt-in setting and local landmark queue | shipped, off by default |
+| Intake Worker (`cloud/contribute/`) | written and tested, not deployed |
+| Upload from the app | off: no endpoint is configured |
+| Shared model | planned |
 
 ## How to continue
 

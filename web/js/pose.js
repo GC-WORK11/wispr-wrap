@@ -24,6 +24,7 @@
 // URL — the file is identical, the loader is just MIME-tolerant. The bundle's
 // internal wasm loader uses classic <script> + fetch, which work fine.
 import { App } from './app.js';
+import { pack } from './kp-pack.js';
 
 const DIR = './vendor/mediapipe/';
 const ENTRY = 'vision_bundle.mjs';
@@ -35,30 +36,6 @@ async function blobModule(resp) {
   const src = await resp.text();
   const u = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
   try { return await import(u); } finally { URL.revokeObjectURL(u); }
-}
-
-const ZP = () => ({ x: 0, y: 0, z: 0, score: 0 });
-
-/* pack detect results into the kp42 wire shape: [left 0:21, right 21:42].
-   handedness label is the detected ANATOMICAL hand ('Left'/'Right'). */
-function pack(lms, hds) {
-  const pts = new Array(42);
-  for (let i = 0; i < 42; i++) pts[i] = ZP();
-  const n = Math.min(lms.length, 2);
-  for (let i = 0; i < n; i++) {
-    const h = hds[i];
-    const side = (h && (h.categoryName || (h[0] && h[0].categoryName) || h.label)) || '';
-    const off = /^l/i.test(side) ? 0 : 21;
-    const lm = lms[i];
-    for (let k = 0; k < 21 && k < lm.length; k++) {
-      const p = lm[k];
-      pts[off + k] = {
-        x: +(+p.x).toFixed(4), y: +(+p.y).toFixed(4), z: +(+(p.z || 0)).toFixed(4),
-        score: +(p.visibility == null ? 1 : p.visibility).toFixed(3),
-      };
-    }
-  }
-  return pts;
 }
 
 let loading = null;

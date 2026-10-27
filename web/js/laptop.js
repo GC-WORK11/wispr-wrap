@@ -16,8 +16,7 @@ sheet.innerHTML = `
     <p class="hint lp-sub" id="lp-sub"></p>
     <div class="lp-rows" id="lp-rows"></div>
     <p class="hint lp-help" id="lp-help" hidden>
-      On your laptop run <code>wrap pair</code> — it shows a short code.
-      Type that code here and you are connected. Nothing else to set up.
+      <code>wrap pair</code>
     </p>
     <div class="lp-foot">
       <button class="btn btn-primary" id="lp-connect" hidden>Enter a code</button>
@@ -61,7 +60,7 @@ function render() {
   stateEl.textContent = ok ? ('Connected' + (name ? ' to ' + name : '')) : 'Not connected';
   stateEl.classList.toggle('on', ok);
   subEl.textContent = ok
-    ? (s.focus ? 'Typing into ' + s.focus + '.' : 'Ready — what you send lands at the cursor.')
+    ? (s.focus ? 'Typing into ' + s.focus + '.' : '')
     : 'This phone is not linked to a laptop.';
   rowsEl.textContent = '';
   if (ok) {

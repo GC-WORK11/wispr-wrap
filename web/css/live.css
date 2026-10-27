@@ -145,7 +145,9 @@ body.dev #lv-skel { display: block; }
 .lv-cta[hidden] { display: none; }
 .lv-cta:active { transform: scale(.96); }
 .lv-why { display: none; margin-top: 6px; font: 12px/1.4 var(--mono); color: rgba(255, 255, 255, .62); }
+.lv-rdist, .lv-eng { display: none; }
 body.dev .lv-why:not(:empty) { display: block; }
+body.dev .lv-rdist:not(:empty), body.dev .lv-eng:not(:empty) { display: inline; }
 
 /* an action that asks first: the question and two buttons */
 .lv-ask { width: 100%; max-width: 420px; margin: 0 0 18px; }
@@ -179,7 +181,7 @@ body.dev .lv-why:not(:empty) { display: block; }
   position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px); border-radius: 999px;
   background: var(--lv-ink); will-change: transform; transition: transform .38s var(--ease-spring);
 }
-.lv.mode-control .lv-thumb { transform: translateX(100%); }
+.lv-seg:has(#lv-m-ctl[aria-selected="true"]) .lv-thumb { transform: translateX(100%); }
 .lv-seg button {
   position: relative; z-index: 1; height: 48px; border: 0; border-radius: 999px; cursor: pointer; background: transparent;
   color: var(--lv-muted); font: 500 16px/1 var(--sans); letter-spacing: -.008em; transition: color .26s ease;

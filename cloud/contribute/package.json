@@ -1,0 +1,17 @@
+{
+  "name": "signflow-contribute",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "tsc -p tsconfig.test.json && node --test .build/test/schema.test.js",
+    "dev": "wrangler dev"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20251001.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.6.0",
+    "wrangler": "^4.0.0"
+  }
+}

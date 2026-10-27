@@ -40,6 +40,8 @@
     "doctor": "bin/wrap doctor",
     "stop": "bin/wrap stop",
     "status": "bin/wrap status",
-    "tunnel": "bin/wrap tunnel"
+    "tunnel": "bin/wrap tunnel",
+    "test:contribute": "node --test tests/contribute.test.mjs",
+    "test:kp": "node --test tests/kp-pack.test.mjs"
   }
 }

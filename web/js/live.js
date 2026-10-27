@@ -16,6 +16,8 @@
 import { App } from './app.js';
 import { Pose } from './pose.js';
 import { Skel } from './skeleton.js';
+import { createHand, classify } from './hand.js';
+import { createHandLines } from './handlines.js';
 
 const sheet = App.el.sheetLive;
 if (!sheet) throw new Error('live: #sheet-live missing');
@@ -24,12 +26,14 @@ if (!sheet) throw new Error('live: #sheet-live missing');
 sheet.innerHTML = `
   <div class="lv-view" id="lv-view">
     <video id="lv-cam" playsinline muted autoplay></video>
+    <canvas id="lv-lines"></canvas>
     <canvas id="lv-skel"></canvas>
     <div class="lv-top">
       <button class="lv-rbtn" id="lv-x" aria-label="Close Go Live">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
       <div class="lv-seg" id="lv-seg" role="tablist" aria-label="Go Live mode">
+        <div class="lv-thumb" aria-hidden="true"></div>
         <button role="tab" id="lv-m-text" data-m="text" aria-selected="false">Text</button>
         <button role="tab" id="lv-m-ctl" data-m="control" aria-selected="true">Control</button>
       </div>
@@ -72,7 +76,8 @@ const video = $('lv-cam'), skel = $('lv-skel'), cover = $('lv-cover'),
       actEl = $('lv-act'), actT = $('lv-act-t'), pendEl = $('lv-pend'),
       holdI = $('lv-hold-i'), hint = $('lv-hint'), xbtn = $('lv-x'),
       viewEl = $('lv-view'), sendBtn = $('lv-send'), flipBtn = $('lv-flip'),
-      segText = $('lv-m-text'), segCtl = $('lv-m-ctl');
+      segText = $('lv-m-text'), segCtl = $('lv-m-ctl'),
+      linesEl = $('lv-lines');
 
 const HINTS = {
   control: { idle: 'Hold an open palm to start. Then sign a command.', on: 'Listening. Sign a command.' },
@@ -91,6 +96,7 @@ export class KpLink {
     this.session = null; this.inflight = false; this.pend = null;
     this.timer = null; this.video = null; this.engine = null;
     this.onFrame = null; this.onResp = null; this.onStatus = null;
+    this.filter = null;   // Go Live hides frames the phone handles itself
     this.dead = false;    // 404/405 — pre-merge daemon
     this.denied = false;  // 403 — unpaired or proxied
     this._fake = null;
@@ -108,7 +114,7 @@ export class KpLink {
         const pts = res && res.points;
         if (!pts || pts.length !== 42) return;
         if (this.onFrame) this.onFrame(pts, t);
-        this.send(pts, t);
+        this.send(this.filter ? this.filter(pts) : pts, t);
       });
       return;
     }
@@ -123,7 +129,7 @@ export class KpLink {
     try { res = this.engine.detectFrame(this.video, t); } catch (e) { return; }
     if (!res || !res.points) return;
     if (this.onFrame) this.onFrame(res.points, t);
-    this.send(res.points, t);
+    this.send(this.filter ? this.filter(res.points) : res.points, t);
   }
   send(pts, t) {
     if (this.inflight) { this.pend = { pts, t }; return; }
@@ -313,6 +319,7 @@ function feedEvents(j) {
     S.seenEv.add(key);
     if (ev.type === 'fire' && ev.action) for (const g of ev.glosses || []) S.fires[g] = ev.action;
     if (!S.evBase) continue;                            // first poll after opening = history, not news
+    if (ev.type === 'air-letter') onAirResult(ev);
     if (ev.type === 'fired' && S.mode === 'control') {
       const g = (ev.glosses || [])[0], act = S.fires[g];
       const r = ev.result || {};
@@ -414,6 +421,151 @@ function onKpResp(j) {
   if (!S.eng.up) { S.eng.up = true; }
 }
 
+/* ---------- air-writing & browse gestures (hand.js) ---------- */
+const lines = createHandLines(linesEl);
+lines.setVideo(video);
+const H = createHand({ mode: 'write' });
+const ZERO42 = Array.from({ length: 42 }, () => ({ x: 0, y: 0, z: 0, score: 0 }));
+const OWN = new Set(['point', 'v', 'pinch']);
+S.browse = false; S.pose = 'none'; S.firing = false;
+const hPresent = (pts, o) => pts[o] && pts[o + 9] && pts[o].score > .28 && pts[o + 9].score > .28;
+/* the one hand that controls, in display space (mirrored like the preview).
+   With two hands in view: the one making a gesture (point, pinch, V), else the
+   one already in control, else slot 0 — MediaPipe labels hands as if the image
+   were mirrored, and the phone feeds raw selfie frames, so 'Left' is your right hand. */
+const GESTURE = new Set(['point', 'pinch', 'v']);
+function handAt(pts, o) {
+  const m = S.front, lm = new Array(21);
+  for (let i = 0; i < 21; i++) { const p = pts[o + i]; lm[i] = { x: m ? 1 - p.x : p.x, y: p.y }; }
+  return lm;
+}
+function pickHand(pts) {
+  const a = hPresent(pts, 0), b = hPresent(pts, 21);
+  if (!a && !b) { S.slot = -1; return null; }
+  if (a !== b) { S.slot = a ? 0 : 21; return handAt(pts, S.slot); }
+  const L = handAt(pts, 0), R = handAt(pts, 21);
+  const gl = GESTURE.has(classify(L).pose), gr = GESTURE.has(classify(R).pose);
+  if (gl !== gr) S.slot = gl ? 0 : 21;
+  else if (S.slot !== 0 && S.slot !== 21) S.slot = 0;
+  return S.slot === 0 ? L : R;
+}
+/* normalized video coords -> css px of the view (object-fit: cover), for ink/cursor */
+function toPx(p) {
+  const W = linesEl.clientWidth || innerWidth, Hh = linesEl.clientHeight || innerHeight;
+  const vw = video.videoWidth || 0, vh = video.videoHeight || 0;
+  if (!vw || !vh) return { x: p.x * W, y: p.y * Hh };
+  const k = Math.max(W / vw, Hh / vh), dw = vw * k, dh = vh * k;
+  return { x: (W - dw) / 2 + p.x * dw, y: (Hh - dh) / 2 + p.y * dh };
+}
+const pxs = pts => pts.map(toPx);
+/* the camera's comfortable middle maps onto the whole laptop screen */
+const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
+const lapX = x => +clamp01((x - .12) / .76).toFixed(4);
+const lapY = y => +clamp01((y - .10) / .62).toFixed(4);
+
+function handFrame(pts) {
+  const lm = pickHand(pts);
+  const now = performance.now();
+  lines.setHand(lm, now);
+  if (S.mode !== 'control') return;
+  const evs = H.update(lm, now);
+  for (const ev of evs) onGesture(ev);
+}
+function ownsHand() { return S.mode === 'control' && (OWN.has(S.pose) || (S.browse && S.pose !== 'none' && S.pose !== 'palm')); }
+function filterFrame(pts) { return ownsHand() ? ZERO42 : pts; }
+
+function onGesture(ev) {
+  switch (ev.type) {
+    case 'pose': S.pose = ev.pose; break;
+    case 'ink': lines.setInk(pxs(ev.points)); break;
+    case 'letter':
+      lines.setInk(null);
+      lines.ignite(ev.letter, pxs(ev.points));
+      fireLetter(ev.letter);
+      break;
+    case 'stroke-cancel': lines.setInk(null); break;        // a twitch, not a letter: say nothing
+    case 'reject': lines.setInk(null); actFlash('Try again', 'soft'); break;
+    case 'vsign': fireLetter('V'); break;
+    case 'pinch': if (!S.browse) { setBrowse(true); App.buzz(); } break;    // pinch: start pointing
+    case 'palm': if (S.browse) { setBrowse(false); App.buzz(); } break;     // still open hand: back to drawing
+    case 'cursor': {
+      S.cur = { x: ev.x, y: ev.y };
+      const c = toPx(S.cur); lines.setCursor(c.x, c.y, S.dwell || 0);
+      pointer({ type: 'pointer', x: lapX(ev.x), y: lapY(ev.y) }, true);
+      break;
+    }
+    case 'dwell': {
+      S.dwell = ev.p;
+      if (S.cur) { const c = toPx(S.cur); lines.setCursor(c.x, c.y, ev.p); }
+      break;
+    }
+    case 'scroll': pointer({ type: 'scroll', dy: ev.dy }); break;
+    case 'click': {
+      S.dwell = 0;
+      const c = toPx({ x: ev.x, y: ev.y }); lines.pulse(c.x, c.y); lines.setCursor(c.x, c.y, 0);
+      pointer({ type: 'click', x: lapX(ev.x), y: lapY(ev.y) });
+      break;
+    }
+  }
+}
+function setBrowse(on) {
+  S.browse = !!on;
+  H.setMode(S.browse ? 'browse' : 'write');
+  viewEl.classList.toggle('browse', S.browse);
+  if (!S.browse) { lines.setCursor(null); S.cur = null; S.dwell = 0; }
+}
+/* an air letter: the laptop runs what it is bound to (C -> Chrome, V -> YouTube
+   unless you bound AIR-C / AIR-V to something else). POST /live/event queues it;
+   the real result comes back on the live feed as an 'air-letter' event. */
+const AIR_NAME = { C: 'Chrome', V: 'YouTube' };
+async function fireLetter(letter) {
+  if (S.firing) return;
+  S.firing = true; setTimeout(() => { S.firing = false; }, 1600);
+  const name = AIR_NAME[letter] || letter;
+  guessEl.textContent = 'AIR-' + letter; guessEl.classList.remove('dim');
+  if (!App.connected()) { actFlash('Connect your laptop to use this', 'soft'); return; }
+  actFlash('Opening ' + name + '…');
+  S.airWait = { letter, name };
+  const r = await App.api.post('/live/event', { type: 'air', letter }).catch(() => null);
+  if (!S.open) return;
+  if (r && r.ok) { setBrowse(true); return; }
+  S.airWait = null;
+  actFlash(r && r.status === 404 ? 'Nothing is set for ' + letter + ' yet' : 'Couldn’t reach your laptop', 'soft');
+}
+function onAirResult(ev) {
+  const r = ev.result || {};
+  const name = (S.airWait && S.airWait.letter === ev.letter && S.airWait.name) || AIR_NAME[ev.letter] || pretty(ev.label || 'it');
+  S.airWait = null;
+  if (r.pending) actFlash('Waiting for your OK on the laptop');
+  else if (r.fired || (r.routed && !r.refused)) actFlash('Opened ' + name);
+  else actFlash('Couldn’t open ' + name + ' on your laptop', 'soft');
+}
+/* pointer ops to the laptop: moves are latest-wins (~20/s), clicks and scrolls queue */
+const PTR = { q: [], move: null, busy: false, last: 0 };
+function pointer(body, isMove) {
+  if (!App.connected()) return;
+  if (isMove) PTR.move = body; else PTR.q.push(body);
+  pumpPointer();
+}
+async function pumpPointer() {
+  if (PTR.busy) return;
+  let next = PTR.q.shift();
+  if (!next && PTR.move) {
+    const wait = 45 - (performance.now() - PTR.last);
+    if (wait > 0) { setTimeout(pumpPointer, wait); return; }
+    next = PTR.move; PTR.move = null;
+  }
+  if (!next) return;
+  PTR.busy = true; PTR.last = performance.now();
+  try { await App.api.post('/live/event', next); } catch (e) { /* the net line says so */ }
+  PTR.busy = false;
+  if (PTR.q.length || PTR.move) pumpPointer();
+}
+function resetGestures() {
+  H.reset(); S.browse = false; S.pose = 'none';
+  lines.setInk(null); lines.setCursor(null); S.cur = null; S.dwell = 0;
+}
+
 /* ---------- camera ---------- */
 async function boot() {
   if (S.remote) { useLaptop(); return; }
@@ -433,7 +585,9 @@ async function boot() {
           Skel.draw(skel, pts, { video: null, mirror: false, fit: true,
             accent: 'rgba(216,27,122,.92)', dim: 'rgba(216,27,122,.45)' });
           feedHold(pts, t);
+          handFrame(pts);
         },
+        filter: filterFrame,
         onResp: onKpResp,
         onStatus: s => { if (s === 'dead') probe(); if (s === 'denied') setBadge('err', 'unpaired'); },
       });
@@ -461,7 +615,8 @@ async function boot() {
   hideCard();
   setBadge('', 'idle');
   S.link.start(video, S.engine, {
-    onFrame: (pts, t) => { Skel.draw(skel, pts, { video, mirror: S.front }); feedHold(pts, t); },
+    onFrame: (pts, t) => { Skel.draw(skel, pts, { video, mirror: S.front }); feedHold(pts, t); handFrame(pts); },
+    filter: filterFrame,
     onResp: onKpResp,
     onStatus: s => { if (s === 'dead') probe(); if (s === 'denied') setBadge('err', 'unpaired'); },
   });
@@ -512,6 +667,7 @@ async function open() {
   document.body.classList.add('live-open');
   setMode(S.mode, false);
   S.link.reset();
+  resetGestures();
   hideCard();
   probe();
   boot();
@@ -532,6 +688,7 @@ async function close() {
   clearInterval(S.stT); S.stT = null;
   if (S.engine) { try { S.engine.close(); } catch (e) {} S.engine = null; }
   stopCam();
+  resetGestures(); lines.stop(); PTR.q.length = 0; PTR.move = null;
   GM.palmT = GM.namT = GM.lastT = 0;
   S.remote = false;
   hideCard();
@@ -550,6 +707,7 @@ function setMode(m, persist = true) {
   segText.setAttribute('aria-selected', S.mode === 'text' ? 'true' : 'false');
   segCtl.setAttribute('aria-selected', S.mode === 'control' ? 'true' : 'false');
   viewEl.classList.toggle('mode-text', S.mode === 'text');
+  resetGestures();
   HINT_DEF = HINTS[S.mode].idle;
   hint.textContent = viewEl.classList.contains('listening') ? HINTS[S.mode].on : HINT_DEF;
   if (S.mode !== 'text') { S.words = []; setWords(); }

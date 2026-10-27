@@ -3,6 +3,7 @@
 // nothing that pretends to configure the laptop — that all lives on
 // the laptop itself.
 import { App } from './app.js';
+import { Contribute } from './contribute.js';
 
 const sheet = App.el.sheetSettings;
 if (!sheet) throw new Error('settings: #sheet-settings missing');
@@ -35,6 +36,19 @@ const buzzReal = App.buzz;
 App.buzz = () => { if (App.store.getItem('wfvib') !== '0') buzzReal(); };
 vib.checked = App.store.getItem('wfvib') !== '0';
 vib.onchange = () => App.store.setItem('wfvib', vib.checked ? '1' : '0');
+
+// training samples (beta) — off by default; turning it off deletes the
+// local queue and the random id (contribute.js)
+const share = sheet.querySelector('#st-share'),
+      shareNote = sheet.querySelector('#st-share-note');
+if (share) {
+  share.checked = !!Contribute && Contribute.enabled();
+  shareNote.hidden = !share.checked;
+  share.onchange = () => {
+    if (Contribute) Contribute.setEnabled(share.checked);
+    shareNote.hidden = !share.checked;
+  };
+}
 
 // replay seam — the same flag pose.js checks; needs ?replay once or this
 // toggle. Honest label, off by default, judges never see it on.
