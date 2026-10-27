@@ -12,7 +12,8 @@ The daemon is stdlib Python — zero dependencies, no build step, ~28 MB residen
 
 ## Install and run
 
-Requires Linux/X11 on the laptop and any modern browser on the phone.
+Requires Linux/X11, macOS, or Windows on the laptop and any modern
+browser on the phone. Windows paths are new — see `docs/os-qa-Windows.md`.
 
 ```bash
 git clone <this repo>
@@ -124,14 +125,17 @@ Every claim below links to a recorded run or test.
 See `LIMITATIONS.md` for the full, current list. Headlines:
 
 - The sign vocabulary is **personal and taught** — this is not a fixed sign-language recognizer. Recognition of a human hand on a real camera is not yet benchmarked; `BENCH.md` reports what is measured on synthetic motion.
-- Laptop actions are X11-only; Wayland is detected and reported, not faked.
+- Laptop actions: Linux needs X11 (Wayland is detected and reported, not faked); macOS/Windows run through their own backends — Windows coverage so far is unit-tested only (mocked OS calls), not run on real hardware.
 - Camera live mode needs a secure context on the phone (`wrap bridge` → `localhost`, or `wrap tunnel` → https) because browsers block `getUserMedia` on plain `http://<lan-ip>`.
 - Type/key actions are focus-guarded; with no display or an unverifiable focus they refuse rather than type blind.
 
 ## Repository map
 
 ```
-bin/wrap            CLI — start/stop/status/logs/pair/bridge/tunnel
+bin/wrap            CLI — start/stop/status/logs/pair/bridge/tunnel (POSIX bash)
+bin/wrap.js         npm-bin shim — bash on POSIX, wrap_cli.py on Windows
+bin/wrap.cmd/.ps1   direct-invoke shims for Windows shells
+server/wrap_cli.py  the CLI as stdlib Python — same commands, no curl/bash
 server/wfd.py       daemon — http, pairing, send, teach, live, act
 server/signbank.py  taught-sign bank — normalize + banded DTW + open-set reject
 server/endpointer.py motion segmentation

@@ -88,7 +88,34 @@ TEACH_TAKES = int(os.environ.get("WF_TEACH_TAKES", "3"))
 TERMINAL_CLASSES = (
     "terminal", "konsole", "alacritty", "kitty", "xterm", "st", "wezterm",
     "terminator", "tilix", "yakuake", "guake", "foot", "ghostty", "warp",
+    # windows console hosts — paste there is ctrl+shift+v, not ctrl+v
+    "windowsterminal", "cmd", "powershell", "pwsh", "conhost", "mintty",
 )
+
+
+def _host():
+    """'linux'|'macos'|'windows'|'other' — provider module when present
+    (tests patch act_platform.host_platform), else sys.platform."""
+    try:
+        if act_platform is not None:
+            return act_platform.host_platform()
+    except Exception:
+        pass
+    if sys.platform == "darwin":
+        return "macos"
+    if sys.platform.startswith(("win32", "cygwin")):
+        return "windows"
+    return "linux" if sys.platform.startswith("linux") else "other"
+
+
+def node_name():
+    """os.uname().nodename on POSIX; platform.node() on Windows
+    (os.uname doesn't exist there — calling it crashed /pair-info)."""
+    try:
+        return os.uname().nodename
+    except AttributeError:
+        import platform as _p
+        return _p.node() or "laptop"
 
 
 def load_key():
@@ -112,6 +139,29 @@ PAIR_RATE = {}  # ip -> last /pair attempt (rate limit, not secrecy)
 def all_ips():
     """All global IPv4 addrs, wifi interfaces first (a USB-tether IP is
     unreachable for a wifi-only phone)."""
+    if _host() == "windows" and act_platform is not None:
+        try:
+            ok, out = act_platform._ps(
+                'Get-NetIPAddress -AddressFamily IPv4 | '
+                'Where-Object {$_.IPAddress -ne "127.0.0.1" -and '
+                '$_.IPAddress -notlike "169.254.*" -and '
+                '$_.PrefixOrigin -ne "WellKnown"} | '
+                'ForEach-Object {"$($_.IPAddress)`t$($_.InterfaceAlias)"}')
+            wifi, other = [], []
+            if ok:
+                for line in out.splitlines():
+                    p = line.split("\t")
+                    if not p or not p[0].strip():
+                        continue
+                    addr = p[0].strip()
+                    alias = (p[1] if len(p) > 1 else "").lower()
+                    (wifi if "wi-fi" in alias or "wlan" in alias
+                     else other).append(addr)
+            if wifi or other:
+                return wifi + other
+        except Exception:
+            pass
+        return []
     try:
         out = sh("ip", "-4", "-o", "addr", "show", "scope", "global").stdout
         wifi, other = [], []
@@ -147,6 +197,14 @@ def sh(*args):
 
 
 def active_window_class():
+    if _host() != "linux":
+        # provider's focused_app() answers with the same shape the
+        # terminal-class paste-key check reads (process name as class).
+        try:
+            f = ACT_PROVIDER.focused_app() if ACT_PROVIDER else None
+            return ((f.wm_class or f.title) if f else "") or ""
+        except Exception:
+            return ""
     try:
         wid = sh("xdotool", "getactivewindow").stdout.strip()
         if not wid.isdigit():
@@ -181,28 +239,61 @@ def _inject_worker():
 threading.Thread(target=_inject_worker, daemon=True).start()
 
 
-def type_keystrokes(text):
-    def job():
+def _paste_keys(cls=None):
+    """OS + focused-app aware paste chord."""
+    cls = cls if cls is not None else active_window_class()
+    if _host() == "macos":
+        return "cmd+v"
+    if any(t in cls for t in TERMINAL_CLASSES):
+        return "ctrl+shift+v"
+    return "ctrl+v"
+
+
+def _inject_keystrokes(text):
+    """One platform-true keystroke injector: xdotool on Linux, the
+    provider's SendKeys/osascript backend elsewhere."""
+    if _host() == "linux":
         subprocess.run(["xdotool", "type", "--clearmodifiers",
                         "--delay", "12", "--", text], timeout=600)
+        return True, ""
+    if ACT_PROVIDER is not None and hasattr(ACT_PROVIDER, "_type"):
+        return ACT_PROVIDER._type(text)
+    return False, "no keystroke backend on this platform"
+
+
+def _inject_chord(keys):
+    """One platform-true chord sender (paste keys, etc.)."""
+    if _host() == "linux":
+        return sh("xdotool", "key", "--clearmodifiers", keys).returncode == 0, ""
+    if ACT_PROVIDER is not None and hasattr(ACT_PROVIDER, "_press"):
+        return ACT_PROVIDER._press(keys)
+    return False, "no key backend on this platform"
+
+
+def type_keystrokes(text):
+    def job():
+        ok, det = _inject_keystrokes(text)
+        if not ok:
+            print(f"[wfd] type refused: {det}", flush=True)
     _INJECT_Q.put(job)
 
 
 def type_paste(text):
     cls = active_window_class()
-    paste_keys = "ctrl+shift+v" if any(t in cls for t in TERMINAL_CLASSES) else "ctrl+v"
-    try:
-        old = sh("xclip", "-selection", "clipboard", "-o").stdout
-    except Exception:
-        old = None
+    paste_keys = _paste_keys(cls)
+    old = act_platform.clip_get() if act_platform is not None else None
 
     def job():
-        subprocess.run(["xclip", "-selection", "clipboard", "-i"], input=text, text=True)
+        ok, det = act_platform.clip_set_text(text) \
+            if act_platform is not None else (False, "no clip backend")
+        if not ok:
+            print(f"[wfd] paste clip failed: {det}", flush=True)
+            return
         time.sleep(0.15)
-        sh("xdotool", "key", "--clearmodifiers", paste_keys)
+        _inject_chord(paste_keys)
         time.sleep(0.6)
         if old is not None:
-            subprocess.run(["xclip", "-selection", "clipboard", "-i"], input=old, text=True)
+            act_platform.clip_set_text(old)
 
     _INJECT_Q.put(job)
 
@@ -233,24 +324,72 @@ def sniff_mime(data, ctype):
 
 
 def paste_file(path, mime, cls):
-    keys = "ctrl+shift+v" if any(t in cls for t in TERMINAL_CLASSES) else "ctrl+v"
-    try:
-        old = sh("xclip", "-selection", "clipboard", "-o").stdout or None
-    except Exception:
-        old = None
+    keys = _paste_keys(cls)
+    old = act_platform.clip_get() if act_platform is not None else None
+    host = _host()
 
     def job():
-        subprocess.Popen([sys.executable, os.path.join(BASE, "wfclip.py"), path, mime],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                         start_new_session=True)
-        time.sleep(0.3)
-        sh("xdotool", "key", "--clearmodifiers", keys)
-        # hand the clipboard back so the next Ctrl+V doesn't replay the file path
-        time.sleep(1.2)
-        subprocess.run(["xclip", "-selection", "clipboard", "-i"],
-                       input=old if old is not None else "", text=True)
+        if host == "linux":
+            subprocess.Popen(
+                [sys.executable, os.path.join(BASE, "wfclip.py"), path, mime],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                start_new_session=True)
+            time.sleep(0.3)
+            _inject_chord(keys)
+            # hand the clipboard back so the next Ctrl+V doesn't replay
+            # the file path
+            time.sleep(1.2)
+            if act_platform is not None:
+                act_platform.clip_set_text(old if old is not None else "")
+            return
+        # windows/macOS: the OS clipboard owns the data — no resident
+        # owner needed (X11's selection-owner model is why wfclip.py
+        # stays resident on Linux). Image mime -> real image target,
+        # anything else -> a file-drop list; an image the platform
+        # can't decode falls back to the file drop honestly.
+        ok, det = False, ""
+        if act_platform is not None and mime.startswith("image/"):
+            ok, det = act_platform.clip_set_image(path)
+        if not ok and act_platform is not None:
+            ok, det = act_platform.clip_set_files([path])
+        if not ok:
+            print(f"[wfd] file paste refused: {det}", flush=True)
+            return
+        time.sleep(0.2)
+        _inject_chord(keys)
+        time.sleep(1.0)
+        if old is not None:
+            act_platform.clip_set_text(old)
 
     _INJECT_Q.put(job)
+
+
+def _to_png(src):
+    """src image -> a png path, or None. ImageMagick on POSIX,
+    System.Drawing on Windows (both optional — caller keeps src)."""
+    fd, png = tempfile.mkstemp(prefix="wf-img-", suffix=".png")
+    os.close(fd)
+    if _host() == "windows":
+        if act_platform is None:
+            os.unlink(png)
+            return None
+        esc_src, esc_png = (p.replace("'", "''") for p in (src, png))
+        ok, _ = act_platform._ps(
+            'Add-Type -AssemblyName System.Drawing; '
+            '$img = [System.Drawing.Image]::FromFile(\'%s\'); '
+            '$img.Save(\'%s\', [System.Drawing.Imaging.ImageFormat]::Png); '
+            '$img.Dispose()' % (esc_src, esc_png))
+    else:
+        try:
+            r = subprocess.run(["convert", src, png],
+                               capture_output=True, timeout=15)
+            ok = r.returncode == 0
+        except (OSError, subprocess.TimeoutExpired):
+            ok = False
+    if ok:
+        return png
+    os.unlink(png)
+    return None
 
 
 def send_image(data, ctype=""):
@@ -263,11 +402,8 @@ def send_image(data, ctype=""):
     if mime == "image/png" or mime == "image/gif":
         path = src                       # usable as-is (gif was never
     else:                                # written to its old fixed path)
-        fd, png = tempfile.mkstemp(prefix="wf-img-", suffix=".png")
-        os.close(fd)
-        r = subprocess.run(["convert", src, png],
-                           capture_output=True, timeout=15)
-        if r.returncode == 0:
+        png = _to_png(src)
+        if png:
             path, mime = png, "image/png"
             try:
                 os.unlink(src)
@@ -586,10 +722,16 @@ def _spawn(argv, note):
         env = dict(os.environ)
         env.pop("LD_LIBRARY_PATH", None)
         env.pop("SF_EXCLUSIVE", None)
-        proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL,
-                                stdout=subprocess.DEVNULL,
-                                stderr=subprocess.DEVNULL,
-                                start_new_session=True, env=env)
+        kw = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL,
+              "stderr": subprocess.DEVNULL, "env": env}
+        if os.name == "nt":
+            # setsid equivalent: a process group of its own + no console
+            kw["creationflags"] = (
+                getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) |
+                getattr(subprocess, "DETACHED_PROCESS", 0))
+        else:
+            kw["start_new_session"] = True
+        proc = subprocess.Popen(argv, **kw)
         threading.Thread(target=lambda: proc.wait(), daemon=True).start()
         print(f"[wfd] act {note}: {' '.join(argv)} (pid {proc.pid})", flush=True)
         return True
@@ -1157,7 +1299,7 @@ def _status_payload():
            "last_send": LAST_SEND, "last_match": last or None,
            "confirms": live_state()["pending"],
            "bank_size": bank_size(),
-           "name": os.uname().nodename}
+           "name": node_name()}
     # Sidebar "connected laptop" row: a 200 reply already proves the
     # laptop link; this block is the compact descriptor the UI shows —
     # hostname, display, whether the action layer can really reach the
@@ -1571,7 +1713,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._reply(403, b"localhost only")
             out = json.dumps({"ip": lan_ip(), "ips": all_ips(), "port": BOUND_PORT,
                               "key": SECRET, "code": PAIR_CODE,
-                              "name": os.uname().nodename}).encode()
+                              "name": node_name()}).encode()
             return self._reply(200, out, "application/json")
         # live-sign surface: key + LAN/USB only, before the open statics
         if p == "/live/state":
@@ -1607,6 +1749,7 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     cat = ACT_PROVIDER.catalog() or {}
                     out["apps"] = cat.get("apps", [])
+                    out["windows"] = cat.get("windows", [])
                     out["tools"] = cat.get("tools", [])
                     out["capabilities"] = cat.get("capabilities")
                     out["provider"] = cat.get("provider",
@@ -1737,7 +1880,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 code = ""
             if code and hmac.compare_digest(code, PAIR_CODE):
-                out = {"ok": True, "key": SECRET, "name": os.uname().nodename}
+                out = {"ok": True, "key": SECRET, "name": node_name()}
                 return self._reply(200, json.dumps(out).encode(), "application/json")
             return self._reply(403, b'{"ok":false}', "application/json")
 

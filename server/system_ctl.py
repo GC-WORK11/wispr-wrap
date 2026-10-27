@@ -41,6 +41,11 @@ import subprocess
 import sys
 import time
 
+try:
+    import act_platform as _ap   # Windows/macOS provider helpers (guarded)
+except ImportError:
+    _ap = None
+
 try:                       # act_iface may not be importable standalone
     from act_iface import ActionResult, TIERS
 except ImportError:        # standalone fallback, same field contract
@@ -118,6 +123,28 @@ def _out(argv):
     return p.returncode == 0, p.stdout, (p.stderr.strip() or "")[:200]
 
 
+def _windows():
+    return sys.platform.startswith(("win32", "cygwin"))
+
+
+def _ps(script, timeout=SPAWN_TIMEOUT, sta=False):
+    """act_platform's PowerShell spawn (same flags), or an honest miss."""
+    if _ap is None:
+        return False, "not available: act_platform module missing"
+    return _ap._ps(script, timeout=timeout, sta=sta)
+
+
+def _win_key(vk):
+    """One Win32 virtual-key stroke (media/volume keys) via the shared
+    user32 C# block — the Windows answer to the XF86 key path."""
+    if _ap is None:
+        return False, "not available: act_platform module missing"
+    body = ("[WFU]::keybd_event(0x%x, 0, 0, [IntPtr]::Zero); "
+            "[WFU]::keybd_event(0x%x, 0, 2, [IntPtr]::Zero)") % (vk, vk)
+    ok, det = _ps(_ap._win32_ps(body))
+    return (ok, "win vk 0x%x sent" % vk) if ok else (False, det)
+
+
 def session_type():
     return os.environ.get("XDG_SESSION_TYPE") or "unknown"
 
@@ -153,6 +180,16 @@ def _media_key(keysym):
 
 
 def _volume(direction, step=VOLUME_STEP_PCT):
+    if _windows():
+        # VK_VOLUME_UP 0xAF / VK_VOLUME_DOWN 0xAE — Windows volume is a
+        # fixed 2%-per-press key, so a press loop approximates `step`.
+        presses = max(1, round(step / 2))
+        vk = 0xAF if direction == "up" else 0xAE
+        for _ in range(presses):
+            ok, det = _win_key(vk)
+            if not ok:
+                return False, det
+        return True, "keybd_event VK 0x%x x%d" % (vk, presses)
     if sys.platform == "darwin":
         osa = _which("osascript")
         if osa:
@@ -181,6 +218,8 @@ def _volume(direction, step=VOLUME_STEP_PCT):
 
 
 def _mute():
+    if _windows():
+        return _win_key(0xAD)   # VK_VOLUME_MUTE — same toggle the key makes
     if sys.platform == "darwin":
         osa = _which("osascript")
         if osa:
@@ -211,6 +250,22 @@ def _backlight_path(name):
 
 
 def _brightness(direction, step=BRIGHTNESS_STEP_PCT):
+    if _windows():
+        # WmiMonitorBrightnessMethods — laptops/tablets only; desktops
+        # answer "class not found" honestly.
+        d = 1 if direction == "up" else -1
+        script = (
+            'try { '
+            '$b = Get-CimInstance -Namespace root\\wmi '
+            '-ClassName WmiMonitorBrightness -ErrorAction Stop; '
+            '$cur = [int]$b.CurrentBrightness; '
+            '$new = [Math]::Max(0, [Math]::Min(100, $cur %s %d)); '
+            '$m = Get-CimInstance -Namespace root\\wmi '
+            '-ClassName WmiMonitorBrightnessMethods -ErrorAction Stop; '
+            '$m.WmiSetBrightness(1, $new); "brightness -> $new" '
+            '} catch { $_.Exception.Message; exit 1 }' % ("+" if d > 0 else "-", step))
+        ok, det = _ps(script)
+        return (ok, "wmi brightness %s" % det) if ok else (False, det)
     bctl = _which("brightnessctl")
     if bctl:
         delta = "+%d%%" % step if direction == "up" else "%d%%-" % step
@@ -265,6 +320,11 @@ def _mpris_bus_name(dbus_send):
 
 
 def _media(sub):
+    if _windows():
+        vk = {"next": 0xB0, "prev": 0xB1, "playpause": 0xB3,
+              "play": 0xB3, "pause": 0xB3}[sub]
+        return _win_key(vk)     # VK_MEDIA_* — goes to the session's
+                                # transport controls like hardware keys
     pc = _which("playerctl")
     if pc:
         ok, det = _run([pc, _PLAYERCTL_ARG[sub]])
@@ -423,6 +483,26 @@ def _lock():
 # ------------------------------------------------------------------
 
 def _dnd(arg=None):
+    if _windows():
+        # Master toast-banner switch: NOC_GLOBAL_SETTING_TOASTS_ENABLED
+        # (1 = banners on, 0 = off). dnd "on" -> 0, "off" -> 1, toggle flips.
+        script = (
+            '$k = "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\'
+            'Notifications\\Settings"; '
+            '$want = "%s"; '
+            'try { '
+            '  $cur = (Get-ItemProperty -Path $k -Name '
+            'NOC_GLOBAL_SETTING_TOASTS_ENABLED -ErrorAction Stop).'
+            'NOC_GLOBAL_SETTING_TOASTS_ENABLED } catch { $cur = 1 }; '
+            'if ($want -eq "on") { $new = 0 } '
+            'elseif ($want -eq "off") { $new = 1 } '
+            'else { $new = if ($cur -eq 0) { 1 } else { 0 } }; '
+            'Set-ItemProperty -Path $k -Name '
+            'NOC_GLOBAL_SETTING_TOASTS_ENABLED -Value $new '
+            '-ErrorAction Stop; "toast-banners -> $new (dnd %s)"'
+            % (str(arg or "toggle").lower(), "$new"))
+        ok, det = _ps(script)
+        return (ok, det) if ok else (False, det)
     gs = _which("gsettings")
     if gs:
         ok, out, _ = _out([gs, "get", "org.gnome.desktop.notifications",
@@ -485,6 +565,24 @@ def _rfkill_toggle(kind, mode):
 
 
 def _wifi(mode):
+    if _windows():
+        # the Wi-Fi adapter by name, then enable/disable it (needs admin —
+        # netsh answers honestly when not elevated).
+        script = (
+            '$a = Get-NetAdapter -Physical -ErrorAction SilentlyContinue | '
+            'Where-Object {$_.InterfaceDescription -match '
+            '"wi-?fi|wireless|802\\.11|wlan"} | Select-Object -First 1; '
+            'if (-not $a) { "no wireless adapter found"; exit 1 }; '
+            '$want = "%s"; '
+            'if ($want -eq "toggle") { '
+            '  $want = if ($a.Status -eq "Up") { "off" } else { "on" } }; '
+            'if ($want -eq "off") { Disable-NetAdapter -Name $a.Name '
+            '-Confirm:$false -ErrorAction Stop } '
+            'else { Enable-NetAdapter -Name $a.Name -Confirm:$false '
+            '-ErrorAction Stop }; '
+            '"wifi %s " + $a.Name' % (mode.lower(), "$want"))
+        ok, det = _ps(script)
+        return (ok, det) if ok else (False, det)
     nm = _which("nmcli")
     if nm:
         if mode == "toggle":
@@ -500,6 +598,23 @@ def _wifi(mode):
 
 
 def _bluetooth(mode):
+    if _windows():
+        # toggle the Bluetooth radio device via PnP (needs admin).
+        script = (
+            '$d = Get-PnpDevice -Class Bluetooth -ErrorAction '
+            'SilentlyContinue | Where-Object {$_.FriendlyName -match '
+            '"radio|bluetooth"} | Select-Object -First 1; '
+            'if (-not $d) { "no bluetooth device found"; exit 1 }; '
+            '$want = "%s"; '
+            'if ($want -eq "toggle") { '
+            '  $want = if ($d.Status -eq "OK") { "off" } else { "on" } }; '
+            'if ($want -eq "off") { Disable-PnpDevice -InstanceId '
+            '$d.InstanceId -Confirm:$false -ErrorAction Stop } '
+            'else { Enable-PnpDevice -InstanceId $d.InstanceId '
+            '-Confirm:$false -ErrorAction Stop }; '
+            '"bluetooth %s " + $d.FriendlyName' % (mode.lower(), "$want"))
+        ok, det = _ps(script)
+        return (ok, det) if ok else (False, det)
     bt = _which("bluetoothctl")
     if bt:
         if mode == "toggle":
@@ -520,6 +635,13 @@ def _bluetooth(mode):
 # ------------------------------------------------------------------
 
 def _clip_targets():
+    if _windows():
+        # formats on the live clipboard — the X11 TARGETS equivalent.
+        ok, out = _ps(
+            'Add-Type -AssemblyName System.Windows.Forms; '
+            '[System.Windows.Forms.Clipboard]::GetDataObject()'
+            '.GetFormats() -join ","', sta=True)
+        return out.split(",") if ok and out else []
     xc = _which("xclip")
     if not xc:
         return []
@@ -532,6 +654,15 @@ def _clip_read_index(index):
 
     Returns (ok, detail)."""
     index = int(index or 0)
+    if _windows():
+        # Windows has no built-in text history readable here (win+v
+        # history needs user consent + a different API); index 0 = the
+        # live clipboard via Get-Clipboard, anything else is honest.
+        if index != 0:
+            return False, ("no clipboard history provider on Windows — "
+                           "only the live clipboard (index 0) exists")
+        ok, det = _ps('Get-Clipboard -Raw -ErrorAction SilentlyContinue')
+        return (ok, "live clipboard (index 0)") if ok else (False, det)
     copyq = _which("copyq")
     if copyq:
         ok, out, det = _out([copyq, "read", str(index)])
@@ -629,30 +760,30 @@ DISPATCH.update({
     "bluetooth":        lambda a: _bluetooth(str(_arg(a, "mode", "state", "arg", default="toggle")).lower()),
     "history":          lambda a: _clip_read_index(_arg(a, "index", default=0)),
     "targets":          lambda a: (True, "targets=%s" % ",".join(_clip_targets()))
-                                  if _which("xclip") else
-                                  (False, "not available: need xclip"),
+                                  if _clip_targets() else
+                                  (False, "not available: clipboard unreadable"),
 })
 
 # which backends each action could use, for the `available:[...]` report
 _PROBES = {
-    "sys.volume-up":      ("pactl", "amixer", "xdotool", "osascript"),
-    "sys.volume-down":    ("pactl", "amixer", "xdotool", "osascript"),
-    "sys.mute":           ("pactl", "amixer", "xdotool", "osascript"),
-    "sys.brightness-up":  ("brightnessctl", "/sys/class/backlight"),
-    "sys.brightness-down": ("brightnessctl", "/sys/class/backlight"),
-    "media.playpause":    ("playerctl", "dbus-send", "xdotool"),
-    "media.play":         ("playerctl", "dbus-send", "xdotool"),
-    "media.pause":        ("playerctl", "dbus-send", "xdotool"),
-    "media.next":         ("playerctl", "dbus-send", "xdotool"),
-    "media.prev":         ("playerctl", "dbus-send", "xdotool"),
+    "sys.volume-up":      ("pactl", "amixer", "xdotool", "osascript", "powershell"),
+    "sys.volume-down":    ("pactl", "amixer", "xdotool", "osascript", "powershell"),
+    "sys.mute":           ("pactl", "amixer", "xdotool", "osascript", "powershell"),
+    "sys.brightness-up":  ("brightnessctl", "/sys/class/backlight", "powershell"),
+    "sys.brightness-down": ("brightnessctl", "/sys/class/backlight", "powershell"),
+    "media.playpause":    ("playerctl", "dbus-send", "xdotool", "powershell"),
+    "media.play":         ("playerctl", "dbus-send", "xdotool", "powershell"),
+    "media.pause":        ("playerctl", "dbus-send", "xdotool", "powershell"),
+    "media.next":         ("playerctl", "dbus-send", "xdotool", "powershell"),
+    "media.prev":         ("playerctl", "dbus-send", "xdotool", "powershell"),
     "sys.screenshot":     ("import", "gnome-screenshot", "spectacle", "scrot", "ffmpeg", "screencapture", "powershell"),
     "sys.screenshot-region": ("import", "gnome-screenshot", "spectacle", "scrot", "screencapture"),
     "sys.lock":           ("loginctl", "xdg-screensaver", "osascript", "rundll32", "rundll32.exe"),
-    "sys.dnd":            ("gsettings", "dbus-send"),
-    "net.wifi":           ("nmcli", "rfkill"),
-    "net.bluetooth":      ("bluetoothctl", "rfkill"),
-    "clipboard.history":  ("copyq", "clipster", "xclip"),
-    "clipboard.targets":  ("xclip",),
+    "sys.dnd":            ("gsettings", "dbus-send", "powershell"),
+    "net.wifi":           ("nmcli", "rfkill", "powershell"),
+    "net.bluetooth":      ("bluetoothctl", "rfkill", "powershell"),
+    "clipboard.history":  ("copyq", "clipster", "xclip", "powershell"),
+    "clipboard.targets":  ("xclip", "powershell"),
 }
 
 
@@ -717,6 +848,21 @@ class SystemCtlProvider:
 
         ctx may carry expected_class / expected_title; returns a dict so a
         mismatch is inspectable."""
+        if _windows() and _ap is not None:
+            f = None
+            try:
+                f = _ap.CrossPlatformProvider(
+                    config_dir=None).focused_app()
+            except Exception:
+                f = None
+            cls = (f.wm_class or "") if f else ""
+            title = (f.title or "") if f else ""
+            want = (ctx or {}).get("expected_class")
+            ok = bool(cls or title) and \
+                (not want or want.lower() in (cls or title).lower())
+            return {"ok": ok, "class": cls, "title": title,
+                    "note": "" if (cls or title) else
+                            "no focused window reported"}
         xdot = _which("xdotool")
         if not xdot:
             return {"ok": False, "class": "", "title": "",
