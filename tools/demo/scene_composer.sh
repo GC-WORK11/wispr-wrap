@@ -39,11 +39,16 @@ W=$(EDIT_WID)
 # waveform pill morph into the send arrow, then tap send
 jse '(function(){var b=document.getElementById("box"),s="'"$MARK"'",i=0;var iv=setInterval(function(){if(i<s.length){if(i===0)b.value="";b.value+=s[i++];b.dispatchEvent(new Event("input",{bubbles:true}));}else{clearInterval(iv);}},80);return "typing"})()' | sed 's/^/ui: /'
 sleep 2.2   # chars landing + morph on camera
+# baseline BEFORE the click — /send types fast enough that reading the
+# count after go.click() can already include the new line.
+T0=$(grep -c "^\\[wfd] type:" "$WFD_LOG" 2>/dev/null || echo 0)
 jse 'document.getElementById("go").click();"clicked"' | sed 's/^/ui: /'
 note "sent '$MARK' via the composer go button"
+# the daemon redacts typed content (logs "type: <N chars>") — assert the
+# type-line delta instead of the raw marker.
 SENT=0
-for _ in $(seq 1 40); do
-    grep -q "$MARK" $STATE/wfd.log 2>/dev/null && { SENT=1; break; }
+for _ in $(seq 1 120); do
+    [ "$(grep -c "^\\[wfd] type:" "$WFD_LOG" 2>/dev/null || echo 0)" -gt "$T0" ] && { SENT=1; break; }
     sleep 0.25
 done
 sleep 1.2   # let Writer visibly hold the text on camera

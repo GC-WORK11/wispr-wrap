@@ -21,6 +21,7 @@ ROOT="$(cd "$HERE/../.." && pwd)"
 DEMO_STATE="${DEMO_STATE:-/tmp/wf-demo}"
 DEMO_ENV="${DEMO_ENV:-$DEMO_STATE/env}"
 PROOFS="${PROOFS:-$ROOT/proofs/demo}"
+_REALRUN_GIVEN="${REALRUN_STATE:+set}"
 REALRUN_STATE="${REALRUN_STATE:-/tmp/wf-realrun}"
 CLIPS="$HERE/clips"
 REPLAY="${REPLAY:-http://127.0.0.1:8877}"
@@ -31,15 +32,27 @@ have() { command -v "$1" >/dev/null 2>&1; }
 req()  { have "$1" || die "required tool missing: $1"; }
 
 load_env() {
-    [ -f "$REALRUN_STATE/env" ] || die "realrun stack env missing ($REALRUN_STATE/env) — run tools/demo/boot.sh"
+    # Env path: explicit WF_ENV/REALRUN_STATE wins; otherwise the NEWEST
+    # /tmp/wf-realrun*/env — setup.sh writes /tmp/wf-realrun-<repo>/env and
+    # a legacy flat env can linger from a dead stack with a stale key.
+    local envf=""
+    if [ -n "${WF_ENV:-}" ]; then envf="$WF_ENV"
+    elif [ "$_REALRUN_GIVEN" = "set" ]; then envf="$REALRUN_STATE/env"
+    else envf=$(ls -t /tmp/wf-realrun-*/env /tmp/wf-realrun/env 2>/dev/null | head -1); fi
+    [ -n "$envf" ] && [ -f "$envf" ] || die "realrun stack env missing — run tools/demo/boot.sh"
     # the realrun env exports its own HERE/ROOT/STATE — pin ours first and
     # restore afterwards or "$HERE/record.sh" resolves into tools/realrun.
     local _h="$HERE" _r="$ROOT" _c="$CLIPS"
     # shellcheck disable=SC1090
-    . "$REALRUN_STATE/env"          # D PORT BASE KEY SINK MARKERS TERM_WID ...
+    . "$envf"                       # D PORT BASE KEY SINK MARKERS TERM_WID ...
+    local _rr_state="$STATE"        # realrun state dir (holds wfd.log)
     [ -f "$DEMO_ENV" ] && . "$DEMO_ENV"   # CHROME_WID REPLAY REPLAY_OWNER
     HERE="$_h"; ROOT="$_r"; CLIPS="$_c"
-    export DISPLAY="$D"
+    # DEMO_ENV exports STATE=$DEMO_STATE — keep the realrun dir separately:
+    # scenes assert against $WFD_LOG (the daemon's own log, redacted counts).
+    RRSTATE="$_rr_state"
+    WFD_LOG="$_rr_state/wfd.log"
+    export RRSTATE WFD_LOG DISPLAY="$D"
     mkdir -p "$PROOFS"
     # replay route tag = this daemon's port = the page's Origin port
     RT=(-H "X-Replay-Route: $PORT")

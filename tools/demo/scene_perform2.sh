@@ -32,17 +32,19 @@ call POST /teach/end '{}' >/dev/null
 [ "$TAUGHT" = 1 ] || { bad "teach never reached 3 takes"; exit 1; }
 ok "$G taught via the real /teach flow (3 takes)"
 
-# bind AFTER teaching (PUT preserves exemplars, adds the argv)
-call PUT /bank "{\"gloss\":\"$G\",\"argv\":[\"bash\",\"-c\",\"export DISPLAY=$D; wmctrl -a 'LibreOffice Writer' && sleep 0.4 && xdotool type --clearmodifiers --delay 30 'hello ' \"],\"tier\":0,\"label\":\"hello\"}" >/dev/null
+# bind AFTER teaching (PUT preserves exemplars, adds the argv). xfwm4
+# focus-steal-blocks `wmctrl -a`/`windowactivate` from the daemon's context;
+# `windowraise` on the resolved id works.
+call PUT /bank "{\"gloss\":\"$G\",\"argv\":[\"bash\",\"-c\",\"export DISPLAY=$D; W=\$(xdotool search --name 'LibreOffice Writer' | tail -1); [ -n \"\$W\" ] && xdotool windowraise \$W && sleep 0.5 && xdotool key Escape && xdotool mousemove --window \$W 320 240 click 1 && sleep 0.3 && xdotool type --clearmodifiers --delay 30 'hello '\"],\"tier\":0,\"label\":\"hello\"}" >/dev/null
 ok "$G bound -> raise Writer + type at cursor"
 
-ACT0=$(grep -c "act $G" $STATE/wfd.log 2>/dev/null || echo 0)
+ACT0=$(grep -c "act $G" $WFD_LOG 2>/dev/null || echo 0)
 rec_start "$PROOFS/f6-perform.mp4"
 ensure_listening || { bad "could not enter listening"; rec_stop "$PROOFS/f6-perform.mp4"; exit 1; }
 push_clip "$CLIPS/perform-TYPE-HELLO.json"
 FIRED=0
 for _ in $(seq 1 80); do
-    [ "$(grep -c "act $G" $STATE/wfd.log 2>/dev/null || echo 0)" -gt "$ACT0" ] && { FIRED=1; break; }
+    [ "$(grep -c "act $G" $WFD_LOG 2>/dev/null || echo 0)" -gt "$ACT0" ] && { FIRED=1; break; }
     sleep 0.25
 done
 sleep 2.5

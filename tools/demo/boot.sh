@@ -42,10 +42,15 @@ done
 # ---------- 1. realrun stack --------------------------------------------------
 log "boot realrun stack (:97 / :8874)"
 bash "$ROOT/tools/realrun/setup.sh"
-# the realrun env exports its own HERE/ROOT — re-pin ours after sourcing
+# the realrun env exports its own HERE/ROOT — re-pin ours after sourcing.
+# setup.sh writes /tmp/wf-realrun-<repo>/env; a legacy flat env can linger
+# from a dead stack, so prefer the newest file.
 _dh="$HERE"; _dr="$ROOT"
-. "$REALRUN_STATE/env"
-HERE="$_dh"; ROOT="$_dr"; unset _dh _dr
+_envf="${WF_ENV:-}"
+if [ -z "$_envf" ]; then _envf=$(ls -t /tmp/wf-realrun-*/env /tmp/wf-realrun/env 2>/dev/null | head -1); fi
+[ -n "$_envf" ] && [ -f "$_envf" ] || die "realrun env missing after setup"
+. "$_envf"
+HERE="$_dh"; ROOT="$_dr"; unset _dh _dr _envf
 
 # ---------- 2. replay service :8877 -------------------------------------------
 # The composer hardcodes http://127.0.0.1:8877. On this shared box the lane
