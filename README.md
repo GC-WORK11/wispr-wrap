@@ -1,5 +1,7 @@
 # Sign-Flow
 
+Type and control your laptop without touching it.
+
 Private, offline-first input for your laptop. Compose or sign on your phone; text, media, and actions land on the laptop over your own LAN.
 
 - The phone browser composes text and attaches images, videos, and files — they are typed or pasted into the focused laptop window.
