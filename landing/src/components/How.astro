@@ -107,7 +107,7 @@ const tallById = Object.fromEntries(tall.nodes.map((n) => [n.id, n]));
           >
             {node.kind === 'img' && <img src={node.src} alt={node.alt} width="390" height="844" loading="lazy" decoding="async" />}
             {node.kind === 'video' && (
-              <video autoplay muted loop playsinline preload="metadata" width="390" height="844"
+              <video autoplay muted loop playsinline preload="auto" width="390" height="844"
                 poster={`/media/clips/${node.id}-poster.png`} data-loop aria-label={node.alt}>
                 <source src={`/media/clips/${node.id}.webm`} type="video/webm" />
                 <source src={`/media/clips/${node.id}.mp4`} type="video/mp4" />

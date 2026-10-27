@@ -12,7 +12,7 @@ const shots = [
   <div class="row">
     {shots.map((s) => (
       <figure>
-        <video autoplay muted loop playsinline preload="metadata" width="390" height="844"
+        <video autoplay muted loop playsinline preload="auto" width="390" height="844"
           poster={`/media/clips/${s.id}-poster.png`} data-loop aria-label={s.alt}>
           <source src={`/media/clips/${s.id}.webm`} type="video/webm" />
           <source src={`/media/clips/${s.id}.mp4`} type="video/mp4" />

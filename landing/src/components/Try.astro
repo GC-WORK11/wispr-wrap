@@ -33,14 +33,14 @@
         </div>
         <button class="rb go" data-try-record type="button">Record</button>
       </div>
-    </div>
 
-    <div class="ctl">
-      <button class="rb start" data-try-start type="button">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></svg>
-        Start camera
-      </button>
-      <button class="rb teach" data-try-teach type="button" hidden>Teach a sign</button>
+      <div class="ctl">
+        <button class="rb start" data-try-start type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></svg>
+          Start camera
+        </button>
+        <button class="rb teach" data-try-teach type="button" hidden>Teach a sign</button>
+      </div>
     </div>
   </div>
 </section>
@@ -210,10 +210,22 @@
   .teachbox .go:hover { background: var(--pink-deep); }
 
   .ctl {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    translate: -50% -50%;
     display: flex;
     justify-content: center;
     gap: 10px;
-    margin-top: 18px;
+    z-index: 3;
+  }
+  .stage.is-live .ctl {
+    top: auto;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px) + 52px);
+    translate: -50% 0;
+  }
+  .stage.is-live .ctl .rb {
+    box-shadow: var(--shadow-lift), inset 0 0 0 1px rgb(0 0 0 / 0.02);
   }
   .ctl .rb { padding: 12px 22px; font-size: 15px; font-weight: 600; }
   .ctl .start svg { width: 20px; height: 20px; }
