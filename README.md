@@ -16,7 +16,7 @@ Requires Linux/X11 on the laptop and any modern browser on the phone.
 
 ```bash
 git clone <this repo>
-cd signflow
+cd sign-flow
 ./bin/wrap start        # or: npm install && npm link && wrap start
 ```
 

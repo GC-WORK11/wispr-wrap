@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { stack, newPage, loadClips, playAndWait, shotTo, reporter, daemon, sleep } from './lib.mjs';
 
-const S = stack('/tmp/dr-test/state/env');
+const S = stack(process.env.SITE_ENV || '/tmp/dr-test/state/env');
 const GLOSS = 'DR' + String(Date.now()).slice(-4);   // unique — wizard rejects dup names
 const OUT = path.join(S.STATE, 'proofs', 'ui-v2', 'demo-ready');
 const { check, finish } = reporter(S, OUT, 'demo-ready e2e: pair, @ pick, sends, teach, live');
@@ -22,7 +22,7 @@ const waitFor = async (fn, ms = 6000, poll = 150) => {
 };
 const focus = async wid => { D.sh('xdotool', ['windowactivate', wid]); await sleep(350); };
 const sinkWid = () => D.sh('xdotool', ['search', '--class', 'SinkEdit']).trim().split('\n').pop();
-const termWid = () => D.sh('xdotool', ['search', '--name', '^dr-test-term$']).trim().split('\n').pop();
+const termWid = () => D.sh('xdotool', ['search', '--name', '^' + S.TAG + '-term$']).trim().split('\n').pop();
 
 // wipe stale DR* test signs — identical replay clips make DTW ambiguous
 {
@@ -34,7 +34,7 @@ const termWid = () => D.sh('xdotool', ['search', '--name', '^dr-test-term$']).tr
   }
 }
 
-const page = await newPage(S, { cdpPort: Number(process.env.SITE_CDP || 9391) });
+const page = await newPage(S, { cdpPort: 9391 });
 page.on('console', m => { if (m.type === 'error') console.log('  [page]', m.text.slice(0, 140)); });
 await page.goto(S.base + '/?k=' + S.KEY, { settle: 2500 });
 await loadClips(page, ['teach-TYPE-HELLO', 'perform-TYPE-HELLO', 'palm-hold', 'idle']);
@@ -49,14 +49,14 @@ const setVal = async (sel, v) => page.eval(`(()=>{const e=document.querySelector
 const click = async sel => page.eval(`document.querySelector(${JSON.stringify(sel)}).click()`);
 const sendText = async t => { await setVal('#box', t); await click('#go'); };
 
-/* ---- 2. @ window picker -> dr-test-term (xfce4 `cat` -> TERMSINK) ---- */
+/* ---- 2. @ window picker -> ${S.TAG}-term (xfce4 `cat` -> TERMSINK) ---- */
 const t0_term = read(TERMSINK).length, t0_sink = read(S.SINK).length;
 await setVal('#box', '@');
 await waitFor(() => page.eval(`document.querySelectorAll('.win-item').length`));
 const wins = await page.eval(`[...document.querySelectorAll('.win-item')].map(b=>b.textContent)`);
-check('@ menu lists real open windows', wins.some(w => w.includes('dr-test-term')), JSON.stringify(wins));
+check('@ menu lists real open windows', wins.some(w => w.includes(S.TAG + '-term')), JSON.stringify(wins));
 await shotTo(page, OUT, '02-at-menu');
-await page.eval(`[...document.querySelectorAll('.win-item')].find(b=>b.textContent.includes('dr-test-term')).click()`);
+await page.eval(`[...document.querySelectorAll('.win-item')].find(b=>b.textContent.includes('${S.TAG}-term')).click()`);
 const chip = await page.eval(`document.querySelector('.tchip') && !document.querySelector('.tchip').hidden`);
 check('@ chip shows the picked window', !!chip);
 await sendText('AT-TERM-OK');

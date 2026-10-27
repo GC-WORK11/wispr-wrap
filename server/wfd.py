@@ -21,6 +21,10 @@ try:
 except ImportError:
     act_iface = act_linux = None
 try:
+    import act_platform          # the macOS/Windows provider
+except ImportError:
+    act_platform = None
+try:
     import system_ctl            # sys/media/net/clip ops behind the catalog
 except ImportError:
     system_ctl = None
@@ -487,10 +491,14 @@ BANK = load_bank()
 # rows keep their existing direct-spawn path (legacy, already audited).
 # ---------------------------------------------------------------------
 ACT_PROVIDER = None
-if act_linux is not None:
+if act_iface is not None:
     try:
-        ACT_PROVIDER = act_linux.LinuxX11Provider(
-            config_dir=os.path.dirname(BANK_FILE))
+        if sys.platform.startswith("linux") and act_linux is not None:
+            ACT_PROVIDER = act_linux.LinuxX11Provider(
+                config_dir=os.path.dirname(BANK_FILE))
+        elif act_platform is not None:
+            ACT_PROVIDER = act_platform.CrossPlatformProvider(
+                config_dir=os.path.dirname(BANK_FILE))
 
         if system_ctl is not None:
             def _sys_plan(a, ctx):
@@ -566,10 +574,7 @@ if act_linux is not None:
                 if cap and not cap.get("available"):
                     row["desc"] = (row.get("desc", "") +
                                    (" — " if row.get("desc") else "") +
-                                   "not available here (needs %s)" %
-                                   "/".join(cap.get("via") or []) +
-                                   ((": " + cap["note"]) if cap.get("note")
-                                    else "")).strip(" —")
+                                   "not available here").strip(" —")
                 ACT_PROVIDER.register(_t, _sys_plan, catalog=row)
 
         if _macro is not None:

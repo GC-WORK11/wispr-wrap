@@ -324,7 +324,7 @@ function feedEvents(j) {
       const g = (ev.glosses || [])[0], act = S.fires[g];
       const r = ev.result || {};
       if (g) { guessEl.textContent = pretty((act && act.label) || g); guessEl.classList.remove('dim'); guessEl.classList.remove('pop'); void guessEl.offsetWidth; guessEl.classList.add('pop'); }
-      if (ev.ok === false || r.fired === false) actFlash('Couldn’t run it' + (r.detail ? ': ' + r.detail : ''), 'soft');
+      if (ev.ok === false || r.fired === false) actFlash('Couldn’t run it', 'soft');
       else actFlash(doneText(act));
     }
   }
