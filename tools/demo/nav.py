@@ -26,8 +26,10 @@ def main():
         sys.exit("usage: nav.py <#/frag|url|--eval expr>")
 
     targets = json.load(urllib.request.urlopen(f"{CDP}/json/list", timeout=5))
+    # the app page may sit on a mapped hostname (sf-phone) so that
+    # loopback-only /pair-info refuses it and the real code screen shows.
     page = next((t for t in targets
-                 if t.get("type") == "page" and "127.0.0.1" in t.get("url", "")),
+                 if t.get("type") == "page" and t.get("url", "").startswith("http")),
                 None)
     if not page:
         sys.exit(f"nav: no app page on {CDP}")
