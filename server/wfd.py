@@ -1215,6 +1215,23 @@ def _norm_points(pts):
     return out
 
 
+def _apply_aspect(pts, aspect):
+    """Rescale normalized x by the camera aspect (width / height) so x and
+    y share one unit. Without it a portrait camera stretches the hand:
+    openness, palm-width speeds and the signbank shape all skew. Absent
+    (zero) points stay zero; a missing or implausible aspect is ignored."""
+    try:
+        a = float(aspect)
+    except (TypeError, ValueError):
+        return pts
+    if not (0.2 <= a <= 5.0) or abs(a - 1.0) < 1e-3:
+        return pts
+    for p in pts:
+        if p["x"] or p["y"]:
+            p["x"] *= a
+    return pts
+
+
 def _rate_limited(key, now):
     """Per-identity token window + a global hard cap. Appends the current
     frame and returns True when THIS frame must be rejected.
@@ -1434,7 +1451,7 @@ def live_kp(data, client=None):
         if not LIVE["session"]:
             LIVE["session"] = str(sid)[:64] if sid else secrets.token_hex(4)
         LIVE["seen"] = now
-        frame = {"t_ms": t_ms, "points": pts}
+        frame = {"t_ms": t_ms, "points": _apply_aspect(pts, data.get("aspect"))}
         if "hand" in data:
             frame["hand"] = str(data["hand"])
         out = {"ok": True, "session": LIVE["session"]}

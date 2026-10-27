@@ -44,10 +44,17 @@ MID_MCP = 9                       # wrist->middle-MCP = palm size ref
 ANCHORS = (0, 5, 9, 13, 17)       # wrist + MCPs -> stable palm centroid
 PRESENCE_SCORE = 0.25             # min per-point score to count
 PRESENCE_KEYS = 6                 # min confident points for "hand present"
+SHAPE_KEYS = (4, 8, 12, 16, 20, 6, 10, 14, 18)   # tips + PIP joints
 
 
 def _d(ax, ay, bx, by):
     return math.hypot(ax - bx, ay - by)
+
+
+def _median(xs):
+    s = sorted(xs)
+    n = len(s)
+    return s[n // 2] if n % 2 else 0.5 * (s[n // 2 - 1] + s[n // 2])
 
 
 def _pt(p):
@@ -63,7 +70,7 @@ class _Hand:
     """One frame's worth of one hand: presence, wrist, palm centroid,
     palm size, openness (mean tip reach / palm size), this-frame speed."""
     __slots__ = ("present", "wx", "wy", "cx", "cy", "palm", "openness",
-                 "speed")
+                 "speed", "shape")
 
     def __init__(self, pts):
         self.present = False
@@ -71,6 +78,7 @@ class _Hand:
         self.palm = 1e-6
         self.openness = 0.0
         self.speed = 0.0
+        self.shape = None
         if not pts or len(pts) < 21:
             return
         conf = sum(1 for p in pts[:21] if p[2] >= PRESENCE_SCORE)
@@ -89,6 +97,11 @@ class _Hand:
         self.openness = sum(
             _d(pts[t][0], pts[t][1], self.wx, self.wy)
             for t in TIPS) / (len(TIPS) * self.palm)
+        # translation/scale-free finger layout: tips and PIP joints
+        # relative to the wrist, in palm widths
+        self.shape = tuple(
+            ((pts[k][0] - self.wx) / self.palm,
+             (pts[k][1] - self.wy) / self.palm) for k in SHAPE_KEYS)
 
 
 class Endpointer:
@@ -108,14 +121,35 @@ class Endpointer:
       rearm_ratio      openness must fall below this to re-arm palm
       namaste_gap      palms-together distance, in avg-palm-size units
       namaste_open     minimum openness for each hand in namaste
+      smooth_n         median window (frames) applied to raw speeds before
+                       the EMA; removes single-frame landmark jitter
+      hold_end_s       a sign also ends when the hand holds its shape this
+                       long (real hands never go fully quiet: landmark
+                       jitter and a handheld camera keep raw energy up)
+      hold_shape_v     max smoothed finger-layout change (palm widths/s)
+                       that counts as a held shape
+      hold_move_v      max smoothed palm speed that counts as held
+      enter_shape_v    smoothed finger-layout change that starts a sign
+                       even when the palm stays put
+      min_hold_seg_s   a segment must run at least this long before a
+                       hold can close it
+      palm_grace       consecutive failing frames tolerated inside a
+                       palm/namaste hold before its timer restarts
       palm_sign / namaste_sign   emitted mode-event names (None disables)
+
+    Defaults are calibrated on real phone-camera landmarks at 12 fps
+    (held poses: palm speed 0.1-1.4, finger-layout change 0.1-0.9 palm
+    widths/s; sign transitions: layout change 1.5-4+).
     """
 
     def __init__(self, enter_v=1.5, exit_v=0.7, ema=0.45,
                  quiet_s=0.35, min_seg_s=0.20, max_seg_s=3.0,
                  pre_roll=4, min_frames=4,
-                 hold_s=0.45, hold_v=0.6,
-                 open_ratio=1.75, rearm_ratio=1.40,
+                 hold_s=0.45, hold_v=1.2,
+                 open_ratio=1.55, rearm_ratio=1.40,
+                 smooth_n=3, hold_end_s=0.5, hold_shape_v=0.9,
+                 hold_move_v=1.2, min_hold_seg_s=0.6, palm_grace=2,
+                 enter_shape_v=1.4,
                  namaste_gap=1.4, namaste_open=1.35,
                  palm_sign="PALM-OPEN", namaste_sign="NAMASTE"):
         self.enter_v = float(enter_v)
@@ -131,6 +165,13 @@ class Endpointer:
         self.rearm_ratio = float(rearm_ratio)
         self.namaste_gap = float(namaste_gap)
         self.namaste_open = float(namaste_open)
+        self.smooth_n = max(1, int(smooth_n))
+        self.hold_end_s = float(hold_end_s)
+        self.hold_shape_v = float(hold_shape_v)
+        self.hold_move_v = float(hold_move_v)
+        self.enter_shape_v = float(enter_shape_v)
+        self.min_hold_seg_s = float(min_hold_seg_s)
+        self.palm_grace = max(0, int(palm_grace))
         self.palm_sign = palm_sign or None
         self.namaste_sign = namaste_sign or None
         self._pre = deque(maxlen=max(1, int(pre_roll)))
@@ -146,9 +187,14 @@ class Endpointer:
         self._prev = [None, None]     # last _Hand per slot
         self._t = None                # last frame time (s)
         self._ema = None
-        self._palm = [{"since": None, "armed": False, "seen": False}
-                      for _ in range(2)]
-        self._nam = {"since": None, "armed": True}
+        self._palm = [{"since": None, "armed": False, "seen": False,
+                       "miss": 0} for _ in range(2)]
+        self._nam = {"since": None, "armed": True, "miss": 0}
+        self._raw = deque(maxlen=self.smooth_n)      # raw energy
+        self._spd = [deque(maxlen=self.smooth_n) for _ in range(2)]
+        self._shp = deque(maxlen=self.smooth_n)      # finger-layout rate
+        self._mov = deque(maxlen=self.smooth_n)      # palm speed
+        self._still = None            # start of the current shape hold
         self._n = 0                   # frames seen before the current one
 
     @property
@@ -179,6 +225,8 @@ class Endpointer:
         hands = self._hands(frame)
 
         energy = 0.0
+        shp = mov = 0.0
+        moving = False
         for i, h in enumerate(hands):
             p = self._prev[i]
             if h.present and p is not None and p.present and dt > 0:
@@ -187,12 +235,32 @@ class Endpointer:
                 vw = _d(h.wx, h.wy, p.wx, p.wy) / (dt * ruler)
                 vc = _d(h.cx, h.cy, p.cx, p.cy) / (dt * ruler)
                 vs = abs(h.openness - p.openness) / dt     # spread rate
-                h.speed = vw
+                vf = sum(_d(a[0], a[1], b[0], b[1])
+                         for a, b in zip(h.shape, p.shape)) / \
+                    (len(SHAPE_KEYS) * dt)
+                self._spd[i].append(vw)
+                h.speed = _median(self._spd[i])
                 energy += vw + 0.4 * vc + 0.5 * vs
+                shp = max(shp, vf)
+                mov = max(mov, vc)
+                moving = True
+            elif not h.present:
+                self._spd[i].clear()
         self._prev = hands
         self._t = t
+        self._raw.append(energy)
+        energy = _median(self._raw)
         self._ema = energy if self._ema is None else \
             self.ema * energy + (1.0 - self.ema) * self._ema
+        if moving:
+            self._shp.append(shp)
+            self._mov.append(mov)
+        held = moving and _median(self._shp) <= self.hold_shape_v and \
+            _median(self._mov) <= self.hold_move_v
+        if not held:
+            self._still = None
+        elif self._still is None:
+            self._still = t
 
         events.extend(self._mode_events(hands, t))
 
@@ -211,7 +279,12 @@ class Endpointer:
             # a segment starts only on a frame that actually carries a
             # hand — a decaying EMA tail on an absent/still frame is the
             # residue of the LAST sign, not the start of a new one.
-            if self._ema >= self.enter_v and any(h.present for h in hands):
+            # a change of hand shape starts a sign as well as motion does:
+            # V, C or L formed in place barely moves the palm
+            shaping = bool(self._shp) and \
+                _median(self._shp) >= self.enter_shape_v
+            if (self._ema >= self.enter_v or shaping) and \
+                    any(h.present for h in hands):
                 self._state = "active"
                 self._seg = list(self._pre)   # pre-roll includes this frame
                 self._seg_t0 = float(self._pre[0].get("t_ms") or 0) / 1000.0
@@ -223,6 +296,12 @@ class Endpointer:
             elif self._absent >= 2:
                 events.append(self._close(t, "absent"))
                 self._absent = 0
+            elif self._still is not None and \
+                    t - self._seg_t0 >= self.min_hold_seg_s and \
+                    t - self._still >= self.hold_end_s and \
+                    self._still > self._seg_t0:
+                # the hand settled into a held shape: that is the sign
+                events.append(self._close(t, "hold"))
             elif self._ema < self.exit_v:
                 if self._quiet is None:
                     self._quiet = t
@@ -280,6 +359,7 @@ class Endpointer:
                 self._state != "active" and \
                 h.openness >= self.open_ratio and h.speed <= self.hold_v
             if held_open:
+                st["miss"] = 0
                 if st["since"] is None:
                     st["since"] = t
                 if st["armed"] and t - st["since"] >= self.hold_s:
@@ -288,7 +368,10 @@ class Endpointer:
                         ev.append({"type": "mode", "name": self.palm_sign,
                                    "t_ms": int(t * 1000)})
             else:
-                st["since"] = None
+                # tolerate a jitter frame or two inside a real hold
+                st["miss"] += 1
+                if (not h.present) or st["miss"] > self.palm_grace:
+                    st["since"] = None
                 if (not h.present) or h.openness <= self.rearm_ratio:
                     st["armed"] = True
 
@@ -297,6 +380,7 @@ class Endpointer:
         if together and a.openness >= self.namaste_open and \
                 b.openness >= self.namaste_open and \
                 a.speed <= self.hold_v and b.speed <= self.hold_v:
+            st["miss"] = 0
             if st["since"] is None:
                 st["since"] = t
             if st["armed"] and t - st["since"] >= self.hold_s:
@@ -305,8 +389,10 @@ class Endpointer:
                     ev.append({"type": "mode", "name": self.namaste_sign,
                                "t_ms": int(t * 1000)})
         else:
-            st["since"] = None
-            st["armed"] = True
+            st["miss"] += 1
+            if st["miss"] > self.palm_grace:
+                st["since"] = None
+                st["armed"] = True
         return ev
 
 
