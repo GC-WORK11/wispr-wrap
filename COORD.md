@@ -32,3 +32,14 @@ thunar launch, tier-2 close-window confirm. Proofs at
 macOS/Windows paths are unit-tested against mocked backends only —
 not real-run on real hardware (none on this box). Linux is unchanged
 and fully proven.
+
+## 2026-10-27 — fresh 390x844 proof shots (devin-pro/app 3196072)
+
+`tools/pro/shots-390.mjs` — composer, teach record, action grid, @ app
+picker, Go Live control; each view leak-scanned (visibility-aware —
+the ?dev seam fields are 1px-clipped when body.dev is off and stay
+off in product runs). 6/6 PASS; shots in proofs/ui-v2/shots-390/
+(gitignored branch — artifacts on disk). @ picker lists real apps
+(Bulk Rename, Chrome, LibreOffice…); Go Live Control renders clean,
+no engine/d=/ms/URL text. No product copy changes needed — everything
+user-visible was already compliant after the b560574 toast/desc cuts.
