@@ -37,10 +37,15 @@ class StubEnv(unittest.TestCase):
         os.environ.pop("XDG_SESSION_ID", None)
         self._old_bl = sc.BACKLIGHT_DIR
         sc.BACKLIGHT_DIR = self.backlight
+        # These tests exercise the Linux backend table; the darwin
+        # branches in system_ctl must not preempt the stubs on a Mac.
+        self._old_platform = sys.platform
+        sys.platform = "linux"
 
     def tearDown(self):
         os.environ.clear()
         os.environ.update(self._env)
+        sys.platform = self._old_platform
         sc.BACKLIGHT_DIR = self._old_bl
         shutil.rmtree(self.tmp, ignore_errors=True)
 
