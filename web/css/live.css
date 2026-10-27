@@ -179,7 +179,7 @@ body.dev .lv-why:not(:empty) { display: block; }
   position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px); border-radius: 999px;
   background: var(--lv-ink); will-change: transform; transition: transform .38s var(--ease-spring);
 }
-.lv.mode-control .lv-thumb { transform: translateX(100%); }
+.lv-seg:has(#lv-m-ctl[aria-selected="true"]) .lv-thumb { transform: translateX(100%); }
 .lv-seg button {
   position: relative; z-index: 1; height: 48px; border: 0; border-radius: 999px; cursor: pointer; background: transparent;
   color: var(--lv-muted); font: 500 16px/1 var(--sans); letter-spacing: -.008em; transition: color .26s ease;
