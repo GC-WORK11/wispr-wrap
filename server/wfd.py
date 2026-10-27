@@ -170,6 +170,45 @@ def active_window_class():
         return ""
 
 
+def list_windows():
+    """Open top-level windows on the laptop: [{id, title, app}]."""
+    out = []
+    try:
+        r = sh("wmctrl", "-lx")
+        for line in (r.stdout or "").splitlines():
+            parts = line.split(None, 4)
+            if len(parts) < 4 or not parts[0].startswith("0x"):
+                continue
+            if parts[1] == "-1":                 # sticky panels/docks
+                continue
+            wclass = parts[2].split(".")[-1]
+            title = parts[4].strip() if len(parts) > 4 else ""
+            if not title:
+                continue
+            out.append({"id": str(int(parts[0], 16)), "title": title[:120],
+                        "app": wclass})
+    except Exception as e:
+        print(f"[wfd] windows: {e!r}", flush=True)
+    return out
+
+
+def focus_window(wid):
+    """Bring the picked window to the front before a send. True on success."""
+    wid = str(wid or "").strip()
+    if not wid.isdigit():
+        return False
+    try:
+        r = subprocess.run(["xdotool", "windowactivate", "--sync", wid],
+                           capture_output=True, timeout=4)
+        if r.returncode != 0:
+            r = subprocess.run(["wmctrl", "-i", "-a", hex(int(wid))],
+                               capture_output=True, timeout=4)
+        time.sleep(0.2)
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
 # ALL keystroke/clipboard injection runs through ONE serial worker.
 # (bug fix: fire-and-forget `xdotool type` Popens interleaved keystrokes
 # on rapid sends — every inject job now queues behind the previous one.)
@@ -2147,6 +2186,11 @@ class Handler(BaseHTTPRequestHandler):
                                           "error": "packs unavailable"})
             return self._jreply(200, {"ok": True,
                                       "packs": packs.list_packs(bank_rows())})
+        if p == "/windows":
+            if not authed(self.headers):
+                return self._reply(403, b'{"ok":false,"error":"unpaired"}',
+                                   "application/json")
+            return self._jreply(200, {"ok": True, "windows": list_windows()})
         if p == "/status":
             if not self._gate():
                 return
@@ -2259,6 +2303,8 @@ class Handler(BaseHTTPRequestHandler):
             if n <= 0:
                 return self._reply(200, b'{"ok":false}', "application/json")
             # cap check happens BEFORE reading a single byte of the body
+            if self.headers.get("X-WF-Window"):
+                focus_window(self.headers.get("X-WF-Window"))
             name = urllib.parse.unquote(
                 self.headers.get("X-File-Name", "file"))
             status, obj, path = stream_upload(self.rfile, n, name)
@@ -2305,6 +2351,8 @@ class Handler(BaseHTTPRequestHandler):
 
         if p == "/send-image":
             if raw:
+                if self.headers.get("X-WF-Window"):
+                    focus_window(self.headers.get("X-WF-Window"))
                 cls, mime = send_image(raw, self.headers.get("Content-Type", ""))
                 out = json.dumps({"ok": True, "into": cls, "mime": mime,
                                   "kb": round(len(raw) / 1024)}).encode()
@@ -2316,6 +2364,8 @@ class Handler(BaseHTTPRequestHandler):
                 text = data.get("text", "")
                 mode = data.get("mode", "type")
                 expect = data.get("expect")        # optional focus guard
+                if data.get("window"):
+                    focus_window(data.get("window"))
             except Exception:
                 text, mode, expect = raw.decode("utf-8", "replace"), "type", None
             if mode not in ("type", "paste"):

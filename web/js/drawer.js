@@ -16,8 +16,7 @@ if (nav) {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
     'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
     '<rect x="4" y="5" width="16" height="11" rx="2"/><path d="M2 19h20"/></svg>' +
-    '<span class="dr-t">Connect your laptop' +
-    '<span class="dr-sub">It shows you a short code</span></span>';
+    '<span class="dr-t">Connect your laptop</span>';
   cta.onclick = () => { App.drawer.close(); App.nav('laptop'); };
 
   const teach = document.getElementById('tray-teach');

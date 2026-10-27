@@ -33,8 +33,7 @@ sheet.innerHTML = `
   <div class="sheet-body tw-body">
 
     <section class="tw-step" data-step="name">
-      <p class="hint">A sign is a gesture <b>you</b> choose, bound to something your laptop does.</p>
-      <input class="input" id="tw-name" type="text" placeholder="Name it, e.g. open browser"
+      <input class="input" id="tw-name" type="text" placeholder="Name"
              autocomplete="off" autocorrect="off" autocapitalize="characters" maxlength="32" enterkeyhint="next">
       <div class="tw-gloss" id="tw-gloss"></div>
       <div class="errline" id="tw-name-err"></div>
@@ -62,7 +61,6 @@ sheet.innerHTML = `
     </section>
 
     <section class="tw-step" data-step="bind">
-      <p class="hint">Your laptop learned this from your three takes. Now say what it should do.</p>
       <div class="tw-prev" id="tw-prev"></div>
       <div class="tw-bound" id="tw-bound">
         <button class="btn btn-ghost btn-block" id="tw-pick">@ Pick what it does</button>
@@ -82,7 +80,7 @@ sheet.innerHTML = `
         <p class="hint" id="tw-done-m"></p>
         <div class="tw-foot">
           <button class="btn btn-ghost" id="tw-done-lib">Your signs</button>
-          <button class="btn btn-primary" id="tw-done-live">Try it live</button>
+          <button class="btn btn-primary" id="tw-done-live">Go Live</button>
         </div>
       </div>
     </section>
@@ -153,7 +151,7 @@ function onResp(j) {
         if (W.mode === 'add') { finishAdd(); return; }
         buildBind(); showStep('bind');
       } else {
-        recLead.textContent = 'Got it. Same sign again, and drop your hands between takes.';
+        recLead.textContent = 'Again.';
       }
     } else if (t.ok === false) {
       recErr.textContent = 'That one was too short or had no hands in view. Try again a little slower.';
@@ -253,7 +251,7 @@ nameNext.onclick = async () => {
   }
   if (!r.ok) { nameErr.textContent = App.daemonErr(r, 'Could not start — try again.'); return; }
   setTeaching(true);
-  recLead.textContent = 'Do ' + W.gloss + ' once, then drop your hands. Three times, so it learns you.';
+  recLead.textContent = W.gloss + ' · 3 takes';
   recDone.hidden = false; recBack.textContent = 'back';
   renderTakebar();
   showStep('record');
@@ -318,7 +316,7 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
   c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 $('tw-bind-back').onclick = () => {
-  recLead.textContent = 'Extra takes sharpen the match. It keeps your newest five.';
+  recLead.textContent = '';
   showStep('record');
   if (!W.teaching && W.gloss) {
     App.api.post('/teach/begin', { name: W.gloss, takes: 5, label: W.label })
@@ -344,9 +342,7 @@ saveBtn.onclick = async () => {
   }
   doneT.textContent = W.gloss + ' is live';
   const d = Actions.describe(a);
-  doneM.textContent = 'Go live and sign it. Your laptop will ' +
-    d.charAt(0).toLowerCase() + d.slice(1) +
-    (a.tier >= 2 ? ', after you approve it on the laptop.' : '.');
+  doneM.textContent = d + (a.tier >= 2 ? ' · confirm on laptop' : '');
   showStep('done');
   App.buzz();
 };
@@ -396,7 +392,7 @@ const Teach = {
       return;
     }
     setTeaching(true);
-    recLead.textContent = 'Same sign once more — every take makes it surer.';
+    recLead.textContent = '';
     recDone.hidden = true; recBack.textContent = 'cancel';
     showStep('record');
     startCapture();

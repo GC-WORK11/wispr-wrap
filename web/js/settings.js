@@ -20,10 +20,6 @@ sheet.innerHTML = `
       <span class="st-t">Vibrate on send</span>
       <input type="checkbox" id="st-vibrate" class="st-sw">
     </label>
-    <label class="st-row">
-      <span class="st-t">Share training samples (beta)<span class="st-s" id="st-share-note" hidden>Hand landmarks only. Never video. Not uploaded yet.</span></span>
-      <input type="checkbox" id="st-share" class="st-sw">
-    </label>
     ${devMode ? `<label class="st-row">
       <span class="st-t">Replayed gestures</span>
       <input type="checkbox" id="st-replay" class="st-sw">
@@ -45,12 +41,14 @@ vib.onchange = () => App.store.setItem('wfvib', vib.checked ? '1' : '0');
 // local queue and the random id (contribute.js)
 const share = sheet.querySelector('#st-share'),
       shareNote = sheet.querySelector('#st-share-note');
-share.checked = !!Contribute && Contribute.enabled();
-shareNote.hidden = !share.checked;
-share.onchange = () => {
-  if (Contribute) Contribute.setEnabled(share.checked);
+if (share) {
+  share.checked = !!Contribute && Contribute.enabled();
   shareNote.hidden = !share.checked;
-};
+  share.onchange = () => {
+    if (Contribute) Contribute.setEnabled(share.checked);
+    shareNote.hidden = !share.checked;
+  };
+}
 
 // replay seam — the same flag pose.js checks; needs ?replay once or this
 // toggle. Honest label, off by default, judges never see it on.
