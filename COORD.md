@@ -43,3 +43,21 @@ off in product runs). 6/6 PASS; shots in proofs/ui-v2/shots-390/
 (Bulk Rename, Chrome, LibreOffice…); Go Live Control renders clean,
 no engine/d=/ms/URL text. No product copy changes needed — everything
 user-visible was already compliant after the b560574 toast/desc cuts.
+
+## 2026-10-28 — merged devin-cloud/windows + devin-cloud/macos (HEAD 712d3f6)
+
+Merge (no rebase): windows 247ea3b clean; macos ac8e4d3 conflicts
+resolved — union platform branches in wfd/system_ctl, kept the
+provider-based inject path + act_platform clip backends, folded in
+darwin sips converter + non-ASCII paste fallback; 712d3f6 = resolution
+fixups (darwin-first focus check, _to_png test signature). macOS also
+brings @ window targeting into compose.js (web/ changed → re-shot).
+
+Gates: full suite 282 green; Linux realrun act-tiles-live 27/27 on
+:103 merged build; fresh shots-390 6/6 with the new compose UI
+(composer/teach/grid/@-picker/go-live all clean, @ lists real apps).
+
+Caveat: macOS/Windows remain unit-tested (mocked backends) — no real
+hardware here. Cloud agents own those tracks; Linux unchanged.
+
+MAX: merge 712d3f6 into devin/live-merge.
