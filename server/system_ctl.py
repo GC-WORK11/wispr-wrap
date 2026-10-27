@@ -266,6 +266,9 @@ def _brightness(direction, step=BRIGHTNESS_STEP_PCT):
             '} catch { $_.Exception.Message; exit 1 }' % ("+" if d > 0 else "-", step))
         ok, det = _ps(script)
         return (ok, "wmi brightness %s" % det) if ok else (False, det)
+    if sys.platform == "darwin":
+        return False, ("not available: macOS brightness needs the external-"
+                       "brightness CLI or a TCC grant — no stock tool")
     bctl = _which("brightnessctl")
     if bctl:
         delta = "+%d%%" % step if direction == "up" else "%d%%-" % step
@@ -319,12 +322,49 @@ def _mpris_bus_name(dbus_send):
     return names[0] if names else ""
 
 
+_MAC_NX_KEY = {"playpause": 16, "play": 16, "pause": 16,
+               "next": 17, "prev": 18}
+_MAC_AS_PLAYER = {"playpause": "playpause", "play": "play",
+                  "pause": "pause", "next": "next track",
+                  "prev": "previous track"}
+
+
+def _media_mac(sub):
+    """macOS media keys: NXSystemDefined event via JXA (the same events
+    the keyboard's media keys produce), then the AppleScript-able
+    players (Music/Spotify) as the fallback."""
+    osa = _which("osascript")
+    if not osa:
+        return False, "not available: need osascript (macOS)"
+    key = _MAC_NX_KEY[sub]
+    js = ('ObjC.import("Cocoa");function k(d){var f=d?0xa00:0xb00;'
+          'var e=$.NSEvent.otherEventWithTypeLocationModifierFlags'
+          'TimestampWindowNumberContextSubtypeData1Data2('
+          '$.NSSystemDefined,$.NSMakePoint(0,0),f,0,-1,0,8,' +
+          str(key) + '<<16|(d?10:11)<<8,-1);'
+          '$.CGEventPost(0,e.CGEvent);}k(true);k(false);')
+    ok, det = _run([osa, "-l", "JavaScript", "-e", js])
+    if ok:
+        return True, "NX media key %d posted (HID event tap)" % key
+    # NX post failed — try the scriptable players directly
+    for app in ("Music", "Spotify"):
+        ok2, det2 = _run([osa, "-e",
+                          'tell application "%s" to %s'
+                          % (app, _MAC_AS_PLAYER[sub])])
+        if ok2:
+            return True, "osascript %s -> %s" % (_MAC_AS_PLAYER[sub], app)
+    return False, ("NX media key post failed (%s); no scriptable player "
+                   "(Music/Spotify) answered" % det)
+
+
 def _media(sub):
     if _windows():
         vk = {"next": 0xB0, "prev": 0xB1, "playpause": 0xB3,
               "play": 0xB3, "pause": 0xB3}[sub]
         return _win_key(vk)     # VK_MEDIA_* — goes to the session's
                                 # transport controls like hardware keys
+    if sys.platform == "darwin":
+        return _media_mac(sub)
     pc = _which("playerctl")
     if pc:
         ok, det = _run([pc, _PLAYERCTL_ARG[sub]])
@@ -503,6 +543,9 @@ def _dnd(arg=None):
             % (str(arg or "toggle").lower(), "$new"))
         ok, det = _ps(script)
         return (ok, det) if ok else (False, det)
+    if sys.platform == "darwin":
+        return False, ("not available: macOS Focus/DND is state-synced via "
+                       "iCloud — no reliable stock toggle")
     gs = _which("gsettings")
     if gs:
         ok, out, _ = _out([gs, "get", "org.gnome.desktop.notifications",
@@ -583,6 +626,27 @@ def _wifi(mode):
             '"wifi %s " + $a.Name' % (mode.lower(), "$want"))
         ok, det = _ps(script)
         return (ok, det) if ok else (False, det)
+    if sys.platform == "darwin":
+        ns = _which("networksetup")
+        if not ns:
+            return False, "not available: need networksetup (macOS)"
+        ok, out, _ = _out([ns, "-listallhardwareports"])
+        dev = ""
+        lines = (out or "").splitlines()
+        for i, l in enumerate(lines):
+            if "Wi-Fi" in l and i + 1 < len(lines):
+                m = re.search(r"Device:\s*(\S+)", lines[i + 1])
+                if m:
+                    dev = m.group(1)
+                    break
+        if not dev:
+            return False, "networksetup: no Wi-Fi device found"
+        if mode == "toggle":
+            ok, out, _ = _out([ns, "-getairportpower", dev])
+            mode = "off" if " on" in (out or "").lower() else "on"
+        ok, det = _run([ns, "-setairportpower", dev, mode])
+        return (ok, "networksetup %s airport %s" % (dev, mode)) \
+            if ok else (False, det)
     nm = _which("nmcli")
     if nm:
         if mode == "toggle":
@@ -615,6 +679,16 @@ def _bluetooth(mode):
             '"bluetooth %s " + $d.FriendlyName' % (mode.lower(), "$want"))
         ok, det = _ps(script)
         return (ok, det) if ok else (False, det)
+    if sys.platform == "darwin":
+        bu = _which("blueutil")
+        if bu:
+            if mode == "toggle":
+                ok, out, _ = _out([bu, "-p"])
+                mode = "off" if (out or "").strip() == "1" else "on"
+            ok, det = _run([bu, "-p", "0" if mode == "off" else "1"])
+            return (ok, "blueutil power %s" % mode) if ok else (False, det)
+        return False, ("not available: macOS has no stock bluetooth CLI — "
+                       "install blueutil (brew) for net.bluetooth")
     bt = _which("bluetoothctl")
     if bt:
         if mode == "toggle":
@@ -642,6 +716,8 @@ def _clip_targets():
             '[System.Windows.Forms.Clipboard]::GetDataObject()'
             '.GetFormats() -join ","', sta=True)
         return out.split(",") if ok and out else []
+    if sys.platform == "darwin":
+        return []                     # no clipboard manager — no target list
     xc = _which("xclip")
     if not xc:
         return []
@@ -663,6 +739,18 @@ def _clip_read_index(index):
                            "only the live clipboard (index 0) exists")
         ok, det = _ps('Get-Clipboard -Raw -ErrorAction SilentlyContinue')
         return (ok, "live clipboard (index 0)") if ok else (False, det)
+    if sys.platform == "darwin":
+        pb = _which("pbpaste")
+        if not pb:
+            return False, "not available: need pbpaste (macOS)"
+        if index != 0:
+            return False, ("no clipboard manager on macOS — only the live "
+                           "clipboard (index 0) exists")
+        ok, out, det = _out([pb])
+        if ok:
+            return True, ("live clipboard (no manager — only index 0 "
+                          "exists); %d chars" % len(out.rstrip("\n")))
+        return False, "pbpaste read failed: " + det
     copyq = _which("copyq")
     if copyq:
         ok, out, det = _out([copyq, "read", str(index)])
@@ -707,6 +795,19 @@ def _clip_read_index(index):
 
 
 def _clip_in(text, via):
+    if sys.platform == "darwin":
+        pbc = _which("pbcopy")
+        if not pbc:
+            return False, ("%s fetched but pbcopy missing — cannot load "
+                           "clipboard" % via)
+        try:
+            subprocess.run([pbc], input=text, text=True,
+                           timeout=SPAWN_TIMEOUT,
+                           stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL)
+        except (subprocess.TimeoutExpired, OSError) as e:
+            return False, "pbcopy load failed: %s" % e
+        return True, "clipboard <- %s (press cmd+v)" % via
     xc = _which("xclip")
     if not xc:
         return False, ("%s fetched but xclip missing — cannot load clipboard"
@@ -784,6 +885,24 @@ _PROBES = {
     "net.bluetooth":      ("bluetoothctl", "rfkill", "powershell"),
     "clipboard.history":  ("copyq", "clipster", "xclip", "powershell"),
     "clipboard.targets":  ("xclip", "powershell"),
+    "sys.volume-up":      ("pactl", "amixer", "xdotool", "osascript"),
+    "sys.volume-down":    ("pactl", "amixer", "xdotool", "osascript"),
+    "sys.mute":           ("pactl", "amixer", "xdotool", "osascript"),
+    "sys.brightness-up":  ("brightnessctl", "/sys/class/backlight"),
+    "sys.brightness-down": ("brightnessctl", "/sys/class/backlight"),
+    "media.playpause":    ("playerctl", "dbus-send", "xdotool", "osascript"),
+    "media.play":         ("playerctl", "dbus-send", "xdotool", "osascript"),
+    "media.pause":        ("playerctl", "dbus-send", "xdotool", "osascript"),
+    "media.next":         ("playerctl", "dbus-send", "xdotool", "osascript"),
+    "media.prev":         ("playerctl", "dbus-send", "xdotool", "osascript"),
+    "sys.screenshot":     ("import", "gnome-screenshot", "spectacle", "scrot", "ffmpeg", "screencapture", "powershell"),
+    "sys.screenshot-region": ("import", "gnome-screenshot", "spectacle", "scrot", "screencapture"),
+    "sys.lock":           ("loginctl", "xdg-screensaver", "osascript", "rundll32", "rundll32.exe"),
+    "sys.dnd":            ("gsettings", "dbus-send"),
+    "net.wifi":           ("nmcli", "rfkill", "networksetup"),
+    "net.bluetooth":      ("bluetoothctl", "rfkill", "blueutil"),
+    "clipboard.history":  ("copyq", "clipster", "xclip", "pbpaste"),
+    "clipboard.targets":  ("xclip",),
 }
 
 

@@ -362,6 +362,45 @@ def _mac_keystroke(keys):
 _UNSUPPORTED = ("not supported on this platform")
 
 
+# macOS window rows: id = "<pid>:<window index>" — pid focuses the app,
+# the index AXRaise's the exact window (AX exposes no stable window id).
+_MAC_AX_LIST = (
+    'tell application "System Events"\n'
+    'set _o to ""\n'
+    'repeat with _p in (every application process whose visible is true)\n'
+    'set _n to name of _p\n'
+    'set _u to unix id of _p\n'
+    'repeat with _i from 1 to (count of windows of _p)\n'
+    'try\n'
+    'set _t to name of (window _i of _p)\n'
+    'set _o to _o & _u & "\\t" & _i & "\\t" & _n & "\\t" & _t & "\\n"\n'
+    'end try\n'
+    'end repeat\n'
+    'end repeat\n'
+    'return _o\n'
+    'end tell')
+
+
+def _mac_window_rows(out):
+    rows = []
+    for line in (out or "").splitlines():
+        p = line.split("\t")
+        if len(p) != 4:
+            continue
+        pid, wid, app, title = p
+        if not pid.strip().isdigit():
+            continue
+        rows.append({"id": "%s:%s" % (pid.strip(), wid.strip()),
+                     "app": app.strip(),
+                     "title": (title.strip() or app.strip())[:120]})
+    return rows
+
+
+def _mac_windows_ax():
+    ok, out = _osa(_MAC_AX_LIST, timeout=20)
+    return _mac_window_rows(out) if ok else []
+
+
 class CrossPlatformProvider(ActionProvider):
     """The macOS/Windows act provider — same catalog surface, honest
     coverage. `platform` is injectable so the unit tests exercise both
@@ -485,8 +524,15 @@ class CrossPlatformProvider(ActionProvider):
         return None
 
     def list_windows(self):
-        """Rows for a /windows-style @ picker: [{id,title,app}]."""
+        """Rows for a /windows-style @ picker: [{id,title,app}].
+
+        macOS: real windows via System Events (pid + window index, needs
+        Accessibility); without it, visible app names — which focus_app
+        can still activate via `open -a`."""
         if self.platform == "macos":
+            rows = _mac_windows_ax()
+            if rows:
+                return rows
             ok, out = _osa('tell application "System Events" to get name of '
                            'every application process whose visible is true')
             if not ok:
@@ -641,8 +687,13 @@ class CrossPlatformProvider(ActionProvider):
 
         def fn(_ctx):
             if self.platform == "macos":
-                ok, det = _osa('tell application "%s" to activate'
-                               % _osa_text(want))
+                # `open -a` is NSWorkspace.activate — no Automation consent
+                # prompt, unlike `tell app X to activate`. AppleScript is
+                # the fallback for apps `open` can't resolve by name.
+                ok, det = _run(["open", "-a", want])
+                if not ok:
+                    ok, det = _osa('tell application "%s" to activate'
+                                   % _osa_text(want))
             elif self.platform == "windows":
                 if _is_hwnd(want):
                     ok, det = _ps(_hwnd_script(want, _HWND_FOCUS))

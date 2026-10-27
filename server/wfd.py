@@ -162,6 +162,28 @@ def all_ips():
         except Exception:
             pass
         return []
+    if _darwin():
+        try:
+            out = sh("ifconfig").stdout
+            wifi, other = [], []
+            ifname = ""
+            for line in out.splitlines():
+                m = re.match(r"^(\S+):", line)
+                if m:
+                    ifname = m.group(1)
+                    continue
+                m = re.search(r"\binet (\d+\.\d+\.\d+\.\d+)\b", line)
+                if not m:
+                    continue
+                addr = m.group(1)
+                if addr.startswith(("127.", "169.254.")) or ifname.startswith(
+                        ("utun", "bridge", "vmenet", "awdl", "llw",
+                         "gif", "stf", "lo", "ap", "anpi", "ipsec")):
+                    continue
+                (wifi if ifname.startswith("en") else other).append(addr)
+            return wifi + other
+        except Exception:
+            return []
     try:
         out = sh("ip", "-4", "-o", "addr", "show", "scope", "global").stdout
         wifi, other = [], []
@@ -196,15 +218,54 @@ def sh(*args):
     return subprocess.run(args, capture_output=True, text=True, timeout=10)
 
 
+def _darwin():
+    return sys.platform == "darwin"
+
+
+def _run(argv, timeout=15):
+    """(ok, detail) argv-only spawn — same contract as act_platform._run."""
+    try:
+        r = subprocess.run(argv, capture_output=True, text=True,
+                           timeout=timeout)
+        return r.returncode == 0, (r.stderr or r.stdout or "").strip()
+    except FileNotFoundError:
+        return False, "not found: %s" % argv[0]
+    except subprocess.TimeoutExpired:
+        return False, "%s timed out" % os.path.basename(str(argv[0]))
+    except OSError as e:
+        return False, str(e)
+
+
+def _osa(script, timeout=15):
+    return _run(["osascript", "-e", script], timeout=timeout)
+
+
+def _osa_esc(s):
+    """A string safe to embed inside an AppleScript "..." literal."""
+    return str(s).replace("\\", "\\\\").replace('"', '\\"')
+
+
 def active_window_class():
     if _host() != "linux":
         # provider's focused_app() answers with the same shape the
         # terminal-class paste-key check reads (process name as class).
         try:
             f = ACT_PROVIDER.focused_app() if ACT_PROVIDER else None
-            return ((f.wm_class or f.title) if f else "") or ""
+            got = ((f.wm_class or f.title) if f else "") or ""
+            if got:
+                return got
+        except Exception:
+            pass
+    if _darwin():
+        try:
+            ok, out = _osa('tell application "System Events" to get name '
+                           'of first application process whose frontmost '
+                           'is true')
+            return out.strip().lower() if ok else ""
         except Exception:
             return ""
+    if _host() != "linux":
+        return ""
     try:
         wid = sh("xdotool", "getactivewindow").stdout.strip()
         if not wid.isdigit():
@@ -219,6 +280,148 @@ def active_window_class():
         return (names[-1] if names else "").lower()
     except Exception:
         return ""
+
+
+# macOS window rows: id = "<pid>:<window index>" — the pid focuses the
+# app, the index AXRaise's the exact window (AX exposes no stable id).
+_MAC_AX_LIST = (
+    'tell application "System Events"\n'
+    'set _o to ""\n'
+    'repeat with _p in (every application process whose visible is true)\n'
+    'set _n to name of _p\n'
+    'set _u to unix id of _p\n'
+    'repeat with _i from 1 to (count of windows of _p)\n'
+    'try\n'
+    'set _t to name of (window _i of _p)\n'
+    'set _o to _o & _u & "\\t" & _i & "\\t" & _n & "\\t" & _t & "\\n"\n'
+    'end try\n'
+    'end repeat\n'
+    'end repeat\n'
+    'return _o\n'
+    'end tell')
+
+def _mac_windows_ax():
+    ok, out = _osa(_MAC_AX_LIST, timeout=20)
+    if not ok or not out.strip():
+        return []
+    rows = []
+    for line in out.splitlines():
+        p = line.split("\t")
+        if len(p) != 4:
+            continue
+        pid, wid, app, title = p
+        if not pid.strip().isdigit():
+            continue
+        rows.append({"id": "%s:%s" % (pid.strip(), wid.strip()),
+                     "app": app.strip(),
+                     "title": (title.strip() or app.strip())[:120]})
+    return rows
+
+
+def _mac_app_names():
+    """Fallback when AX enumeration is unavailable (Accessibility denied):
+    visible app names, which `open -a` can still activate."""
+    ok, out = _osa('tell application "System Events" to get name of '
+                   'every application process whose visible is true')
+    if not ok:
+        return []
+    return [{"id": n.strip(), "title": n.strip(), "app": n.strip()}
+            for n in out.split(",") if n.strip()]
+
+
+def _mac_app_path(pid):
+    """pid -> the owning .app path ('open <path>' activates it without any
+    consent dialog), or ''."""
+    try:
+        comm = sh("ps", "-o", "comm=", "-p", str(pid)).stdout.strip()
+    except Exception:
+        return ""
+    parts = comm.split("/")
+    for i, seg in enumerate(parts):
+        if seg.endswith(".app"):
+            return "/".join(parts[:i + 1])
+    return ""
+
+
+def list_windows():
+    """Open top-level windows on the laptop: [{id, title, app}]."""
+    if _darwin():
+        rows = _mac_windows_ax()
+        return rows if rows else _mac_app_names()
+    out = []
+    try:
+        r = sh("wmctrl", "-lx")
+        for line in (r.stdout or "").splitlines():
+            parts = line.split(None, 4)
+            if len(parts) < 4 or not parts[0].startswith("0x"):
+                continue
+            if parts[1] == "-1":                 # sticky panels/docks
+                continue
+            wclass = parts[2].split(".")[-1]
+            title = parts[4].strip() if len(parts) > 4 else ""
+            if not title:
+                continue
+            out.append({"id": str(int(parts[0], 16)), "title": title[:120],
+                        "app": wclass})
+    except Exception as e:
+        print(f"[wfd] windows: {e!r}", flush=True)
+    return out
+
+
+def focus_window(wid):
+    """Bring the picked window to the front before a send. True on success."""
+    wid = str(wid or "").strip()
+    if not wid:
+        return False
+    if _darwin():
+        return _mac_focus_window(wid)
+    if not wid.isdigit():
+        return False
+    try:
+        r = subprocess.run(["xdotool", "windowactivate", "--sync", wid],
+                           capture_output=True, timeout=4)
+        if r.returncode != 0:
+            r = subprocess.run(["wmctrl", "-i", "-a", hex(int(wid))],
+                               capture_output=True, timeout=4)
+        time.sleep(0.2)
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
+def _mac_focus_window(wid):
+    """'pid:windex' rows raise the exact window (System Events, needs
+    Accessibility); a bare app name activates it (open -a, consent-free)."""
+    pid, _, winid = wid.partition(":")
+    if pid.isdigit():
+        ok, _ = _osa('tell application "System Events" to tell '
+                     '(first application process whose unix id is %s) '
+                     'to set frontmost to true' % pid)
+        if ok:
+            # winid is the window's index in the app's AX window order
+            # (AX exposes no stable window id on modern macOS).
+            if winid.isdigit() and winid != "0":
+                _osa('tell application "System Events" to tell '
+                     '(first application process whose unix id is %s) to '
+                     'perform action "AXRaise" of window %s'
+                     % (pid, winid))
+            time.sleep(0.2)
+            return True
+        # no Accessibility: NSWorkspace-level activate via the .app path
+        path = _mac_app_path(pid)
+        if path:
+            ok, _ = _run(["open", path])
+            if ok:
+                time.sleep(0.2)
+                return True
+        return False
+    # app-name row (or a name the picker shipped back)
+    ok, _ = _run(["open", "-a", wid])
+    if not ok:
+        ok, _ = _osa('tell application "%s" to activate' % _osa_esc(wid))
+    if ok:
+        time.sleep(0.2)
+    return ok
 
 
 # ALL keystroke/clipboard injection runs through ONE serial worker.
@@ -271,11 +474,52 @@ def _inject_chord(keys):
 
 
 def type_keystrokes(text):
+    # osascript 'keystroke' posts real key events on macOS but maps
+    # non-ASCII through the keyboard layout and produces garbage
+    # (verified: "é"/"✓" typed as "a") — non-ASCII takes the clipboard
+    # path instead, which preserves the bytes exactly.
+    if _darwin() and not str(text).isascii():
+        type_paste(text)
+        return
     def job():
         ok, det = _inject_keystrokes(text)
         if not ok:
             print(f"[wfd] type refused: {det}", flush=True)
     _INJECT_Q.put(job)
+
+
+def _clip_get():
+    """Current plain-text clipboard (used to restore after a paste)."""
+    try:
+        if _darwin():
+            return sh("pbpaste").stdout
+        return sh("xclip", "-selection", "clipboard", "-o").stdout
+    except Exception:
+        return None
+
+
+def _clip_set(text):
+    if _darwin():
+        subprocess.run(["pbcopy"], input=text, text=True)
+    else:
+        subprocess.run(["xclip", "-selection", "clipboard", "-i"],
+                       input=text, text=True)
+
+
+def _paste_chord(cls):
+    """The focused app's paste shortcut."""
+    if _darwin():
+        return None                      # sent via osascript, not xdotool
+    return "ctrl+shift+v" if any(t in cls for t in TERMINAL_CLASSES) \
+        else "ctrl+v"
+
+
+def _send_paste_chord(cls):
+    if _darwin():
+        _osa('tell application "System Events" to keystroke "v" '
+             'using {command down}')
+    else:
+        sh("xdotool", "key", "--clearmodifiers", cls)
 
 
 def type_paste(text):
@@ -323,6 +567,21 @@ def sniff_mime(data, ctype):
     return ctype.split(";")[0] if ctype in IMG_EXT else "image/png"
 
 
+def _mac_set_file_clipboard(path, mime):
+    """NSPasteboard: file URL (pastes as a file anywhere) plus the image
+    object itself for image/* (pastes as pixels in image-capable apps).
+    JXA, stock frameworks — replaces the X11 wfclip.py owner."""
+    esc = str(path).replace("\\", "\\\\").replace('"', '\\"')
+    js = ('ObjC.import("AppKit");'
+          'var pb=$.NSPasteboard.generalPasteboard;pb.clearContents;'
+          'var u=$.NSURL.fileURLWithPath("%s");var o=[u];' % esc)
+    if str(mime or "").startswith("image/"):
+        js += ('var i=$.NSImage.alloc.initWithContentsOfFile("%s");'
+               'if(i&&!i.isNil){o.push(i);}' % esc)
+    js += 'pb.writeObjects(o);'
+    return _run(["osascript", "-l", "JavaScript", "-e", js])
+
+
 def paste_file(path, mime, cls):
     keys = _paste_keys(cls)
     old = act_platform.clip_get() if act_platform is not None else None
@@ -365,11 +624,20 @@ def paste_file(path, mime, cls):
 
 
 def _to_png(src):
-    """src image -> a png path, or None. ImageMagick on POSIX,
-    System.Drawing on Windows (both optional — caller keeps src)."""
+    """src image -> a png path, or None. sips on macOS (stock),
+    System.Drawing on Windows, ImageMagick elsewhere (all optional —
+    caller keeps src)."""
     fd, png = tempfile.mkstemp(prefix="wf-img-", suffix=".png")
     os.close(fd)
-    if _host() == "windows":
+    if _darwin():
+        try:
+            r = subprocess.run(["sips", "-s", "format", "png", src,
+                                "--out", png],
+                               capture_output=True, timeout=15)
+            ok = r.returncode == 0 and os.path.isfile(png)
+        except (OSError, subprocess.TimeoutExpired):
+            ok = False
+    elif _host() == "windows":
         if act_platform is None:
             os.unlink(png)
             return None
@@ -741,6 +1009,17 @@ def _spawn(argv, note):
 
 
 def _notify(title, msg):
+    if _darwin():
+        try:
+            subprocess.Popen(
+                ["osascript", "-e",
+                 'display notification "%s" with title "%s"'
+                 % (_osa_esc(msg), _osa_esc(title))],
+                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
+        return
     if not (os.environ.get("DISPLAY") or
             os.environ.get("DBUS_SESSION_BUS_ADDRESS")):
         return
@@ -1284,6 +1563,15 @@ def live_state():
         return st
 
 
+def _display_name():
+    """What the composer shows as the laptop display backend."""
+    if _darwin():
+        return "macos"
+    if sys.platform.startswith(("win32", "cygwin")):
+        return "windows"
+    return "x11" if os.environ.get("DISPLAY") else ""
+
+
 def _status_payload():
     """GET /status — the composer status strip's feed: focused window,
     live-listening flag, last send, parked confirms."""
@@ -1292,7 +1580,7 @@ def _status_payload():
         last = dict(LIVE["last_match"] or {})
     f = _focus_info()
     out = {"ok": True, "engine": detect_engine(),
-           "display": "x11" if os.environ.get("DISPLAY") else "",
+           "display": _display_name(),
            "focus": f.get("wm_class", ""), "focus_title": f.get("title", ""),
            "live": {"on": True, "listening": lst,
                     "text_mode": bool(LIVE.get("text_mode"))},
@@ -1735,6 +2023,12 @@ class Handler(BaseHTTPRequestHandler):
                                           "error": "packs unavailable"})
             return self._jreply(200, {"ok": True,
                                       "packs": packs.list_packs(bank_rows())})
+        if p == "/windows":
+            if not authed(self.headers):
+                return self._reply(403, b'{"ok":false,"error":"unpaired"}',
+                                   "application/json")
+            return self._jreply(200, {"ok": True,
+                                      "windows": list_windows()})
         if p == "/status":
             if not self._gate():
                 return
@@ -1744,7 +2038,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             out = {"ok": True, "actions": act_catalog(),
                    "pending": live_state()["pending"],
-                   "display": "x11" if os.environ.get("DISPLAY") else ""}
+                   "display": _display_name()}
             if ACT_PROVIDER is not None:
                 try:
                     cat = ACT_PROVIDER.catalog() or {}
@@ -1889,6 +2183,8 @@ class Handler(BaseHTTPRequestHandler):
 
         if p == "/send-image":
             if raw:
+                if self.headers.get("X-WF-Window"):
+                    focus_window(self.headers.get("X-WF-Window"))
                 cls, mime = send_image(raw, self.headers.get("Content-Type", ""))
                 out = json.dumps({"ok": True, "into": cls, "mime": mime,
                                   "kb": round(len(raw) / 1024)}).encode()
@@ -1896,6 +2192,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._reply(200, b'{"ok":false}', "application/json")
         if p == "/send-file":
             if raw:
+                if self.headers.get("X-WF-Window"):
+                    focus_window(self.headers.get("X-WF-Window"))
                 # bug fix: header was never URL-decoded — "a%20b.txt" saved
                 # literally. Decode first, then the safe-name regex runs.
                 name = urllib.parse.unquote(
@@ -1909,6 +2207,8 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 data = json.loads(raw)
                 text, mode = data.get("text", ""), data.get("mode", "type")
+                if data.get("window"):
+                    focus_window(data.get("window"))
             except Exception:
                 text, mode = raw.decode("utf-8", "replace"), "type"
             if text:
