@@ -109,7 +109,8 @@ async function catalog(force) {
   const r = await App.api.get('/act').catch(() => null);
   const j = r && r.ok && r.json ? r.json : null;
   if (j && (Array.isArray(j.apps) || Array.isArray(j.tools))) {
-    CAT = { mode: 'rich', apps: j.apps || [], tools: j.tools || [],
+    CAT = { mode: 'rich', apps: j.apps || [], windows: j.windows || [],
+            tools: j.tools || [],
             capabilities: j.capabilities || {}, bound: j.actions || [] };
   } else if (j && Array.isArray(j.actions)) {
     CAT = { mode: 'basic', apps: [], tools: FALLBACK_TOOLS.slice(), bound: j.actions,
@@ -282,7 +283,8 @@ async function build() {
         const sel = document.createElement('select');
         sel.className = 'input act-select';
         sel.innerHTML = '<option value="">installed app…</option>' +
-          (cat.apps || []).map(a => `<option value="${esc(a.wm_class || a.id)}">${esc(a.name)}</option>`).join('');
+          (cat.apps || []).map(a => `<option value="${esc(a.wm_class || a.id)}">${esc(a.name)}</option>`).join('') +
+          (cat.windows || []).map(w => `<option value="${esc(w.id)}">${esc(w.app)} · ${esc(w.title)}</option>`).join('');
         use = document.createElement('button');
         use.className = 'btn-ghost act-use'; use.textContent = 'bind';
         argWrap.append(inp, sel, use);
