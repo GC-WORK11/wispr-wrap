@@ -173,7 +173,7 @@ const newWid = (before, pat) => {
   return rows[0] && rows[0][1];
 };
 const termWid = newWid(termBefore, 'tile-scratch-term');
-const SINKW = (wins().match(/(0x[0-9a-f]+)\s+\d+\s+\S+\s+.*fc-live25-sink/) || [])[1];
+const SINKW = (wins().match(new RegExp('(0x[0-9a-f]+)\\s+\\d+\\s+\\S+\\s+.*' + S.TAG + '-sink')) || [])[1];
 check('sink window resolved for typing legs', !!SINKW, String(SINKW));
 check('scratch term spawned for window tiles', !!termWid, String(termWid));
 // sink wid resolved above
@@ -202,10 +202,15 @@ await leg('edit.copy copies a real selection', 'edit.copy', {}, {}, async ({ mat
   return matched && fired && got !== 'COPY-SENTINEL' && fromSink.length > 0;
 }, SINKW);
 
-// paste: stage the clipboard, ctrl+v must land in the sink
-setClip('TILE-PASTE-OK'); await sleep(400);
-const sP = sink().length;
-await leg('edit.paste pastes into the sink', 'edit.paste', {}, {}, async ({ matched, fired }) => matched && fired && sink().slice(sP).includes('TILE-PASTE-OK'), SINKW);
+// paste: stage the clipboard, ctrl+v must land in the sink. Sentinel is
+// unique per run — stale text from earlier runs can't satisfy the check.
+const PASTE_SENT = 'TILE-PASTE-' + (Date.now() % 100000);
+setClip(PASTE_SENT); await sleep(400);
+await leg('edit.paste pastes into the sink', 'edit.paste', {}, {}, async ({ matched, fired }) => {
+  // the Tcl sink flushes its buffer to SINK on a timer — poll, don't race it
+  for (let i = 0; i < 48 && !sink().includes(PASTE_SENT); i++) await sleep(250);
+  return matched && fired && sink().includes(PASTE_SENT);
+}, SINKW);
 
 await leg('edit.undo dispatched (ctrl+z)', 'edit.undo', {}, {}, async ({ matched, fired }) => matched && fired, SINKW);
 

@@ -38,6 +38,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import time
 
 try:                       # act_iface may not be importable standalone
@@ -152,6 +153,17 @@ def _media_key(keysym):
 
 
 def _volume(direction, step=VOLUME_STEP_PCT):
+    if sys.platform == "darwin":
+        osa = _which("osascript")
+        if osa:
+            sign = "+" if direction == "up" else "-"
+            ok, det = _run([osa, "-e",
+                            "set v to output volume of (get volume settings)",
+                            "-e", "set volume output volume "
+                            "(max(0, min(100, v %s %d)))" % (sign, step)])
+            return (ok, "osascript volume %s%d" % (sign, step)) \
+                if ok else (False, det)
+        return False, "not available: need osascript (macOS)"
     pactl = _which("pactl")
     if pactl:
         delta = "+%d%%" % step if direction == "up" else "-%d%%" % step
@@ -169,6 +181,14 @@ def _volume(direction, step=VOLUME_STEP_PCT):
 
 
 def _mute():
+    if sys.platform == "darwin":
+        osa = _which("osascript")
+        if osa:
+            ok, det = _run([osa, "-e",
+                            "set m to output muted of (get volume settings)",
+                            "-e", "set volume output muted (not m)"])
+            return (ok, "osascript mute toggle") if ok else (False, det)
+        return False, "not available: need osascript (macOS)"
     pactl = _which("pactl")
     if pactl:
         ok, det = _run([pactl, "set-sink-mute", "@DEFAULT_SINK@", "toggle"])
@@ -285,6 +305,11 @@ def _shot_dir():
 
 def _screenshot_tool(region):
     """First available tool -> (name, argv_template) with {} for the path."""
+    if sys.platform == "darwin":
+        sc = _which("screencapture")
+        if sc:
+            return sc, ([sc, "-i", "{p}"] if region else [sc, "-x", "{p}"])
+        return None, None
     table = [
         ("import", ["-window", "root", "{p}"] if not region else ["{p}"]),
         ("gnome-screenshot", ["-a", "-f", "{p}"] if region else ["-f", "{p}"]),
@@ -310,12 +335,30 @@ def _screenshot_tool(region):
 
 
 def _screenshot(region):
+    out = os.path.join(_shot_dir(),
+                       time.strftime("screenshot-%Y%m%d-%H%M%S.png"))
+    if sys.platform.startswith(("win32", "cygwin")):
+        ps = _which("powershell") or _which("powershell.exe") \
+            or _which("pwsh") or _which("pwsh.exe")
+        if not ps:
+            return False, "not available: need powershell (Windows)"
+        if region:
+            return False, "region capture not supported on Windows"
+        esc = out.replace("'", "''")
+        ok, det = _run([ps, "-NoProfile", "-NonInteractive", "-Command",
+                        "Add-Type -AssemblyName System.Windows.Forms,"
+                        "System.Drawing; $b=[System.Windows.Forms.SystemInformation]"
+                        "::VirtualScreen; $bmp=New-Object System.Drawing.Bitmap "
+                        "$b.Width,$b.Height; $g=[System.Drawing.Graphics]::FromImage"
+                        "($bmp); $g.CopyFromScreen($b.Left,$b.Top,0,0,$bmp.Size);"
+                        "$bmp.Save('%s'); $g.Dispose(); $bmp.Dispose()" % esc])
+        if ok:
+            return True, "powershell -> %s" % out
+        return False, det
     path, tmpl = _screenshot_tool(region)
     if not path:
         return False, ("not available: need one of import, gnome-screenshot, "
                        "spectacle, scrot" + _wayland_suffix())
-    out = os.path.join(_shot_dir(),
-                       time.strftime("screenshot-%Y%m%d-%H%M%S.png"))
     argv = [out if t == "{p}" else t for t in tmpl]
     ok, det = _run(argv)
     if ok:
@@ -329,6 +372,20 @@ def _screenshot(region):
 # ------------------------------------------------------------------
 
 def _lock():
+    if sys.platform == "darwin":
+        osa = _which("osascript")
+        if osa:
+            ok, det = _run([osa, "-e",
+                            'tell application "System Events" to keystroke '
+                            '"q" using {control down, command down}'])
+            return (ok, "osascript ctrl-cmd-q") if ok else (False, det)
+        return False, "not available: need osascript (macOS)"
+    if sys.platform.startswith(("win32", "cygwin")):
+        rl = _which("rundll32.exe") or _which("rundll32")
+        if rl:
+            ok, det = _run([rl, "user32.dll,LockWorkStation"])
+            return (ok, "rundll32 LockWorkStation") if ok else (False, det)
+        return False, "not available: need rundll32 (Windows)"
     li = _which("loginctl")
     if li:
         argv = [li, "lock-session"]
@@ -578,9 +635,9 @@ DISPATCH.update({
 
 # which backends each action could use, for the `available:[...]` report
 _PROBES = {
-    "sys.volume-up":      ("pactl", "amixer", "xdotool"),
-    "sys.volume-down":    ("pactl", "amixer", "xdotool"),
-    "sys.mute":           ("pactl", "amixer", "xdotool"),
+    "sys.volume-up":      ("pactl", "amixer", "xdotool", "osascript"),
+    "sys.volume-down":    ("pactl", "amixer", "xdotool", "osascript"),
+    "sys.mute":           ("pactl", "amixer", "xdotool", "osascript"),
     "sys.brightness-up":  ("brightnessctl", "/sys/class/backlight"),
     "sys.brightness-down": ("brightnessctl", "/sys/class/backlight"),
     "media.playpause":    ("playerctl", "dbus-send", "xdotool"),
@@ -588,9 +645,9 @@ _PROBES = {
     "media.pause":        ("playerctl", "dbus-send", "xdotool"),
     "media.next":         ("playerctl", "dbus-send", "xdotool"),
     "media.prev":         ("playerctl", "dbus-send", "xdotool"),
-    "sys.screenshot":     ("import", "gnome-screenshot", "spectacle", "scrot", "ffmpeg"),
-    "sys.screenshot-region": ("import", "gnome-screenshot", "spectacle", "scrot"),
-    "sys.lock":           ("loginctl", "xdg-screensaver"),
+    "sys.screenshot":     ("import", "gnome-screenshot", "spectacle", "scrot", "ffmpeg", "screencapture", "powershell"),
+    "sys.screenshot-region": ("import", "gnome-screenshot", "spectacle", "scrot", "screencapture"),
+    "sys.lock":           ("loginctl", "xdg-screensaver", "osascript", "rundll32", "rundll32.exe"),
     "sys.dnd":            ("gsettings", "dbus-send"),
     "net.wifi":           ("nmcli", "rfkill"),
     "net.bluetooth":      ("bluetoothctl", "rfkill"),
