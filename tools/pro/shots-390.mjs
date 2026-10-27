@@ -69,17 +69,12 @@ await sleep(1400);
 await scan(page, 'action-grid');
 await shotTo(page, OUT, '03-teach-grid');
 
-// ---- 4. @ picker — open-app row with the real installed-app select ----------
+// ---- 4. @ picker — app tile grid listing the laptop's real installed apps ---
 const hasAppRow = await page.eval(`(()=>{
-  const rows=[...document.querySelectorAll('.act-row')];
-  const r=rows.find(x=>/open app/i.test(x.textContent));
-  if(!r) return 'no-row';
-  const sel=r.querySelector('.act-select');
-  if(!sel) return 'no-select';
-  const real=[...sel.options].filter(o=>o.value).map(o=>o.textContent);
-  r.scrollIntoView();
-  if(real.length){ sel.value=sel.options[1].value; sel.dispatchEvent(new Event('change',{bubbles:true})); }
-  return 'apps:'+real.slice(0,4).join(',');
+  const tiles=[...document.querySelectorAll('.act-app')];
+  if(!tiles.length) return 'no-tiles';
+  const names=tiles.map(t=>t.textContent.trim()).filter(Boolean);
+  return 'apps:'+names.slice(0,4).join(',');
 })()`);
 check('@ picker lists installed apps', /^apps:.+/.test(hasAppRow || ''), hasAppRow);
 await sleep(500);
