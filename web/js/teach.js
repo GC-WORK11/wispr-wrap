@@ -19,6 +19,7 @@ import { Pose } from './pose.js';
 import { Skel } from './skeleton.js';
 import { KpLink } from './live.js';
 import { Actions } from './actions.js';
+import { Contribute } from './contribute.js';
 
 const sheet = App.el.sheetTeach;
 if (!sheet) throw new Error('teach: #sheet-teach missing');
@@ -143,6 +144,7 @@ function onResp(j) {
       const hands = W.cur.filter(f =>
         Skel.present(f.points, 0) >= 4 || Skel.present(f.points, 21) >= 4).length;
       W.takes.push({ frames: W.cur.slice(), hands });
+      if (Contribute && Contribute.enabled()) Contribute.add(W.gloss, W.cur);   // opt-in, landmarks only, stays on this phone
       W.cur = [];
       App.buzz(); renderTakebar();
       if (W.got >= W.need) {

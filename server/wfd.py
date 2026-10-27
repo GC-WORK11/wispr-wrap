@@ -1575,7 +1575,9 @@ def _status_payload():
            "last_send": LAST_SEND, "last_match": last or None,
            "confirms": live_state()["pending"],
            "bank_size": bank_size(),
-           "name": os.uname().nodename}
+           "name": os.uname().nodename,
+           # opt-in training samples: upload endpoint, empty = upload off
+           "contribute_url": os.environ.get("SIGNFLOW_CONTRIBUTE_URL", "").strip()}
     # Sidebar "connected laptop" row: a 200 reply already proves the
     # laptop link; this block is the compact descriptor the UI shows —
     # hostname, display, whether the action layer can really reach the

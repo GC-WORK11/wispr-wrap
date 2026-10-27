@@ -1,0 +1,21 @@
+# Training-samples intake. Not deployed. Names below are placeholders;
+# set your own before running `wrangler deploy`. No account id, routes or
+# secrets belong in this file.
+name = "signflow-contribute"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+
+[[r2_buckets]]
+binding = "SAMPLES"
+bucket_name = "signflow-samples"
+
+# Workers Rate Limiting: 30 requests per 60 s per key.
+[[ratelimits]]
+name = "LIMITER"
+namespace_id = "1001"
+simple = { limit = 30, period = 60 }
+
+[observability]
+enabled = true

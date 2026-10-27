@@ -1,4 +1,5 @@
 import { Flower } from './flower.js';
+import { setEndpoint as setContributeEndpoint } from './contribute.js';
 // app.js — shared kernel: auth, transport, status, router, toast, mounts.
 // Every lane module imports `App` from here. Keep it dependency-free,
 // framework-free, stdlib of the web platform only.
@@ -200,6 +201,7 @@ async function pollStatus() {
   const r = await req('GET', '/status').catch(() => null);
   if (!r || !r.ok || !r.json || !r.json.laptop) return;       // older daemon: keep the /health-only behaviour
   const l = r.json.laptop;
+  setContributeEndpoint(r.json.contribute_url || '');
   state.laptop = { connected: l.connected !== false, name: l.name || '', canAct: l.can_act !== false, signs: l.signs, engine: l.engine };
   if (typeof l.signs === 'number') state.bankSize = l.signs;
   if (l.name) store.setItem('wfname', l.name);
