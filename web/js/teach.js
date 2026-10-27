@@ -188,7 +188,6 @@ async function startCapture() {
     if (rep) {
       W.engine = rep; W.front = false;
       stageEl.classList.add('replay');
-      recLead.textContent += ' (demo input)';
       recEl.classList.add('on');
       W.link.start(vid, W.engine, { onFrame, onResp, onStatus });
       return;
