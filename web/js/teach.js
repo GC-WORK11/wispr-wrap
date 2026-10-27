@@ -289,8 +289,7 @@ function buildBind() {
     const cv = document.createElement('canvas');
     Skel.drawTrail(cv, t.frames);
     const meta = document.createElement('div'); meta.className = 'tkv-m';
-    meta.textContent = 'take ' + (i + 1) + ' · ' + t.frames.length + ' frames' +
-      (t.hands ? '' : ' · no hands seen');
+    meta.textContent = 'take ' + (i + 1) + (t.hands ? '' : ' · no hands seen');
     row.append(cv, meta);
     prevEl.appendChild(row);
   });
