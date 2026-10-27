@@ -43,7 +43,7 @@ jse 'document.getElementById("go").click();"clicked"' | sed 's/^/ui: /'
 note "sent '$MARK' via the composer go button"
 SENT=0
 for _ in $(seq 1 40); do
-    grep -q "$MARK" /tmp/wf-realrun/daemon.log 2>/dev/null && { SENT=1; break; }
+    grep -q "$MARK" $STATE/wfd.log 2>/dev/null && { SENT=1; break; }
     sleep 0.25
 done
 sleep 1.2   # let Writer visibly hold the text on camera
@@ -86,7 +86,7 @@ CW=$(chrome_wid); [ -n "$CW" ] && DISPLAY="$D" xdotool windowactivate "$CW" 2>/d
 # --- 2c. file send: stage notes.txt via fileany -> go -> laptop disk ---------
 W=$(EDIT_WID)
 [ -n "$W" ] && DISPLAY="$D" xdotool windowactivate "$W" 2>/dev/null && sleep 0.5
-UPLOADS=/tmp/wf-realrun/home/wf-uploads
+UPLOADS=$WFHOME/wf-uploads
 FBEFORE=$(ls "$UPLOADS" 2>/dev/null | wc -l)
 jse '(function(){
   var f=new File(["hello from the phone"],"wrap-note.txt",{type:"text/plain"});

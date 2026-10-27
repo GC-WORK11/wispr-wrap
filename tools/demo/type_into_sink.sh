@@ -14,19 +14,30 @@ set -u
 TEXT="${1:-hello-from-wispr-wrap}"
 # daemon-spawned env carries HOME/DISPLAY but not SINK — read the realrun
 # env file so we verify against the same mirror the editor writes to.
+# Resolve the live realrun env: newest first, and only one whose display
+# actually answers xdpyinfo — stale env files from dead stacks must never
+# steer keystrokes or the sink check to a foreign screen.
+_live_env() {
+    for _e in $(ls -t /tmp/wf-realrun*/env 2>/dev/null); do
+        _d=$(. "$_e" 2>/dev/null; printf '%s' "$D")
+        [ -n "$_d" ] && DISPLAY="$_d" xdpyinfo >/dev/null 2>&1 && { printf '%s' "$_e"; return 0; }
+    done
+    return 1
+}
+_ENV=$(_live_env)
+
 SINK="${WF_SINK:-${SINK:-}}"
-if [ -z "$SINK" ] && [ -f /tmp/wf-realrun/env ]; then
-    SINK=$(. /tmp/wf-realrun/env 2>/dev/null; printf '%s' "$SINK")
+if [ -z "$SINK" ] && [ -n "$_ENV" ]; then
+    SINK=$(. "$_ENV" 2>/dev/null; printf '%s' "$SINK")
 fi
 [ -n "$SINK" ] || SINK=/tmp/wf-realrun/sink.txt
 
-# Pin the target display: the daemon env already carries it, but a stray
-# inherited DISPLAY from the caller's shell must never steer keystrokes
-# to the wrong screen. The realrun env file holds the owned display.
+# Pin the target display: daemon-spawned env carries the right DISPLAY —
+# only when it is unset do we fall back to the live realrun env. Never
+# inherit a stray caller display.
 D="${WF_DISPLAY:-${DISPLAY:-}}"
-if [ -f /tmp/wf-realrun/env ]; then
-    _D=$(. /tmp/wf-realrun/env 2>/dev/null; printf '%s' "$D")
-    [ -n "$_D" ] && D="$_D"
+if [ -z "$D" ] && [ -n "$_ENV" ]; then
+    D=$(. "$_ENV" 2>/dev/null; printf '%s' "$D")
 fi
 [ -n "$D" ] || { echo "type_into_sink: no target display" >&2; exit 1; }
 export DISPLAY="$D"
