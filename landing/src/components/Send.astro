@@ -1,11 +1,16 @@
 ---
-// Send — the composer, mid-send. Real app screen (390x844 capture).
+// Send — the composer, mid-send. Real 390x844 screen recording.
 ---
 
 <section class="send" aria-labelledby="send-t">
   <h2 id="send-t" class="h2">Text, photos, files.</h2>
   <div class="shot">
-    <img src="/media/screens/send.webp" width="390" height="844" alt="The Sign-Flow composer on a phone: typed text with the send arrow lit" loading="lazy" decoding="async" />
+    <video autoplay muted loop playsinline preload="metadata" width="390" height="844"
+      poster="/media/clips/send-poster.png" data-loop
+      aria-label="The Sign-Flow composer on a phone: text typed, sent, and confirmed">
+      <source src="/media/clips/send.webm" type="video/webm" />
+      <source src="/media/clips/send.mp4" type="video/mp4" />
+    </video>
   </div>
 </section>
 
@@ -25,7 +30,7 @@
     background: var(--surface);
     box-shadow: var(--shadow-lift), 0 0 0 1px var(--border);
   }
-  .shot img { width: 100%; height: auto; }
+  .shot video { display: block; width: 100%; height: auto; }
   @media (max-width: 760px) {
     .send { grid-template-columns: 1fr; }
     .shot { max-width: 340px; }

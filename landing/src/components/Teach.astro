@@ -1,9 +1,9 @@
 ---
-// Teach — three real screens: pick the action, record three takes, done.
+// Teach — three real 390x844 recordings: name it, record three takes, done.
 const shots = [
-  { src: '/media/screens/teach-pick.webp', alt: 'Teach a sign: pick what it does — Type text is chosen' },
-  { src: '/media/screens/teach-take.webp', alt: 'Recording a take: the camera reads your hands, take two of three' },
-  { src: '/media/screens/teach-done.webp', alt: 'The sign is saved and live' },
+  { id: 'teach-pick', alt: 'Teach a sign: name it and start recording' },
+  { id: 'teach-take', alt: 'Recording takes: the app reads your hands, three takes' },
+  { id: 'teach-done', alt: 'Bind what it does — the sign is saved and live' },
 ];
 ---
 
@@ -12,7 +12,11 @@ const shots = [
   <div class="row">
     {shots.map((s) => (
       <figure>
-        <img src={s.src} width="390" height="844" alt={s.alt} loading="lazy" decoding="async" />
+        <video autoplay muted loop playsinline preload="metadata" width="390" height="844"
+          poster={`/media/clips/${s.id}-poster.png`} data-loop aria-label={s.alt}>
+          <source src={`/media/clips/${s.id}.webm`} type="video/webm" />
+          <source src={`/media/clips/${s.id}.mp4`} type="video/mp4" />
+        </video>
       </figure>
     ))}
   </div>
@@ -37,7 +41,7 @@ const shots = [
     background: var(--surface);
     box-shadow: var(--shadow-lift), 0 0 0 1px var(--border);
   }
-  figure img { width: 100%; height: auto; }
+  figure img, figure video { display: block; width: 100%; height: auto; }
   figure:nth-child(2) { translate: 0 clamp(10px, 2vw, 28px); }
   @media (max-width: 760px) {
     .row { grid-template-columns: 1fr 1fr; }

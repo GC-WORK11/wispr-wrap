@@ -23,7 +23,16 @@ const still = L.frame(1.2, 1); // bloomed, gently mid-sway
     {still.map((txt, i) => <pre class={`t${i}`}>{txt}</pre>)}
   </div>
 
-  <h1 class="hero-line">Your phone types, sends and signs on your laptop.</h1>
+  <div class="hero-foot">
+    <h1 class="hero-line">Type and control your laptop without touching it.</h1>
+    <div class="phone" aria-hidden="true">
+      <video autoplay muted loop playsinline preload="metadata" poster="/media/clips/live-poster.png"
+        data-loop title="Go Live: a signed command types on the laptop">
+        <source src="/media/clips/live.webm" type="video/webm" />
+        <source src="/media/clips/live.mp4" type="video/mp4" />
+      </video>
+    </div>
+  </div>
 </header>
 
 <script>
@@ -105,18 +114,36 @@ const still = L.frame(1.2, 1); // bloomed, gently mid-sway
   .lotus .t3 { color: #ff6fb8; }
   .lotus .t4 { color: #ffb3d9; }
 
+  .hero-foot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(24px, 4.5vw, 64px);
+    padding: 0 var(--pad) clamp(48px, 6vw, 88px);
+  }
   .hero-line {
     font-size: clamp(26px, 3.6vw, 44px);
     font-weight: 600;
     letter-spacing: -0.04em;
     line-height: 1.06;
     text-align: center;
-    padding: 0 var(--pad) clamp(48px, 6vw, 88px);
     max-width: 22ch;
-    margin: 0 auto;
+    margin: 0;
   }
+  .phone {
+    flex: none;
+    width: clamp(96px, 11vw, 148px);
+    border-radius: 18px;
+    overflow: hidden;
+    background: var(--surface);
+    box-shadow: var(--shadow-lift), 0 0 0 1px var(--border);
+    rotate: 2deg;
+  }
+  .phone video { display: block; width: 100%; height: auto; aspect-ratio: 390 / 844; }
 
   @media (max-width: 700px) {
     .lotus pre { font-size: 12px; line-height: 12px; }
+    .hero-foot { flex-direction: column; }
+    .phone { width: clamp(84px, 26vw, 120px); }
   }
 </style>

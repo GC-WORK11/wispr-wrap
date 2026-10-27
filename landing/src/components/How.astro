@@ -47,8 +47,8 @@ const nodes = {
   clone:   { kind: 'term', cmd: CMD.clone, out: cloneOut },
   install: { kind: 'term', cmd: CMD.install, out: installOut },
   start:   { kind: 'qr', cmd: CMD.start, tail: startTail },
-  app:     { kind: 'img', src: '/media/screens/send.webp', alt: 'The composer open on the phone, text typed and sent' },
-  live:    { kind: 'img', src: '/media/screens/live.webp', alt: 'Go Live: a sign just typed its word' },
+  app:     { kind: 'video', id: 'send', alt: 'The composer open on the phone, text typed and sent' },
+  live:    { kind: 'video', id: 'live', alt: 'Go Live: a sign just typed its word' },
 };
 
 const wide = layout({
@@ -106,6 +106,13 @@ const tallById = Object.fromEntries(tall.nodes.map((n) => [n.id, n]));
             style={`--l:${n.left}; --tp:${n.top}; --w:${n.width}; --t:${n.t}; --tl:${t.left}; --ttp:${t.top}; --tw:${t.width}; --tt:${t.t}`}
           >
             {node.kind === 'img' && <img src={node.src} alt={node.alt} width="390" height="844" loading="lazy" decoding="async" />}
+            {node.kind === 'video' && (
+              <video autoplay muted loop playsinline preload="metadata" width="390" height="844"
+                poster={`/media/clips/${node.id}-poster.png`} data-loop aria-label={node.alt}>
+                <source src={`/media/clips/${node.id}.webm`} type="video/webm" />
+                <source src={`/media/clips/${node.id}.mp4`} type="video/mp4" />
+              </video>
+            )}
             {node.kind === 'term' && (
               <div class="tc">
                 <p class="cmd"><span class="ps">$</span> {node.cmd}</p>
@@ -212,7 +219,7 @@ const tallById = Object.fromEntries(tall.nodes.map((n) => [n.id, n]));
     background: var(--surface);
     box-shadow: var(--shadow-lift), 0 0 0 1px var(--border);
   }
-  .node img { width: 100%; height: auto; }
+  .node img, .node video { display: block; width: 100%; height: auto; }
 
   .tc { padding: 13px 13px; font-family: var(--mono); font-size: 10px; line-height: 1.5; }
   .tc .cmd { font-weight: 600; color: var(--text); white-space: nowrap; overflow-x: auto; scrollbar-width: none; }
