@@ -55,9 +55,9 @@ const wide = layout({
   W: 1300, H: 780,
   start: [-30, 620], end: [1330, 130],
   boxes: [
-    { id: 'clone', x: 40, y: 500, w: 316, ratio: 3.5 },
+    { id: 'clone', x: 30, y: 500, w: 380, ratio: 3.5 },
     { id: 'install', x: 322, y: 640, w: 300, ratio: 3.6 },
-    { id: 'start', x: 500, y: 120, w: 316, ratio: 1.28 },
+    { id: 'start', x: 480, y: 120, w: 360, ratio: 1.28 },
     { id: 'app', x: 806, y: 396, w: 200, ratio: PHONE },
     { id: 'live', x: 1030, y: 40, w: 200, ratio: PHONE },
   ],
@@ -66,9 +66,9 @@ const tall = layout({
   W: 400, H: 1560,
   start: [200, -30], end: [240, 1590],
   boxes: [
-    { id: 'clone', x: 42, y: 40, w: 316, ratio: 3.5 },
-    { id: 'install', x: 56, y: 176, w: 300, ratio: 3.6 },
-    { id: 'start', x: 42, y: 316, w: 316, ratio: 1.28 },
+    { id: 'clone', x: 28, y: 40, w: 344, ratio: 3.5 },
+    { id: 'install', x: 44, y: 176, w: 320, ratio: 3.6 },
+    { id: 'start', x: 28, y: 316, w: 344, ratio: 1.28 },
     { id: 'app', x: 96, y: 620, w: 240, ratio: PHONE },
     { id: 'live', x: 84, y: 1100, w: 240, ratio: PHONE },
   ],
@@ -214,15 +214,16 @@ const tallById = Object.fromEntries(tall.nodes.map((n) => [n.id, n]));
   }
   .node img { width: 100%; height: auto; }
 
-  .tc { padding: 14px 16px; font-family: var(--mono); font-size: 11.5px; line-height: 1.5; }
-  .tc .cmd { font-weight: 600; color: var(--text); }
+  .tc { padding: 13px 13px; font-family: var(--mono); font-size: 10px; line-height: 1.5; }
+  .tc .cmd { font-weight: 600; color: var(--text); white-space: nowrap; overflow-x: auto; scrollbar-width: none; }
   .tc .ps { color: var(--pink); }
   .tc pre {
     margin: 6px 0 0;
-    white-space: pre-wrap;
-    word-break: break-all;
+    white-space: pre;
+    overflow-x: auto;
+    scrollbar-width: none;
     color: var(--muted);
-    font-size: 10.5px;
+    font-size: 9px;
   }
   .qr {
     display: block;
@@ -260,5 +261,7 @@ const tallById = Object.fromEntries(tall.nodes.map((n) => [n.id, n]));
     .line-tall { display: block; }
     .node { left: var(--tl); top: var(--ttp); width: var(--tw); }
     :global(.js) .is-armed.is-drawn .node { transition-delay: calc(var(--tt) * var(--dur) - 0.12s); }
+    .tc { font-size: 8.5px; padding: 12px 13px; }
+    .tc pre { font-size: 7.6px; }
   }
 </style>
