@@ -132,3 +132,19 @@
 @media (min-width: 721px) {
   .composer { max-width: 620px; }
 }
+
+/* ---------- @ target window ---------- */
+.tchip {
+  appearance: none; border: none; cursor: pointer; font-family: inherit;
+  display: inline-flex; align-items: center; gap: 6px; max-width: calc(100% - 16px);
+  margin: 8px 0 0 12px; padding: 5px 10px; border-radius: 999px;
+  background: rgba(255, 48, 156, .1); color: #C2185B; font-size: 14px; font-weight: 550;
+}
+.tchip[hidden] { display: none; }
+.tchip-n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tchip-x { opacity: .6; font-size: 16px; line-height: 1; padding-left: 2px; }
+.win-menu { min-width: 260px; max-width: min(420px, calc(100vw - 32px)); max-height: 50vh; overflow-y: auto; }
+.win-item { flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 14px; }
+.win-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.win-a { font-size: 13px; color: var(--ink-3, #8a8a8a); }
+.win-empty { padding: 12px 14px; font-size: 15px; color: var(--ink-3, #8a8a8a); }
