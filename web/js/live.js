@@ -37,7 +37,6 @@ sheet.innerHTML = `
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.6L4 8.5M4 4v4.5h4.5M4 13a8 8 0 0 0 14.3 4.6l1.7-2.1M20 20v-4.5h-4.5"/></svg>
       </button>
     </div>
-    <div class="lv-tag" id="lv-tag" hidden>Demo input · recorded hand motion</div>
     <div class="lv-bottom">
       <div class="lv-read">
         <span class="lv-rlab" id="lv-rlab"></span>
@@ -73,7 +72,7 @@ const video = $('lv-cam'), skel = $('lv-skel'), cover = $('lv-cover'),
       actEl = $('lv-act'), actT = $('lv-act-t'), pendEl = $('lv-pend'),
       holdI = $('lv-hold-i'), hint = $('lv-hint'), xbtn = $('lv-x'),
       viewEl = $('lv-view'), sendBtn = $('lv-send'), flipBtn = $('lv-flip'),
-      segText = $('lv-m-text'), segCtl = $('lv-m-ctl'), tagEl = $('lv-tag');
+      segText = $('lv-m-text'), segCtl = $('lv-m-ctl');
 
 const HINTS = {
   control: { idle: 'Hold an open palm to start. Then sign a command.', on: 'Listening. Sign a command.' },
@@ -427,7 +426,6 @@ async function boot() {
       S.engine = rep;
       S.front = false;                      // replayed frames aren't mirrored
       viewEl.classList.add('replay');
-      tagEl.hidden = false;
       hideCard();
       setBadge('', 'idle');
       S.link.start(video, S.engine, {
@@ -440,7 +438,7 @@ async function boot() {
       });
       return;
     }
-    viewEl.classList.remove('replay'); tagEl.hidden = true;
+    viewEl.classList.remove('replay');
   } catch (e) { /* probe failed — camera path */ }
   card('Allow the camera', 'Your browser is asking to use it. Video stays on this device. Only hand points are sent.');
   try {
@@ -479,10 +477,8 @@ function camFail(e) {
       'Allow camera access for this page, then try again. The video never leaves this device; only hand points do.',
       [mkBtn('Try again', boot, true), laptopBtn()]);
   else if (e && e.name === 'NoAPI' || !secure)
-    card('Camera needs a secure connection',
-      'Browsers only open the camera on https or localhost, and this page is plain http on your network. ' +
-      'Connect over USB (wrap bridge, then open localhost:8741), use the wrap tunnel, or use the laptop camera.',
-      [laptopBtn()].filter(Boolean));
+    card('Camera needs a secure connection', '',
+      [(laptopBtn() || mkBtn('Try again', boot, true))]);
   else if (e && (e.name === 'NotFoundError' || e.name === 'OverconstrainedError'))
     card('No camera found', 'This device has no usable camera.',
       [laptopBtn(), laptopBtn() ? null : mkBtn('Close', hideCard)].filter(Boolean));

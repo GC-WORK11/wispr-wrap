@@ -20,7 +20,7 @@ sheet.innerHTML = `
       <input type="checkbox" id="st-vibrate" class="st-sw">
     </label>
     ${devMode ? `<label class="st-row">
-      <span class="st-t">Replayed gestures<span class="st-s">For demos and recordings only — hands move themselves</span></span>
+      <span class="st-t">Replayed gestures</span>
       <input type="checkbox" id="st-replay" class="st-sw">
     </label>` : ''}
   </div>`;

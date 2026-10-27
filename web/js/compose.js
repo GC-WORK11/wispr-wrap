@@ -18,21 +18,11 @@ if (!box) throw new Error('compose: #box missing');
 
 let staged = null;
 const fmtSize = b => b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
-const secs = ms => ms < 1000 ? Math.max(1, Math.round(ms)) + ' ms' : (ms / 1000).toFixed(1) + ' s';
 
 const ICON = {
   file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>',
   photo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="9" cy="10.5" r="1.6"/><path d="m21 16-5-4.5L8 19"/></svg>',
 };
-
-/* the daemon reports window classes as X gave them ("sinkedit"); prefer the
-   focused-window name the status poll already knows */
-function app(into) {
-  if (!into) return 'the focused app';
-  const f = App.state.focus;
-  if (f && f.toLowerCase() === String(into).toLowerCase()) return f;
-  return String(into).charAt(0).toUpperCase() + String(into).slice(1);
-}
 
 /* ---------- growing, reviewable input ---------- */
 function updateReady() { pill.classList.toggle('ready', !!box.value.trim() || !!staged); }
@@ -149,13 +139,12 @@ async function send() {
   const text = box.value;
   if (!text.trim() && !staged) return;
   sending = true; go.disabled = true;
-  let into = null, imgOk = false, txtOk = false, ms = 0;
+  let into = null, imgOk = false, txtOk = false;
   try {
     if (staged) {
       const st = staged;
       const isImg = (st.blob.type || '').startsWith('image/');
       App.toast(st.isVideo ? 'Sending video…' : isImg ? 'Sending image…' : 'Sending file…');
-      const t0 = performance.now();
       try {
         let r;
         if (st.isVideo || !isImg) {
@@ -167,17 +156,16 @@ async function send() {
           r = await App.api.post('/send-image', b,
             { 'Content-Type': b.type || 'application/octet-stream' });
         }
-        imgOk = r.ok; into = r.json && r.json.into; ms = performance.now() - t0;
+        imgOk = r.ok; into = r.json && r.json.into;
         if (imgOk) { clearStaged(); await App.sleep(450); }
         else App.toast(App.daemonErr(r, 'Couldn’t send. Try again.'), true);
       } catch (e) { App.toast('Can’t reach your laptop.', true); }
     }
     if (text.trim()) {
-      const t0 = performance.now();
       try {
         const r = await App.api.post('/send', { text, mode: 'type' });
         txtOk = r.ok;
-        if (r.ok) { box.value = ''; grow(); into = into || (r.json && r.json.into); ms = performance.now() - t0; }
+        if (r.ok) { box.value = ''; grow(); into = into || (r.json && r.json.into); }
         else App.toast(App.daemonErr(r, 'Couldn’t send. Try again.'), true);
       } catch (e) { App.toast('Can’t reach your laptop.', true); }
     }
@@ -186,7 +174,7 @@ async function send() {
       const kind = imgOk && txtOk ? 'Text and file' : imgOk ? 'File' : 'Text';
       App.state.lastSend = { t_ms: Date.now(), ok: true, into, kind };
       App.renderStatus();
-      App.toast(kind + ' → ' + app(into) + ' · ' + secs(ms));
+      App.toast(kind + ' sent.');
       Flower.burst(); App.buzz();
     } else if (!imgOk && !txtOk && !document.querySelector('.toast.err.show')) {
       App.toast('Couldn’t send. Try again.', true);
