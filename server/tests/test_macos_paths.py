@@ -164,7 +164,8 @@ class TestMacClipboard(_Darwin):
         with mock.patch.object(wfd.subprocess, "run",
                                side_effect=fake_run), \
              mock.patch.object(wfd.os.path, "isfile", return_value=True):
-            self.assertTrue(wfd._to_png("/tmp/in.jpg", "/tmp/out.png"))
+            out = wfd._to_png("/tmp/in.jpg")
+            self.assertTrue(out)
         self.assertEqual(calls[0][:4], ["sips", "-s", "format", "png"])
 
 

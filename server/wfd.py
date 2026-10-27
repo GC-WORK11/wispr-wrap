@@ -246,6 +246,14 @@ def _osa_esc(s):
 
 
 def active_window_class():
+    if _darwin():
+        try:
+            ok, out = _osa('tell application "System Events" to get name '
+                           'of first application process whose frontmost '
+                           'is true')
+            return out.strip().lower() if ok else ""
+        except Exception:
+            return ""
     if _host() != "linux":
         # provider's focused_app() answers with the same shape the
         # terminal-class paste-key check reads (process name as class).
@@ -256,15 +264,6 @@ def active_window_class():
                 return got
         except Exception:
             pass
-    if _darwin():
-        try:
-            ok, out = _osa('tell application "System Events" to get name '
-                           'of first application process whose frontmost '
-                           'is true')
-            return out.strip().lower() if ok else ""
-        except Exception:
-            return ""
-    if _host() != "linux":
         return ""
     try:
         wid = sh("xdotool", "getactivewindow").stdout.strip()
