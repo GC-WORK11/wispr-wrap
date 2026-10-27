@@ -34,7 +34,7 @@ const termWid = () => D.sh('xdotool', ['search', '--name', '^dr-test-term$']).tr
   }
 }
 
-const page = await newPage(S, { cdpPort: 9391 });
+const page = await newPage(S, { cdpPort: Number(process.env.SITE_CDP || 9391) });
 page.on('console', m => { if (m.type === 'error') console.log('  [page]', m.text.slice(0, 140)); });
 await page.goto(S.base + '/?k=' + S.KEY, { settle: 2500 });
 await loadClips(page, ['teach-TYPE-HELLO', 'perform-TYPE-HELLO', 'palm-hold', 'idle']);

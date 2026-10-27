@@ -9,7 +9,7 @@
 //   SITE_ENV=<env> node --experimental-websocket tools/pro/flow-air.mjs
 
 import path from 'node:path';
-import { stack, newPage, loadClips, playAndWait, shotTo, reporter, daemon, sleep, root } from './lib.mjs';
+import { stack, newPage, loadClips, playAndWait, shotTo, reporter, daemon, sleep, root, CLIPS } from './lib.mjs';
 import { execFileSync as sh } from 'node:child_process';
 import fs from 'node:fs';
 
@@ -48,7 +48,7 @@ const deskShot = (name) => {
 const page = await newPage(S, { cdpPort: Number(process.env.SITE_CDP || 9144) });
 try {
   await page.goto(S.base + '/?k=' + S.KEY, { settle: 1500 });
-  await loadClips(page, ['palm-hold', 'air-C-draw', 'air-V-draw', 'v-sign', 'scroll-down', 'hover-click', 'perform-TYPE-HELLO', 'namaste', 'idle']);
+  await loadClips(page, ['palm-hold', 'pinch-click', 'air-C-draw', 'air-V-draw', 'v-sign', 'scroll-down', 'hover-click', 'perform-TYPE-HELLO', 'namaste', 'idle']);
   // Test-seam adaptations (synthetic inputs only):
   //  * the UI runs front-camera mirrored under WFFakeTrack — pre-mirror the
   //    traced-letter clips so the shape lands as authored.
@@ -90,12 +90,12 @@ try {
   await shotTo(page, OUT, '03-air-c-ui');
 
   // --- browse mode: finger cursor + scroll -------------------------------
-  // an open palm toggles the hand between write (letters) and browse
-  // (cursor/scroll) on the phone; pointer posts hit /live/event pointer.
+  // air-C already flips the hand to browse (fireLetter -> setBrowse(true));
+  // a pinch does it too. an open palm exits browse. pointer posts hit
+  // /live/event pointer.
   const browse = (on) => `document.querySelector('#lv-view').classList.contains('browse') === ${on}`;
-  await playAndWait(page, 'palm-hold', 25000);
   if (!await page.eval(browse(true))) {
-    await playAndWait(page, 'palm-hold', 25000);   // palm hold (>=500ms stable) can race the stroke tail — retry once
+    await playAndWait(page, 'pinch-click', 25000);   // pinch pose -> browse on (+ one click)
   }
   await page.waitFor(browse(true), 10000, 'browse mode on');
   const m0 = mouse();
@@ -130,9 +130,30 @@ try {
   await shotTo(page, OUT, '06-air-v-ui');
 
   // --- taught sign -> bound action, immediately ---------------------------
+  // teach the perform shape over the daemon's own teach API (same flow the
+  // wizard drives), bound to a type.text tile action, then perform it live.
+  let tr = await post('/teach/begin', {
+    name: 'AIR-TILE', takes: 2, label: 'type hello', session: 'air',
+    action: { kind: 'builtin', tool: 'type.text', args: { text: 'hello-from-site' }, tier: 1 },
+  });
+  check('teach begin accepted (tile action bound)', tr.status === 200 && tr.json && tr.json.ok === true, JSON.stringify(tr.json || {}).slice(0, 80));
+  const teachFrames = JSON.parse(fs.readFileSync(
+    CLIPS.map(d => path.join(d, 'teach-TYPE-HELLO.json')).find(fs.existsSync), 'utf8')).frames;
+  for (let i = 0; i < 2; i++) {
+    for (const f of teachFrames) {
+      await post('/live/kp', { t_ms: Math.round(performance.timeOrigin + f.t_ms - 1.78e12), points: f.points, session: 'air' });
+      await sleep(30);
+    }
+    await sleep(700);   // hands-away gap so the endpointer closes the take
+  }
+  tr = await post('/teach/end', {});
+  check('teach end trains the sign', tr.status === 200 && tr.json && tr.json.ok !== false, JSON.stringify(tr.json || {}).slice(0, 90));
+
   focusSink();
   const before = sink().length;
-  await playAndWait(page, 'palm-hold');
+  // palm toggles listening — earlier legs may already have it on.
+  const listening = async () => { const j = (await api('GET', '/live/state')).json || {}; return !!(j.listening || j.mode === 'listening' || j.state === 'listening'); };
+  if (!await listening()) await playAndWait(page, 'palm-hold');
   await page.waitFor(`document.querySelector('#lv-badge').classList.contains('listen')`, 15000, 'listening');
   await playAndWait(page, 'perform-TYPE-HELLO');
   await sleep(1500);

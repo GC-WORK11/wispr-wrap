@@ -33,8 +33,6 @@
   }
   button:active { transform:scale(.97); opacity:.9; }
   .err { min-height:20px; font-size:14px; color:#c2301f; }
-  .hint { font-size:13px; color:#a3a3a3; line-height:1.8; margin-top:6px; }
-  .hint code { color:#3a3a3a; font-family:ui-monospace,'SF Mono',Menlo,monospace; font-size:12px; background:#f1f0ef; padding:2px 7px; border-radius:6px; }
 </style>
 </head>
 <body>
@@ -42,12 +40,10 @@
     <svg class="mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9"/></svg>
     <h1>Connect your laptop</h1>
     <div class="sub">Enter the address and code your laptop is showing.</div>
-    <input id="addr" placeholder="Laptop address, e.g. 10.0.0.2:8741" inputmode="url" autocapitalize="none" autocorrect="off" autocomplete="off">
+    <input id="addr" placeholder="Laptop address" inputmode="url" autocapitalize="none" autocorrect="off" autocomplete="off">
     <input id="code" class="code" placeholder="Code" maxlength="8" autocapitalize="characters" autocorrect="off" autocomplete="off">
     <button id="go">Connect</button>
     <div class="err" id="err"></div>
-    <div class="hint">The address and code are printed by <code>wrap start</code>.<br>
-      Or scan the QR code with your camera.</div>
   </div>
 <script>
 const err=document.getElementById('err'), addr=document.getElementById('addr'),

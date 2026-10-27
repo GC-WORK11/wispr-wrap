@@ -60,7 +60,7 @@ function render() {
   stateEl.textContent = ok ? ('Connected' + (name ? ' to ' + name : '')) : 'Not connected';
   stateEl.classList.toggle('on', ok);
   subEl.textContent = ok
-    ? (s.focus ? 'Typing into ' + s.focus + '.' : 'Ready — what you send lands at the cursor.')
+    ? (s.focus ? 'Typing into ' + s.focus + '.' : '')
     : 'This phone is not linked to a laptop.';
   rowsEl.textContent = '';
   if (ok) {

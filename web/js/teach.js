@@ -206,7 +206,7 @@ async function startCapture() {
   try {
     W.engine = await Pose.load();
   } catch (e) {
-    recErr.textContent = 'pose model failed: ' + (Pose.error || e.message);
+    recErr.textContent = 'Couldn’t load hand tracking. Try again.';
     return;
   }
   recEl.classList.add('on');
@@ -224,7 +224,7 @@ function stopCapture() {
 /* ---------- step 1 · name ---------- */
 nameIn.addEventListener('input', () => {
   const g = slug(nameIn.value);
-  glossPre.innerHTML = g ? 'gloss&nbsp; <b>' + g + '</b>' : '';
+  glossPre.innerHTML = g ? '<b>' + g + '</b>' : '';
   nameErr.textContent = '';
   nameNext.disabled = true;
   if (!g) return;
@@ -289,8 +289,7 @@ function buildBind() {
     const cv = document.createElement('canvas');
     Skel.drawTrail(cv, t.frames);
     const meta = document.createElement('div'); meta.className = 'tkv-m';
-    meta.textContent = 'take ' + (i + 1) + ' · ' + t.frames.length + ' frames' +
-      (t.hands ? '' : ' · no hands seen');
+    meta.textContent = 'take ' + (i + 1) + (t.hands ? '' : ' · no hands seen');
     row.append(cv, meta);
     prevEl.appendChild(row);
   });
@@ -349,8 +348,8 @@ saveBtn.onclick = async () => {
 
 async function finishAdd() {
   doneT.textContent = 'take added';
-  doneM.textContent = W.target + ' now has ' + W.got + ' new frame' +
-    (W.got === 1 ? '' : 's') + ' to match against.';
+  doneM.textContent = W.target + ' now has ' + W.got + ' take' +
+    (W.got === 1 ? '' : 's') + '.';
   showStep('done');
 }
 $('tw-done-lib').onclick = () => App.nav('signs');

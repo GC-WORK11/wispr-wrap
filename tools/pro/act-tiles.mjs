@@ -26,7 +26,8 @@ const activeWin = () => sh('xdotool', ['getactivewindow', 'getwindowname'], { en
 const wins = () => sh('wmctrl', ['-l'], { env: X }).toString();
 
 // scratch disposable window for minimize/close legs — never a terminal we need
-const scratchTitle = 'wispr-wrap-merge-term';   // allowlisted, disposable
+const scratchTitle = `${S.TAG}-term`;   // allowlisted, disposable
+const sinkTitle = `${S.TAG}-sink`;
 const shotDesktop = (n) => {
   try { sh('ffmpeg', ['-y', '-f', 'x11grab', '-video_size', '1280x800', '-i', S.D, '-frames:v', '1', path.join(OUT, n + '.png')], { env: X, stdio: 'ignore' }); } catch {}
 };
@@ -35,9 +36,17 @@ const shotDesktop = (n) => {
 try { sh('xfce4-terminal', ['--title', 'not-a-scratch-window', '--hold', '-e', 'sleep 60'], { env: X, timeout: 5000 }); } catch {}
 await sleep(1200);
 focus('not-a-scratch-window'); await sleep(600);
+// focus must actually be on the foreign window for the refusal to mean anything.
+// stale same-titled windows confuse wmctrl -a; grab the newest wid and xdotool it.
+const foreignWid = wins().split('\n').filter(l => /not-a-scratch-window/.test(l)).map(l => (l.match(/0x[0-9a-f]+/) || [])[0]).pop();
+let tries = 0;
+while (foreignWid && !/not-a-scratch-window/.test(activeWin()) && tries++ < 6) {
+  try { sh('xdotool', ['windowactivate', String(parseInt(foreignWid, 16))], { env: X }); } catch {}
+  await sleep(400);
+}
 let r = await run('type.text', { text: 'LEAK' });
 check('guard: type.text REFUSED on a non-allowlisted window', r.json.ok === false && /focus-refused/.test(r.json.detail || ''), r.json.detail);
-focus('wispr-wrap-merge-sink'); await sleep(500);
+focus(sinkTitle); await sleep(500);
 const s0 = sink().length;
 r = await run('type.text', { text: 'TILE-TYPE ' });
 await sleep(700);
@@ -68,7 +77,7 @@ check('edit.undo dispatched (ctrl+z to focused sink)', r.json.fired === true && 
 
 // -------- 3. window tiles on the scratch term ------------------------------
 focus(scratchTitle); await sleep(600);
-const termWid = (wins().match(/(0x[0-9a-f]+)\s+\d+\s+\S+\s+wispr-wrap-merge-term/) || [])[1] || String(S.TERM_WID);
+const termWid = (wins().match(new RegExp('(0x[0-9a-f]+)\\s+\\d+\\s+\\S+\\s+' + scratchTitle)) || [])[1] || String(S.TERM_WID);
 r = await run('win.maximize');
 await sleep(600);
 let st = '';
@@ -85,7 +94,7 @@ r = await run('win.minimize');
 await sleep(700);
 let st2 = '';
 try { st2 = sh('xprop', ['-id', String(S.TERM_WID), '_NET_WM_STATE'], { env: X }).toString(); } catch {}
-check('win.minimize hid the scratch window', r.json.fired === true && (/HIDDEN/.test(st2) || !activeWin().includes('merge-term')), st2.trim().slice(-60) + ' | active=' + activeWin());
+check('win.minimize hid the scratch window', r.json.fired === true && (/HIDDEN/.test(st2) || !activeWin().includes(scratchTitle)), st2.trim().slice(-60) + ' | active=' + activeWin());
 sh('wmctrl', ['-i', '-a', String(S.TERM_WID)], { env: X }); await sleep(500);  // restore
 
 // desktop.show: _NET_SHOWING_DESKTOP flips on, then off
@@ -117,7 +126,7 @@ await sleep(700);
 check('browser.close-tab fired ctrl+w on focused Chrome', r.json.fired === true && chromeFocused, r.json.detail);
 
 // -------- 5. scroll / media / system tiles ----------------------------------
-focus('wispr-wrap-merge-sink'); await sleep(500);
+focus(sinkTitle); await sleep(500);
 r = await run('nav.scroll-up');
 check('nav.scroll-up dispatched wheel-up', r.json.fired === true, r.json.detail);
 r = await run('nav.scroll-down');
