@@ -12,13 +12,13 @@
       "id": "install",
       "cmd": "npm install",
       "ran": "npm install",
-      "out": "\nup to date, audited 1 package in 274ms\n\nfound 0 vulnerabilities\n"
+      "out": "\nup to date, audited 1 package\n\nfound 0 vulnerabilities\n"
     },
     {
       "id": "link",
       "cmd": "npm link",
       "ran": "npm link  (npm_config_prefix=<scratch>/prefix)",
-      "out": "\nadded 1 package, and audited 3 packages in 245ms\n\nfound 0 vulnerabilities\n"
+      "out": "\nadded 1 package, and audited 3 packages\n\nfound 0 vulnerabilities\n"
     },
     {
       "id": "start",
