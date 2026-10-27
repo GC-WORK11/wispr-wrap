@@ -4,6 +4,7 @@
 // lotus -> the mark's soft gradient). Above: icon, wordmark letter reveal,
 // links. No JS or reduced motion: everything visible, nothing moves.
 import fs from 'node:fs';
+import { REPO_URL } from '../lib/repo.mjs';
 const iconSvg = fs.readFileSync('public/icon.svg', 'utf8');
 const markPath = iconSvg.match(/<path fill="url\(#wwg\)" d="([^"]+)"/)?.[1] ?? '';
 const mark = `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><path d='${markPath}'/></svg>`)}")`;
@@ -18,7 +19,7 @@ const ascii = Array.from({ length: 26 }, (_, r) =>
 const links = [
   { href: '#try', label: 'Try' },
   { href: '#how', label: 'Set up' },
-  { href: 'https://github.com/GC-WORK11/sign-flow', label: 'GitHub' },
+  { href: REPO_URL, label: 'GitHub' },
 ];
 ---
 
