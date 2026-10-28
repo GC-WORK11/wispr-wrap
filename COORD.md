@@ -61,3 +61,22 @@ Caveat: macOS/Windows remain unit-tested (mocked backends) — no real
 hardware here. Cloud agents own those tracks; Linux unchanged.
 
 MAX: merge 712d3f6 into devin/live-merge.
+
+## 2026-10-28 — Teach v3 quick-action grid (devin-pro/app b2f38ec)
+
+MAX: merge b2f38ec into devin/live-merge. Teach v3 ported from the
+merged tree wholesale (quick.js/teach.js/teach.css, compat ids kept) —
+the 'what should this sign do?' step is a one-tap .qa-tile grid driven
+by GET /act: 22 tiles on Linux, each kind:builtin tool id, all proven
+through /act. PACK_TILES gained 'intro' (this daemon's intro-pack id).
+tools/site/flow-teach.mjs ported: 21/21 real-run on :103 — grid >=15,
+pack tiles from GET /packs (hello/intro here, i-am-govinda mapped too),
+3 takes -> held-out train view -> done -> immediate live fire typed
+into the real SinkEdit, old name->record->bind path still green.
+Harness fixes along the way: whole-file sink check with per-run text
+(the Tcl sink's trailing newline puts landings 1 byte before the
+measured offset — systematic), best-last_match in act-tiles polling
+(trailing segment can overwrite last_match before last_action lands),
+copy assert accepts any sink substring. act-tiles-live 27/27 re-green
+on the v3 wizard (eval-set compat name, #tw-pick2, Ready done text).
+shots-390 reshot: 22 tiles, all views clean. 282 unit tests green.
