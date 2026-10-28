@@ -54,6 +54,9 @@ def _run(argv, timeout=SUBPROC_TIMEOUT):
         return False, "not found: %s" % argv[0]
     except subprocess.TimeoutExpired:
         return False, "%s timed out" % os.path.basename(str(argv[0]))
+    except UnicodeDecodeError:
+        return False, "%s output was not utf-8 text" % os.path.basename(
+            str(argv[0]))
     except OSError as e:
         return False, str(e)
 

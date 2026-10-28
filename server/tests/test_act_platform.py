@@ -22,6 +22,28 @@ class TestHostPlatform(unittest.TestCase):
                          else ap.host_platform())
 
 
+class TestRunHelper(unittest.TestCase):
+    def test_undecodable_output_fails_not_crashes(self):
+        # a clipboard holding an image makes `xclip -o` emit bytes that
+        # are not utf-8 — _run must report failure, not raise, so
+        # clip_get() can return None and paste_file still proceeds
+        def boom(*a, **k):
+            raise UnicodeDecodeError("utf-8", b"\x89PNG", 0, 1,
+                                     "invalid start byte")
+        with mock.patch.object(ap.subprocess, "run", side_effect=boom):
+            ok, out = ap._run(["xclip", "-selection", "clipboard", "-o"])
+        self.assertFalse(ok)
+        self.assertIn("utf-8", out)
+
+    def test_clip_get_none_when_clipboard_is_binary(self):
+        def boom(*a, **k):
+            raise UnicodeDecodeError("utf-8", b"\x89PNG", 0, 1,
+                                     "invalid start byte")
+        with mock.patch.object(ap.subprocess, "run", side_effect=boom), \
+             mock.patch.object(ap, "host_platform", return_value="linux"):
+            self.assertIsNone(ap.clip_get())
+
+
 class TestKeyTranslation(unittest.TestCase):
     def test_mac_keystroke_mods(self):
         self.assertEqual(ap._mac_keystroke("ctrl+t"),
