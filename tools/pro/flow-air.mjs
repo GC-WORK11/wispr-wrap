@@ -9,12 +9,13 @@
 //   SITE_ENV=<env> node --experimental-websocket tools/pro/flow-air.mjs
 
 import path from 'node:path';
-import { stack, newPage, loadClips, playAndWait, shotTo, reporter, daemon, sleep, root } from './lib.mjs';
+import { stack, newPage, loadClips, playAndWait, shotTo, reporter, daemon, sleep, root, CLIPS } from './lib.mjs';
 import { execFileSync as sh } from 'node:child_process';
 import fs from 'node:fs';
 
 const S = stack(process.env.SITE_ENV || '/tmp/wf-rr-pro/env');
 const OUT = path.join(root, 'proofs/ui-v2/air');
+const WORDS = 'hello-air-' + Date.now().toString(36);
 const { check, finish } = reporter(S, OUT, 'section A — air letters, scroll, custom sign');
 const { api } = daemon(S);
 const sink = () => fs.readFileSync(S.SINK, 'utf8');
@@ -37,7 +38,7 @@ const focusSink = () => {
   for (let i = 0; i < 4; i++) {
     sh('wmctrl', ['-i', '-a', String(S.TERM_WID)], { env: X });
     sleep(500);
-    try { return requireFocus(/sink|wispr-wrap-merge-term/); } catch (e) { if (i === 3) throw e; }
+    try { return requireFocus(new RegExp('sink|' + (S.TAG || 'wispr-wrap') + '-(term|sink)')); } catch (e) { if (i === 3) throw e; }
   }
 };
 const deskShot = (name) => {
@@ -45,10 +46,14 @@ const deskShot = (name) => {
   catch { return false; }
 };
 
+// scratch daemon: start from an empty bank (the proof signs reuse the same
+// synthetic motion, so an older sign with that motion would correctly win)
+for (const row of (((await api('GET', '/bank')).json || {}).signs || [])) await api('DELETE', '/bank?gloss=' + encodeURIComponent(row.gloss));
+
 const page = await newPage(S, { cdpPort: Number(process.env.SITE_CDP || 9144) });
 try {
   await page.goto(S.base + '/?k=' + S.KEY, { settle: 1500 });
-  await loadClips(page, ['palm-hold', 'air-C-draw', 'air-V-draw', 'v-sign', 'scroll-down', 'hover-click', 'perform-TYPE-HELLO', 'namaste', 'idle']);
+  await loadClips(page, ['palm-hold', 'pinch-click', 'air-C-draw', 'air-V-draw', 'v-sign', 'scroll-down', 'hover-click', 'perform-TYPE-HELLO', 'namaste', 'idle']);
   // Test-seam adaptations (synthetic inputs only):
   //  * the UI runs front-camera mirrored under WFFakeTrack — pre-mirror the
   //    traced-letter clips so the shape lands as authored.
@@ -90,12 +95,12 @@ try {
   await shotTo(page, OUT, '03-air-c-ui');
 
   // --- browse mode: finger cursor + scroll -------------------------------
-  // an open palm toggles the hand between write (letters) and browse
-  // (cursor/scroll) on the phone; pointer posts hit /live/event pointer.
+  // air-C already flips the hand to browse (fireLetter -> setBrowse(true));
+  // a pinch does it too. an open palm exits browse. pointer posts hit
+  // /live/event pointer.
   const browse = (on) => `document.querySelector('#lv-view').classList.contains('browse') === ${on}`;
-  await playAndWait(page, 'palm-hold', 25000);
   if (!await page.eval(browse(true))) {
-    await playAndWait(page, 'palm-hold', 25000);   // palm hold (>=500ms stable) can race the stroke tail — retry once
+    await playAndWait(page, 'pinch-click', 25000);   // pinch pose -> browse on (+ one click)
   }
   await page.waitFor(browse(true), 10000, 'browse mode on');
   const m0 = mouse();
@@ -130,13 +135,34 @@ try {
   await shotTo(page, OUT, '06-air-v-ui');
 
   // --- taught sign -> bound action, immediately ---------------------------
+  // teach the perform shape over the daemon's own teach API (same flow the
+  // wizard drives), bound to a type.text tile action, then perform it live.
+  let tr = await post('/teach/begin', {
+    name: 'AIR-TILE', takes: 2, label: 'type hello', session: 'air',
+    action: { kind: 'builtin', tool: 'type.text', args: { text: WORDS }, tier: 1 },
+  });
+  check('teach begin accepted (tile action bound)', tr.status === 200 && tr.json && tr.json.ok === true, JSON.stringify(tr.json || {}).slice(0, 80));
+  const teachFrames = JSON.parse(fs.readFileSync(
+    CLIPS.map(d => path.join(d, 'teach-TYPE-HELLO.json')).find(fs.existsSync), 'utf8')).frames;
+  for (let i = 0; i < 2; i++) {
+    for (const f of teachFrames) {
+      await post('/live/kp', { t_ms: Math.round(performance.timeOrigin + f.t_ms - 1.78e12), points: f.points, session: 'air' });
+      await sleep(30);
+    }
+    await sleep(700);   // hands-away gap so the endpointer closes the take
+  }
+  tr = await post('/teach/end', {});
+  check('teach end trains the sign', tr.status === 200 && tr.json && tr.json.ok !== false, JSON.stringify(tr.json || {}).slice(0, 90));
+
   focusSink();
   const before = sink().length;
-  await playAndWait(page, 'palm-hold');
+  // palm toggles listening — earlier legs may already have it on.
+  const listening = async () => { const j = (await api('GET', '/live/state')).json || {}; return !!(j.listening || j.mode === 'listening' || j.state === 'listening'); };
+  if (!await listening()) await playAndWait(page, 'palm-hold');
   await page.waitFor(`document.querySelector('#lv-badge').classList.contains('listen')`, 15000, 'listening');
   await playAndWait(page, 'perform-TYPE-HELLO');
   await sleep(1500);
-  check('taught sign fired its action immediately', /hello-from-site/i.test(sink().slice(before)), sink().slice(before).slice(-60));
+  check('taught sign fired its action immediately', sink().includes(WORDS), sink().slice(-80));
   await shotTo(page, OUT, '07-sign-fired');
   await playAndWait(page, 'namaste'); await sleep(400);
 } finally {
