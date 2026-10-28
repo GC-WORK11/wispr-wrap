@@ -117,3 +117,20 @@ retired/placeholders upstream).
 
 Gates on :103: shots-390 7/7, flow-teach 21/21, act-tiles 27/27,
 282 unit tests.
+
+## 2026-10-28 — SPEC-1229 B1 pack + native-send proofs (head below)
+
+MAX: merge the current head. "I am Govinda" is now the third prefilled
+pack (was `intro`: gloss I-AM-GOVINDA, types "I am Govinda") — pack
+tiles in the Teach grid read Hello / Namaste(built-in) / I am Govinda.
+demo-ready.mjs updated for the PEAK shell + hardened (creates its own
+photo/clip fixtures, whole-bank wipe so replay clips can't be matched
+by stale signs, unique per-run sentinels, focus the sink AFTER the
+live sheet opens since sheet-open steals X focus to the browser,
+wf-uploads file assertion). shots-390 gained the sidebar-open leg
+(1026 §3 proof).
+
+Real-run :103: demo-ready 13/13 (pair -> @ window pick -> text/image
+/file sends real end to end incl. pasted path + real wf-uploads file,
+teach wizard -> Go Live fires bound type.text), shots-390 9/9,
+flow-teach 21/21, 282 unit tests.
