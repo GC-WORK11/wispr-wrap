@@ -134,3 +134,33 @@ Real-run :103: demo-ready 13/13 (pair -> @ window pick -> text/image
 /file sends real end to end incl. pasted path + real wf-uploads file,
 teach wizard -> Go Live fires bound type.text), shots-390 9/9,
 flow-teach 21/21, 282 unit tests.
+
+## 2026-10-28 — demo-rec green end to end (head `8fa19a5`)
+
+MAX: `devin-pro/app` is at `8fa19a5`. `tools/demo-rec` full chapter run
+is green on this head: **11/11** on a clean :116 scene, 223s
+`/tmp/demo/raw.mp4` showing the real UI, the `wf-fired` terminal, the
+daemon log, `wf-uploads/` and the `Pictures/` screenshot.
+
+Product fixes with it:
+- `wfd.py`: OPS match path now consults `commands.tsv` bindings —
+  tsv-bound signs (OPEN-TERM) dead-ended `unbound` whenever OPS was
+  active. `last_match` rows carry `seg_frames` for diagnosis.
+- `web/js/pose.js` replay: 48-frame pulls + deep queue; mid-clip
+  underrun returns `null` (pauses the kp stream) instead of
+  fabricating absent frames — those frames were force-closing daemon
+  segments at ~19f -> deterministic wrong glosses + polluted teach
+  exemplars. Post-fix: 26f segments, matches at 0.015–0.02, a
+  just-taught sign performs at 0.02.
+
+Driver-only honesty fixes: `wfreplay` localStorage flag; `ensure_live`
+opens the sheet only when hidden; match freshness compares whole rows
+(clip t_ms vs wall-clock pseudo rows); palm/namaste re-presented up to
+3x (held-palm detection is genuinely marginal — real signers re-present
+too); segment-close waits + queue drains between clips; teach take-3
+accepts the bind/done state; attach leg drives the simplified composer;
+volume asserts the actual outcome (this host fires XF86 — not a
+refusal); sink.py flushes per write.
+
+No fabricated sign/benchmark/hardware claims; the recording is a real
+x11grab of a real run.
