@@ -1,6 +1,8 @@
 #!/bin/bash
 # wrap — Sign-Flow: phone -> laptop input bridge
-SELF="$(readlink -f "$0")"
+# GNU readlink doesn't ship on macOS (BSD readlink has no -f); Python
+# realpath is already a hard requirement, so resolve through it there.
+SELF="$(readlink -f "$0" 2>/dev/null || python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$0")"
 ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
 PORT="${WF_PORT:-8741}"
 PIDFILE="$ROOT/wfd.pid"
@@ -43,9 +45,14 @@ case "$1" in
 start)
     if daemon_running; then echo "daemon already running on :$(live_port)"; else
         : >"$LOG"
-        # setsid = own session, < /dev/null = no tty: the daemon survives
-        # this terminal closing or the CLI being killed (SIGHUP can't reach it).
-        setsid python3 "$ROOT/server/wfd.py" >>"$LOG" 2>&1 </dev/null &
+        # own session + no tty = the daemon survives this terminal closing
+        # or the CLI being killed (SIGHUP can't reach it). setsid is Linux;
+        # nohup is the same detach pattern on macOS.
+        if [ "$(uname)" = "Darwin" ]; then
+            nohup python3 "$ROOT/server/wfd.py" >>"$LOG" 2>&1 </dev/null &
+        else
+            setsid python3 "$ROOT/server/wfd.py" >>"$LOG" 2>&1 </dev/null &
+        fi
         echo $! > "$PIDFILE"
         for i in $(seq 1 40); do daemon_running && break; sleep 0.25; done
         daemon_running || { echo "daemon failed — see $LOG (wrap logs)"; exit 1; }
@@ -82,6 +89,8 @@ status)
     if daemon_running; then
         BP="$(live_port)"
         RSS=$(awk '/VmRSS/{printf "%.1f", $2/1024}' "/proc/$(cat "$PIDFILE" 2>/dev/null)/status" 2>/dev/null)
+        # macOS has no /proc — ps rss (KB) is the stock equivalent
+        [ -z "$RSS" ] && RSS=$(ps -o rss= -p "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null | awk '{printf "%.1f", $1/1024}')
         LIP=$(curl -sf "http://localhost:$BP/pair-info" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("ip",""))' 2>/dev/null)
         echo "daemon: UP on :$BP (pid $(cat "$PIDFILE" 2>/dev/null), rss ${RSS:-?} MB)"
         [ -n "$LIP" ] && echo "lan:    http://$LIP:$BP/"
@@ -134,18 +143,30 @@ def pyxlib():
         import Xlib; return True
     except Exception:
         return False
-req = [("python3", have("python3"), "the daemon itself"),
-       ("curl",    have("curl"),    "CLI talks to the daemon over HTTP"),
-       ("xdotool", have("xdotool"), "types/pastes at the cursor"),
-       ("xprop",   have("xprop"),   "active-window detection (x11-utils)"),
-       ("xclip",   have("xclip"),   "clipboard save/restore"),
-       ("convert", have("convert"), "image -> png normalization (imagemagick)"),
-       ("python3-xlib", pyxlib(),   "multi-target clipboard (apt: python3-xlib)")]
-opt = [("adb",         have("adb"),        "usb bridge + app install"),
-       ("cloudflared", have("cloudflared"), "wrap tunnel — anywhere access"),
-       ("scrcpy",      have("scrcpy"),      "phone screen mirroring"),
-       ("notify-send", have("notify-send"), "confirm prompts for riskier signed actions")]
+is_mac = sys.platform == "darwin"
+if is_mac:
+    req = [("python3",  have("python3"),  "the daemon itself"),
+           ("curl",     have("curl"),     "CLI talks to the daemon over HTTP"),
+           ("osascript",have("osascript"),"types/pastes + window focus (System Events)"),
+           ("pbcopy",   have("pbcopy"),   "clipboard save/restore"),
+           ("sips",     have("sips"),     "image -> png normalization (stock)")]
+    opt = [("adb",         have("adb"),        "usb bridge + app install"),
+           ("cloudflared", have("cloudflared"), "wrap tunnel — anywhere access"),
+           ("blueutil",    have("blueutil"),   "net.bluetooth action (brew)")]
+else:
+    req = [("python3", have("python3"), "the daemon itself"),
+           ("curl",    have("curl"),    "CLI talks to the daemon over HTTP"),
+           ("xdotool", have("xdotool"), "types/pastes at the cursor"),
+           ("xprop",   have("xprop"),   "active-window detection (x11-utils)"),
+           ("xclip",   have("xclip"),   "clipboard save/restore"),
+           ("convert", have("convert"), "image -> png normalization (imagemagick)"),
+           ("python3-xlib", pyxlib(),   "multi-target clipboard (apt: python3-xlib)")]
+    opt = [("adb",         have("adb"),        "usb bridge + app install"),
+           ("cloudflared", have("cloudflared"), "wrap tunnel — anywhere access"),
+           ("scrcpy",      have("scrcpy"),      "phone screen mirroring"),
+           ("notify-send", have("notify-send"), "confirm prompts for riskier signed actions")]
 bad = 0
+def env(tag, name, why): print(f"  [{tag}] {name:<13} {why}")
 print("wrap doctor — dependency check")
 try:
     ufw = open("/etc/ufw/ufw.conf").read()
@@ -153,6 +174,24 @@ try:
         print(f"  [ note  ] ufw is ON — LAN pairing needs: sudo ufw allow 8741/tcp")
 except OSError:
     pass
+if is_mac:
+    # macOS needs Accessibility granted to the terminal/daemon for
+    # keystroke injection + window focus — say so before it fails silently.
+    try:
+        ax = subprocess.run(
+            ["osascript", "-e",
+             'tell application "System Events" to get name of first '
+             'application process whose frontmost is true'],
+            capture_output=True, text=True, timeout=5)
+        if ax.returncode == 0:
+            env("ok", "accessibility", f"frontmost={ax.stdout.strip()[:30]}")
+        else:
+            env("warn", "accessibility",
+                "System Events refused — grant Accessibility to this terminal")
+            bad += 1
+    except Exception:
+        env("warn", "accessibility", "could not probe System Events")
+        bad += 1
 for name, ok, why in req:
     print(f"  [{'ok' if ok else 'MISSING'}] {name:<13} {why}")
     bad += 0 if ok else 1
@@ -160,10 +199,11 @@ for name, ok, why in opt:
     print(f"  [{'ok' if ok else ' - '}] {name:<13} {why} (optional)")
 
 # session + runtime — injection is X11-only; say so before it fails silently
-def env(tag, name, why): print(f"  [{tag}] {name:<13} {why}")
 sess = os.environ.get("XDG_SESSION_TYPE", "").lower()
 disp = os.environ.get("DISPLAY", "")
-if sess == "wayland":
+if is_mac:
+    env("ok", "session", "macOS (Aqua) — injection via osascript")
+elif sess == "wayland":
     env("warn", "session", "wayland — xdotool/xclip can't inject; log into an X11 session")
     bad += 1
 elif not sess and not disp:

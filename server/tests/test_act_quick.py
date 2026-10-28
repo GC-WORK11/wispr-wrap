@@ -154,9 +154,14 @@ class TestMediaFallback(unittest.TestCase):
         self.sc = sc
         self._w, self._r = sc._which, sc._run
         self._xd = os.environ.get("DISPLAY")
+        # the darwin branches in system_ctl must not preempt the fakes
+        # when this suite runs on a Mac
+        self._plat = sys.platform
+        sys.platform = "linux"
 
     def tearDown(self):
         self.sc._which, self.sc._run = self._w, self._r
+        sys.platform = self._plat
         if self._xd is None:
             os.environ.pop("DISPLAY", None)
         else:

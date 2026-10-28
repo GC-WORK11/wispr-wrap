@@ -52,24 +52,19 @@ await page.type('proof shot', { delay: 30 });
 await scan(page, 'composer');
 await shotTo(page, OUT, '01-composer');
 
-// ---- 2. Teach wizard: record step -------------------------------------------
+// ---- 2. Teach: the one-tap quick-action grid (FOUNDER-SIMPLIFY-1433) ---------
 await page.eval(`location.hash='#teach'`);
 await sleep(1100);
-await page.eval(`document.querySelector('#tw-name').focus()`);
-await page.type('shot check', { delay: 30 });
-await page.eval(`document.querySelector('#tw-name-next').click()`);
-await page.waitFor(`document.querySelector('.tw-step[data-step="record"]').classList.contains('on')`, 20000, 'record step');
-await page.waitFor(`!!window.__clips && !!window.__q`, 10000, 'fake track armed');
-await scan(page, 'teach-record');
-await shotTo(page, OUT, '02-teach-record');
+await page.waitFor(`document.querySelectorAll('.qa-tile').length >= 15`, 15000, 'qa grid');
+const nTiles = await page.eval(`document.querySelectorAll('.qa-tile').length`);
+check('teach grid shows every laptop action', nTiles >= 15, 'tiles=' + nTiles);
+await sleep(900);                                   // theme icons settle
+await scan(page, 'teach-grid');
+await shotTo(page, OUT, '02-teach-grid');
 
-// ---- 3. action grid (the tile sheet) ----------------------------------------
-await page.eval(`document.querySelector('#tw-pick')?.click()`);
-await sleep(1400);
-await scan(page, 'action-grid');
-await shotTo(page, OUT, '03-teach-grid');
-
-// ---- 4. @ picker — app tile grid listing the laptop's real installed apps ---
+// ---- 3. @ picker — the app.open tile opens the real picker ------------------
+await page.eval(`document.querySelector('.qa-tile[data-id="app.open"]')?.click()`);
+await sleep(1600);
 const hasAppRow = await page.eval(`(()=>{
   const tiles=[...document.querySelectorAll('.act-app')];
   if(!tiles.length) return 'no-tiles';
@@ -82,6 +77,17 @@ await scan(page, 'app-picker');
 await shotTo(page, OUT, '04-app-picker');
 await page.eval(`document.querySelector('#act-x')?.click()`);
 await sleep(400);
+
+// ---- 4. record step ---------------------------------------------------------
+await page.eval(`(() => { const i=document.querySelector('#tw-name'); i.value='shot check'; i.dispatchEvent(new Event('input',{bubbles:true})); })()`);
+await page.waitFor(`!document.querySelector('#tw-name-next').disabled`, 8000, 'Record enabled');
+await page.eval(`document.querySelector('#tw-name-next').click()`);
+await page.waitFor(`document.querySelector('.tw-step[data-step="record"]').classList.contains('on')`, 20000, 'record step');
+await page.waitFor(`!!window.__clips && !!window.__q`, 10000, 'fake track armed');
+await scan(page, 'teach-record');
+await shotTo(page, OUT, '04-teach-record');
+await page.eval(`document.querySelector('#tw-x')?.click()`);
+await sleep(500);
 
 // ---- 5. Go Live — control mode, listening ------------------------------------
 await page.eval(`location.hash='#live'`);

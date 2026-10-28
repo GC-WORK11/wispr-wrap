@@ -19,6 +19,7 @@ const { check, finish } = reporter(S, OUT, 'Teach v3 — overlay daemon');
 const { api, sh, sink, sinkHas } = daemon(S);
 
 const GLOSS = 'TYPE-HELLO-SITE';
+const WORDS = 'hello-site-' + Date.now().toString(36);
 const OLD = 'OLD-PATH-SITE';
 
 const openTeach = async (page) => {
@@ -41,21 +42,21 @@ try {
 
   /* ---------- (a) ready-made signs from GET /packs ---------- */
   await openTeach(page);
-  // ready-made signs are plain tiles in the same grid (Hello, Thank you); Namaste is the built-in pause
+  // ready-made signs are plain tiles in the same grid (Hello, I am Govinda); Namaste is the built-in pause
   await page.waitFor(`document.querySelectorAll('.qa-tile').length >= 15`, 12000, 'grid');
   await sleep(900);
   const tileNames = await page.eval(`[...document.querySelectorAll('.qa-tile .qa-l')].map(n => n.textContent)`);
-  check('Hello and Thank you are tiles from the real GET /packs', ['Hello', 'Thank you'].every(t => tileNames.includes(t)), tileNames.slice(-4).join(', '));
+  check('ready-made pack signs are tiles from the real GET /packs', ['Hello', 'Introduce yourself'].every(t => tileNames.includes(t)), tileNames.slice(-4).join(', '));
   check('the start screen shows tile names and one button, nothing else',
     (await visibleText(page, '#sheet-teach')).every(isLabel), (await visibleText(page, '#sheet-teach')).filter(t => !isLabel(t)).join(' | '));
   await shotTo(page, OUT, '01-start');
 
   /* ---------- (b) full Teach: pick action -> 3 takes -> train -> done ---------- */
-  // pick the action with the one-tap grid: the "Type text" tile + the words (one-tap grid)
+  // pick the action with the one-tap grid: the "Type text" tile + the words (FOUNDER-SIMPLIFY-1433)
   await page.waitFor(`document.querySelectorAll('.qa-tile').length >= 15`, 10000, 'quick grid');
   await page.click('.qa-tile[data-id="type.text"]'); await sleep(400);
-  await page.focus('#qa-text-in'); await page.type('hello-from-site'); await sleep(400);
-  check('an action was chosen through the quick grid', await page.eval(`!document.querySelector('#tw-name-next').disabled`), await page.eval(`document.querySelector('#tw-pick-tx').textContent`));
+  await page.focus('#qa-text-in'); await page.type(WORDS); await sleep(400);
+  check('an action was chosen through the quick grid', (await page.eval(`document.querySelector('#tw-pick-tx').textContent`)).includes(WORDS) && await page.eval(`!document.querySelector('#tw-name-next').disabled`), await page.eval(`document.querySelector('#tw-pick-tx').textContent`));
 
   // name it + Record
   await page.focus('#tw-name');
@@ -116,7 +117,6 @@ try {
     await playAndWait(page, 'palm-hold');
     await page.waitFor(`document.querySelector('#lv-badge').classList.contains('listen')`, 15000, 'listening');
   }
-  const before = sink().length;
   await playAndWait(page, 'perform-TYPE-HELLO');
   let matched = false;
   for (let i = 0; i < 60; i++) {
@@ -124,9 +124,9 @@ try {
     if (m.gloss === GLOSS && m.accepted) { matched = true; break; }
     await sleep(250);
   }
-  const landed = await sinkHas(before, 'hello-from-site', 6000);
+  const landed = await sinkHas(0, WORDS, 15000);
   check('immediate use: the just-taught sign fired without a restart', matched || landed, matched ? 'daemon matched it' : 'via sink');
-  check('the text landed in the real SinkEdit editor', landed, 'sink.txt got hello-from-site');
+  check('the text landed in the real SinkEdit editor', landed, 'sink.txt got ' + WORDS);
   await shotTo(page, OUT, '07-live-result');
   // back home
   if (await page.eval(`!!document.querySelector('#lv-x')`)) { await page.click('#lv-x'); await sleep(700); }

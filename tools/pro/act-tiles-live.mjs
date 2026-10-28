@@ -83,19 +83,24 @@ async function perform() {
   const tend = fs_[fs_.length - 1].t_ms;
   for (let i = 1; i <= 40; i++) await feed(ABSENT, tend + i * 66);
   // the act worker lands the result asynchronously — poll last_action
+  let bestLm = null;
   for (let i = 0; i < 30; i++) {
     await sleep(300);
     const st = await api('GET', '/live/state');
     const la = st.json?.last_action;
     const lm = st.json?.last_match;
+    // a trailing segment can overwrite last_match before the worker's
+    // last_action lands — keep the accepted match we actually saw
+    if (lm && lm.gloss === GLOSS && lm.accepted !== false) bestLm = lm;
     if (la && la.t_ms >= t0 && (la.dispatched || la.result)) {
       const pend = (st.json?.pending || []).map(p => p.id || p.confirm_id).filter(Boolean);
-      return { la, lm, pend };
+      return { la, lm: (lm && lm.gloss === GLOSS ? lm : bestLm), pend };
     }
     if (lm && lm.gloss === GLOSS && !la) { /* keep waiting for the worker */ }
   }
   const st = await api('GET', '/live/state');
-  return { la: st.json?.last_action, lm: st.json?.last_match, pend: [] };
+  const lm = st.json?.last_match;
+  return { la: st.json?.last_action, lm: (lm && lm.gloss === GLOSS ? lm : bestLm), pend: [] };
 }
 
 async function bind(tool, args, extra = {}) {
@@ -129,8 +134,8 @@ await loadClips(page, ['teach-OPEN-NOTES']);
 await api('DELETE', '/bank?gloss=' + GLOSS).catch(() => {});
 await page.eval(`location.hash='#teach'`);
 await sleep(1100);
-await page.eval(`document.querySelector('#tw-name').focus()`);
-await page.type('tile proof', { delay: 40 });
+await page.eval(`(() => { const i=document.querySelector('#tw-name'); i.value='tile proof'; i.dispatchEvent(new Event('input',{bubbles:true})); })()`);
+await page.waitFor(`!document.querySelector('#tw-name-next').disabled`, 8000, 'Record enabled');
 await page.eval(`document.querySelector('#tw-name-next').click()`);
 // wait until the wizard really lands on the record step and its tracker is up
 await page.waitFor(`document.querySelector('.tw-step[data-step="record"]').classList.contains('on')`, 20000, 'record step');
@@ -143,16 +148,16 @@ for (let t = 0; t < 3; t++) {
   await sleep(1800);
 }
 await page.shot(path.join(OUT, '01-teach-takes.png'));
-await page.eval(`document.querySelector('#tw-pick')?.click()`);
+await page.eval(`document.querySelector('#tw-pick2')?.click()`);
 await sleep(1400);
 await page.eval(`(()=>{const r=[...document.querySelectorAll('.act-row')].find(r=>/type\\s*text/i.test(r.textContent));const i=r&&r.querySelector('.act-input');if(i){i.value='tile proof typed';i.dispatchEvent(new Event('input',{bubbles:true}))}})()`);
 await page.eval(`(()=>{const r=[...document.querySelectorAll('.act-row')].find(r=>/type\\s*text/i.test(r.textContent));r&&r.querySelector('.act-use')?.click()})()`);
-await sleep(700);
+await page.waitFor(`document.querySelector('#sheet-actions').hidden && !document.querySelector('#tw-save').disabled`, 8000, 'action bound');
 await page.eval(`document.querySelector('#tw-save')?.click()`);
-await sleep(1600);
+await page.waitFor(`document.querySelector('.tw-step[data-step="done"]').classList.contains('on')`, 12000, 'done step');
 const done = await page.eval(`document.querySelector('#tw-done-t')?.textContent || ''`);
 await page.shot(path.join(OUT, '02-teach-done.png'));
-check('sign taught through the real wizard', /is live/i.test(done), done);
+check('sign taught through the real wizard', /ready|is live/i.test(done), done);
 const brow = (await api('GET', '/bank')).json?.signs?.find(s => s.gloss === GLOSS);
 check('taught row in /bank', !!brow, JSON.stringify(brow || {}).slice(0, 100));
 
@@ -198,8 +203,9 @@ setClip('COPY-SENTINEL'); await sleep(400);  // a changed-to-sink-text assert, n
 await leg('edit.copy copies a real selection', 'edit.copy', {}, {}, async ({ matched, fired }) => {
   for (let i = 0; i < 8 && clip() === 'COPY-SENTINEL'; i++) await sleep(300);
   const got = clip();
-  const fromSink = sink().split('\n').map(l => l.trim()).filter(l => l.length > 3 && got.includes(l));
-  return matched && fired && got !== 'COPY-SENTINEL' && fromSink.length > 0;
+  // the selection is any substring of the sink buffer — assert the clipboard
+  // changed off the sentinel AND its content is really sink text
+  return matched && fired && got !== 'COPY-SENTINEL' && got.trim().length >= 4 && sink().includes(got);
 }, SINKW);
 
 // paste: stage the clipboard, ctrl+v must land in the sink. Sentinel is

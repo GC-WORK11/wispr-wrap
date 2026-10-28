@@ -37,9 +37,14 @@ class TestLanIp(unittest.TestCase):
             f.write("cat <<'EOF'\n" + FAKE_IP_OUT + "EOF\n")
         os.chmod(ipstub, 0o755)
         os.environ["PATH"] = self.tmp + os.pathsep + self._path
+        # these tests exercise the Linux `ip` parser — the darwin
+        # all_ips branch must not preempt the stub on a Mac
+        self._plat = sys.platform
+        sys.platform = "linux"
 
     def tearDown(self):
         os.environ["PATH"] = self._path
+        sys.platform = self._plat
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def test_filters_unreachables(self):
@@ -98,8 +103,9 @@ class TestPortFallback(unittest.TestCase):
 
 
 class TestDetachAndFootprint(unittest.TestCase):
-    """A daemon launched under setsid lives in its own session (the CLI /
-    terminal can die without it), answers on the LAN IP, and stays under
+    """A daemon launched in its own session (start_new_session — the same
+    property setsid gives `wrap start` on Linux and nohup+& on macOS) can
+    outlive the CLI / terminal, answers on the LAN IP, and stays under
     the 80 MB idle bar. Real process, real sockets — a slow test."""
 
     PORT = 0
@@ -114,9 +120,8 @@ class TestDetachAndFootprint(unittest.TestCase):
         env["HOME"] = cls.tmp          # fresh key, bank, config in tmp
         srvdir = os.path.join(os.path.dirname(__file__), "..")
         cls.proc = subprocess.Popen(
-            ["setsid", "-f", sys.executable,
-             os.path.join(srvdir, "wfd.py")],
-            env=env, cwd=srvdir,
+            [sys.executable, os.path.join(srvdir, "wfd.py")],
+            env=env, cwd=srvdir, start_new_session=True,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL)
         # wait for health
@@ -133,11 +138,6 @@ class TestDetachAndFootprint(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         try:
-            pid = cls._daemon_pid(cls)
-            os.kill(pid, signal.SIGTERM)
-        except Exception:
-            pass
-        try:
             cls.proc.terminate()
         except Exception:
             pass
@@ -149,24 +149,30 @@ class TestDetachAndFootprint(unittest.TestCase):
             return r.status
 
     def _daemon_pid(self):
-        # setsid -f forks: Popen.pid is the short-lived launcher, the daemon
-        # is the wfd.py child in its new session.
-        out = subprocess.run(["pgrep", "-f", "wfd.py"],
-                             capture_output=True, text=True).stdout.split()
-        mine = []
-        for p in out:
-            try:
-                with open(f"/proc/{p}/environ", "rb") as ef:
-                    if f"WF_PORT={self.PORT}".encode() in ef.read():
-                        mine.append(int(p))
-            except OSError:
-                continue
-        self.assertTrue(mine, "no daemon process with our WF_PORT")
-        return mine[0]
+        # The daemon is the python process holding our port. lsof works on
+        # Linux and macOS alike (no /proc needed); pgrep -f is the fallback.
+        try:
+            out = subprocess.run(
+                ["lsof", "-ti", "tcp:%d" % self.PORT, "-sTCP:LISTEN"],
+                capture_output=True, text=True, timeout=10).stdout.split()
+            if out:
+                return int(out[0])
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        try:
+            out = subprocess.run(["pgrep", "-f", "wfd.py"],
+                                 capture_output=True, text=True,
+                                 timeout=10).stdout.split()
+            for p in out:
+                if int(p) == self.proc.pid:
+                    return int(p)
+        except (OSError, subprocess.TimeoutExpired, ValueError):
+            pass
+        self.fail("no daemon process with our WF_PORT")
 
     def test_own_session_survives_parent_death(self):
-        # setsid: the daemon is a session leader — a SIGHUP to the dead
-        # terminal's process group can never reach it.
+        # own session leader — a SIGHUP to a dead terminal's process group
+        # can never reach it.
         pid = self._daemon_pid()
         self.assertEqual(os.getsid(pid), pid,
                          "daemon must be its own session leader")
@@ -180,11 +186,12 @@ class TestDetachAndFootprint(unittest.TestCase):
         self.assertEqual(self._health(ip), 200)
 
     def test_idle_rss_under_80mb(self):
-        rss_kb = 0
-        with open(f"/proc/{self._daemon_pid()}/status") as f:
-            for line in f:
-                if line.startswith("VmRSS"):
-                    rss_kb = int(line.split()[1])
+        # `ps -o rss` is the same KB figure on Linux and macOS.
+        out = subprocess.run(["ps", "-o", "rss=", "-p",
+                              str(self._daemon_pid())],
+                             capture_output=True, text=True,
+                             timeout=10).stdout.strip()
+        rss_kb = int(out.split()[-1])
         mb = rss_kb / 1024
         # write the measurement to proofs (kept on record)
         proofs = os.path.join(os.path.dirname(__file__), "..", "..",
