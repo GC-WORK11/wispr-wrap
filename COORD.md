@@ -80,3 +80,20 @@ measured offset — systematic), best-last_match in act-tiles polling
 copy assert accepts any sink substring. act-tiles-live 27/27 re-green
 on the v3 wizard (eval-set compat name, #tw-pick2, Ready done text).
 shots-390 reshot: 22 tiles, all views clean. 282 unit tests green.
+
+## 2026-10-28 — Go Live v3 + air gestures (devin-pro/app 60e41ab)
+
+MAX: merge 60e41ab into devin/live-merge. Ports the merged Go Live
+(live.js/live.css — simplified overlays per SIMPLIFY-1433) + the
+gesture layer that was dead code here (hand.js 481 + handlines.js 595,
+verbatim) + the wfd section-A handlers for /live/event: air-letter
+(AIR-C->Chrome, AIR-V->YouTube, commands.tsv AIR-* overrides, through
+route_gloss so tier-2 gates identically), scroll/pointer/click ->
+xdotool. flow-air.mjs synced from the dr-test fixes (pinch enters
+browse/palm exits, API-taught sign, unique per-run text, whole-file
+sink check, bank cleared at start) + the 6 gesture clips.
+
+Real-run :103: flow-air 9/9, act-tiles 27/27, flow-teach 21/21,
+shots-390 7/7, 282 tests. Env caveat that keeps biting: a live
+proof Chrome's tracker steals TEACH.session — kill remote-debugging
+Chromes between drivers.
