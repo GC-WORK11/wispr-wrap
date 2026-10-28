@@ -1,5 +1,5 @@
 // handlines.js — live hand-line canvas renderer for the Go Live view.
-// Pure ES module, no deps.
+// FOUNDER-SPEC-1229 §A. Pure ES module, no deps.
 //
 // Brand: white lines over the camera feed, ONE lotus-pink accent (#FF309C /
 // shade #F12F92). Light, premium, calm — no neon, no heavy glow, no blue.
@@ -8,8 +8,7 @@
 // space (already mirrored), relative to the VIDEO frame. We map them onto the
 // canvas like CSS `object-fit: cover` of the video element.
 
-const PINK = '#F12F92';      // brand pink (shade)
-let INK = '#ffffff';           // line colour: white over camera, ink over the light replay stage
+const PINK = '#F12F92';      // FOUNDER-COLOR-1658 lotus pink (shade)
 const PINK_HI = '#FF309C';   // lotus pink
 
 const BONES = [
@@ -354,7 +353,7 @@ export function createHandLines(canvas) {
     ctx.lineJoin = 'round';
 
     // bones — 1.25px white, alpha 0.82
-    ctx.strokeStyle = INK;
+    ctx.strokeStyle = '#ffffff';
     ctx.globalAlpha = 0.82 * alpha;
     ctx.lineWidth = 1.25;
     ctx.beginPath();
@@ -369,7 +368,7 @@ export function createHandLines(canvas) {
     drawIndexTrail(alpha, t);
 
     // joints — 2.2px dots alpha 0.9
-    ctx.fillStyle = INK;
+    ctx.fillStyle = '#ffffff';
     ctx.globalAlpha = 0.9 * alpha;
     for (let i = 0; i < 21; i++) {
       const r = TIPS.indexOf(i) >= 0 ? 3 : 2.2; // fingertips 3px
@@ -380,7 +379,7 @@ export function createHandLines(canvas) {
 
     // index fingertip soft ring (radius 7px, alpha 0.35)
     ctx.globalAlpha = 0.35 * alpha;
-    ctx.strokeStyle = INK;
+    ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.arc(px[INDEX_TIP], py[INDEX_TIP], 7, 0, Math.PI * 2);
@@ -392,7 +391,7 @@ export function createHandLines(canvas) {
   function drawIndexTrail(alpha, t) {
     if (trLen < 2) return;
     ctx.lineCap = 'round';
-    ctx.strokeStyle = INK;
+    ctx.strokeStyle = '#ffffff';
     // oldest -> newest; alpha and width taper up toward newest
     // iterate ring buffer in chronological order
     let prevX = NaN, prevY = NaN;
@@ -419,7 +418,7 @@ export function createHandLines(canvas) {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.lineWidth = 2;
-    ctx.strokeStyle = INK;
+    ctx.strokeStyle = '#ffffff';
     const n = pts.length;
     const freshFrom = Math.floor(n * 0.75); // newest ~25%
     // older portion: fade toward 0.35
@@ -458,7 +457,7 @@ export function createHandLines(canvas) {
       ctx.lineWidth = 2;
       // white ahead
       ctx.globalAlpha = 1;
-      ctx.strokeStyle = INK;
+      ctx.strokeStyle = '#ffffff';
       ctx.beginPath();
       strokeSmooth(src);
       ctx.stroke();
@@ -517,7 +516,7 @@ export function createHandLines(canvas) {
       ctx.translate(cx, cy);
       ctx.scale(scale, scale);
       ctx.globalAlpha = p;
-      ctx.fillStyle = INK;
+      ctx.fillStyle = '#ffffff';
       ctx.font = `600 ${size}px Inter, system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -543,13 +542,13 @@ export function createHandLines(canvas) {
     ctx.lineCap = 'round';
     // 14px white ring (1.5px line)
     ctx.globalAlpha = 1;
-    ctx.strokeStyle = INK;
+    ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.arc(c.x, c.y, 7, 0, Math.PI * 2);
     ctx.stroke();
     // 3px centre dot
-    ctx.fillStyle = INK;
+    ctx.fillStyle = '#ffffff';
     ctx.beginPath();
     ctx.arc(c.x, c.y, 1.5, 0, Math.PI * 2);
     ctx.fill();
@@ -573,7 +572,7 @@ export function createHandLines(canvas) {
       const p = ms / 380;
       const rad = lerp(14, 34, ease(p));
       ctx.globalAlpha = (1 - p);
-      ctx.strokeStyle = INK;
+      ctx.strokeStyle = '#ffffff';
       ctx.beginPath();
       ctx.arc(r.x, r.y, rad, 0, Math.PI * 2);
       ctx.stroke();
@@ -585,7 +584,6 @@ export function createHandLines(canvas) {
     setVideo,
     setHand,
     setInk,
-    setInkColor(c) { INK = c || '#ffffff'; },
     ignite,
     setCursor,
     pulse,

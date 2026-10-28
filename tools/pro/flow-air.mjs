@@ -15,6 +15,7 @@ import fs from 'node:fs';
 
 const S = stack(process.env.SITE_ENV || '/tmp/wf-rr-pro/env');
 const OUT = path.join(root, 'proofs/ui-v2/air');
+const WORDS = 'hello-air-' + Date.now().toString(36);
 const { check, finish } = reporter(S, OUT, 'section A — air letters, scroll, custom sign');
 const { api } = daemon(S);
 const sink = () => fs.readFileSync(S.SINK, 'utf8');
@@ -37,13 +38,17 @@ const focusSink = () => {
   for (let i = 0; i < 4; i++) {
     sh('wmctrl', ['-i', '-a', String(S.TERM_WID)], { env: X });
     sleep(500);
-    try { return requireFocus(/sink|wispr-wrap-merge-term/); } catch (e) { if (i === 3) throw e; }
+    try { return requireFocus(new RegExp('sink|' + (S.TAG || 'wispr-wrap') + '-(term|sink)')); } catch (e) { if (i === 3) throw e; }
   }
 };
 const deskShot = (name) => {
   try { sh('ffmpeg', ['-y', '-f', 'x11grab', '-video_size', '1280x800', '-i', S.D, '-frames:v', '1', path.join(OUT, name + '.png')], { env: X, stdio: 'ignore' }); return true; }
   catch { return false; }
 };
+
+// scratch daemon: start from an empty bank (the proof signs reuse the same
+// synthetic motion, so an older sign with that motion would correctly win)
+for (const row of (((await api('GET', '/bank')).json || {}).signs || [])) await api('DELETE', '/bank?gloss=' + encodeURIComponent(row.gloss));
 
 const page = await newPage(S, { cdpPort: Number(process.env.SITE_CDP || 9144) });
 try {
@@ -134,7 +139,7 @@ try {
   // wizard drives), bound to a type.text tile action, then perform it live.
   let tr = await post('/teach/begin', {
     name: 'AIR-TILE', takes: 2, label: 'type hello', session: 'air',
-    action: { kind: 'builtin', tool: 'type.text', args: { text: 'hello-from-site' }, tier: 1 },
+    action: { kind: 'builtin', tool: 'type.text', args: { text: WORDS }, tier: 1 },
   });
   check('teach begin accepted (tile action bound)', tr.status === 200 && tr.json && tr.json.ok === true, JSON.stringify(tr.json || {}).slice(0, 80));
   const teachFrames = JSON.parse(fs.readFileSync(
@@ -157,7 +162,7 @@ try {
   await page.waitFor(`document.querySelector('#lv-badge').classList.contains('listen')`, 15000, 'listening');
   await playAndWait(page, 'perform-TYPE-HELLO');
   await sleep(1500);
-  check('taught sign fired its action immediately', /hello-from-site/i.test(sink().slice(before)), sink().slice(before).slice(-60));
+  check('taught sign fired its action immediately', sink().includes(WORDS), sink().slice(-80));
   await shotTo(page, OUT, '07-sign-fired');
   await playAndWait(page, 'namaste'); await sleep(400);
 } finally {

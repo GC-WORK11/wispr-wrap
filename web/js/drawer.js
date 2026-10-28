@@ -1,12 +1,12 @@
-// drawer.js — sidebar gating.
-// The drawer frame (#drawer, #menu, #scrim, row markup) and App.drawer
-// live elsewhere; this module only decides what the rows MEAN right now:
+// drawer.js — PRO lane: sidebar gating (FOUNDER-UI-SPEC-1026 §3).
+// PEAK owns the drawer frame (#drawer, #menu, #scrim, row markup) and
+// App.drawer. This module only decides what the rows MEAN right now:
 // nothing laptop-powered is offered while no laptop is connected —
 // the sidebar leads with one simple "Connect your laptop" row instead.
 import { App } from './app.js';
 
 const nav = App.drawer && App.drawer.nav;
-if (nav) {
+if (nav && !document.getElementById('dr-connect')) {   // PEAK's frame already has the single "Connect your laptop" row
   // the connect call-to-action — inserted above the nav rows, only while
   // the laptop link is down. Tapping it opens the Laptop page, which
   // carries the code entry.

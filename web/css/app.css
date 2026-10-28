@@ -1,10 +1,10 @@
-/* Sign-Flow — design tokens + shell. LIGHT, professional, mobile-first.
+/* Wispr Wrap — design tokens + shell. LIGHT, professional, mobile-first.
    Off-white page, near-black ink, ONE deep-pink accent (the lotus). Primary
    buttons are ink, like the Go Live button; pink marks selection, progress
    and the flower. No glow, no decorative gradients, no capsules or boxed
    cards. Sheets in the lane css files only consume these tokens. */
 :root {
-  /* Brand palette: sampled from the design reference */
+  /* FOUNDER-COLOR-1658: palette sampled from the founder's reference */
   --bg: #fcfcfc;
   --surface: #ffffff;
   --surface-2: #eeeef0;
@@ -237,7 +237,7 @@ body.sheet-open .top { display: none; }
   *, *::before, *::after { animation-duration: .001s !important; animation-iteration-count: 1 !important; transition-duration: .001s !important; }
 }
 
-/* No helper text or secondary labels on screen. They stay in the DOM for screen readers only. */
+/* FOUNDER-RULE-1652: no helper text or secondary labels on screen. They stay in the DOM for screen readers only. */
 .dr-item .dr-sub, .dr-count { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .onb-field { position: relative; display: block; width: 100%; }
 .onb-field svg { position: absolute; left: 20px; top: 50%; width: 24px; height: 24px; transform: translateY(-50%); color: var(--muted); pointer-events: none; }

@@ -1,12 +1,13 @@
-/* compose.css — the composer, matched to the reference design:
+/* compose.css — the composer, matched to the founder's composer-target.jpg:
    a round + , a white pill input, and a BLACK waveform button inside the pill
    at the right (Go Live). No mic icon (Wispr Flow does voice). When there is
    text or an attachment the waveform gives way to the send arrow, same slot,
    same black. Light, flat, hairline borders. Tokens from app.css. */
 
-.stage { padding-bottom: calc(var(--safe-b) + clamp(30px, 5.2dvh, 56px)); }
+.stage { padding: 0 20px calc(var(--safe-b) + clamp(14px, 2.4dvh, 22px)); }
 
-.conn-hint {
+.conn-hint {   /* founder 1652: no caption under the lotus — the wilted lotus and the drawer row carry it */
+  display: none !important;
   appearance: none; border: none; background: none; cursor: pointer;
   display: flex; align-items: center; gap: 8px; margin: 0 0 14px; padding: 6px 10px;
   font: inherit; font-size: 14px; color: var(--muted-2); border-radius: 10px; background: var(--bg);
@@ -15,54 +16,69 @@
 .conn-hint i { width: 8px; height: 8px; border-radius: 50%; border: 1.6px solid var(--muted); }
 .conn-hint:hover { color: var(--ink); }
 
-.composer { position: relative; width: 100%; max-width: 560px; display: flex; align-items: flex-end; gap: 10px; transition: transform var(--t-2) var(--ease-out); }
+.composer { position: relative; width: 100%; max-width: 560px; display: flex; align-items: flex-end; gap: 12px; transition: transform var(--t-2) var(--ease-out); }
 
 .plusbtn {
-  flex: none; width: 52px; height: 52px; border-radius: 50%; cursor: pointer;
-  background: var(--surface); border: 1px solid var(--hairline); color: var(--ink);
-  display: grid; place-items: center; box-shadow: var(--sh-1);
+  flex: none; width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
+  background: var(--surface); border: 0; color: var(--ink);
+  display: grid; place-items: center; box-shadow: 0 0 0 1px var(--hairline), var(--sh-1);
   transition: transform var(--t-1) var(--ease-out), background var(--t-1), box-shadow var(--t-2);
 }
-.plusbtn svg { width: 22px; height: 22px; }
-.plusbtn:hover { background: var(--hairline-2); }
+.plusbtn svg { width: 20px; height: 20px; }
+.plusbtn:hover { box-shadow: 0 0 0 1px var(--hairline), var(--sh-2); }
 .plusbtn:active { transform: scale(.92); }
 .plusbtn[aria-expanded="true"] svg { transform: rotate(45deg); }
 .plusbtn svg { transition: transform var(--t-2) var(--ease-spring); }
 
 .pill {
   position: relative; flex: 1; min-width: 0;
-  background: var(--surface); border: 1px solid var(--hairline); border-radius: 26px;
-  box-shadow: var(--sh-1); padding: 0 7px 0 20px;
+  background: var(--surface); border: 0; border-radius: 22px;
+  box-shadow: 0 0 0 1px var(--hairline), var(--sh-1); padding: 0 6px 0 18px;
   transition: box-shadow var(--t-2) var(--ease-out), border-color var(--t-1);
 }
-.pill:focus-within { border-color: #d3d0cd; box-shadow: var(--sh-2); }
+.pill:focus-within { box-shadow: 0 0 0 1px #dedede, var(--sh-2); }
+
+/* upload progress: a thin 2px deep-pink line along the bottom edge of the pill.
+   no box, no capsule — width tracks --up (0..1) set by compose.js. */
+.pill.uploading::after {
+  content: ""; position: absolute; left: 0; bottom: 0; height: 2px;
+  width: calc(var(--up, 0) * 100%); max-width: 100%;
+  background: var(--accent); border-radius: 0 2px 2px 0;
+  transition: width .18s linear; pointer-events: none;
+}
 .row { display: flex; align-items: flex-end; gap: 8px; width: 100%; }
 
 #box {
-  flex: 1; min-width: 0; min-height: 50px; max-height: 150px;
+  flex: 1; min-width: 0; min-height: 42px; max-height: 150px;
   background: transparent; border: none; outline: none; resize: none;
-  font: inherit; font-size: 18px; line-height: 24px; letter-spacing: -.01em; color: var(--ink);
-  caret-color: var(--accent); padding: 13px 0; overflow-y: hidden;
+  font: inherit; font-size: 17px; line-height: 22px; letter-spacing: -.01em; color: var(--ink);
+  caret-color: var(--accent); padding: 10px 0; overflow-y: hidden;
 }
-#box::placeholder { color: #b9b9b9; }
+#box::placeholder { color: var(--muted-2); }
 #box::-webkit-scrollbar { width: 6px; }
 #box::-webkit-scrollbar-thumb { background: var(--hairline); border-radius: 3px; }
 
-/* the two buttons share one slot */
-.act { position: relative; flex: none; width: 46px; height: 36px; margin: 7px 0; }
-.live-btn, .go {
-  position: absolute; inset: 0; border: none; cursor: pointer; border-radius: 18px;
-  background: var(--ink); color: #fff; display: grid; place-items: center;
-  transition: opacity var(--t-2) var(--ease-out), transform var(--t-2) var(--ease-spring), background var(--t-1);
+/* the black pill: Go Live (waveform) <-> send (arrow). One shape, one icon; the bars flow into the arrow. */
+.act {
+  position: relative; flex: none; width: 38px; height: 30px; margin: 6px 0; border-radius: 15px;
+  background: #000; color: #fff; will-change: transform;   /* its own layer from the start: no placeholder flash on the first animated frame */
+  transition: transform .38s var(--ease-spring), background var(--t-1);
 }
-.live-btn svg { width: 22px; height: 22px; }
-.go svg { width: 19px; height: 19px; }
-.live-btn:hover, .go:hover { background: #2b2b2b; }
-.live-btn:active, .go:active { transform: scale(.92); }
-.go { opacity: 0; transform: scale(.55); pointer-events: none; }
-.pill.ready .go { opacity: 1; transform: none; pointer-events: auto; }
-.pill.ready .live-btn { opacity: 0; transform: scale(.55); pointer-events: none; }
-.go:disabled { opacity: .35; }
+.act:active { transform: scale(.93); }
+.act.act-popping { animation: act-pop .44s var(--ease-spring); }
+@keyframes act-pop { 0% { transform: scale(.86); } 55% { transform: scale(1.07); } 100% { transform: scale(1); } }
+.live-btn, .go { position: absolute; inset: 0; border: 0; padding: 0; background: transparent; border-radius: inherit; cursor: pointer; color: inherit; }
+.live-btn::after, .go::after { content: ""; position: absolute; inset: -9px -6px; }          /* >= 48px hit area */
+.pill.ready .live-btn, .pill:not(.ready) .go { pointer-events: none; }
+.act-ico { position: absolute; left: 9px; top: 5px; width: 20px; height: 20px; pointer-events: none; overflow: visible; }
+.act-ico line { transform-box: fill-box; transform-origin: center; transition: transform .46s var(--ease-spring), opacity .28s ease; }
+/* waveform -> arrow: the middle bar becomes the shaft, the two outer bars lean into the wings, the other two melt into the shaft */
+.pill.ready .act-ico .b3 { transform: translate(-.5px, 0) scaleY(.875); }
+.pill.ready .act-ico .b1 { transform: translate(3.58px, -3.08px) rotate(45deg) scaleY(2.175); }   /* wings stop 1.2 short of the tip: their round caps meet it, no overshoot */
+.pill.ready .act-ico .b5 { transform: translate(-4.58px, -3.08px) rotate(-45deg) scaleY(2.9); }
+.pill.ready .act-ico .b2 { transform: translate(3.5px, 0) scaleY(.2); opacity: 0; }
+.pill.ready .act-ico .b4 { transform: translate(-4.5px, 0) scaleY(.2); opacity: 0; }
+.go:disabled { opacity: .5; }
 
 /* ---------- attachment, shown inside the pill above the text ---------- */
 .attach {
@@ -116,9 +132,9 @@
 
 /* ---------- toast: one quiet line under the pill ---------- */
 .toast {
-  position: absolute; left: 0; right: 0; top: calc(100% + 8px); text-align: center; pointer-events: none;
+  position: absolute; left: 0; right: 0; bottom: calc(100% + 12px); text-align: center; pointer-events: none;
   font-size: 13px; color: var(--muted-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 12px;
-  opacity: 0; transform: translateY(-4px); transition: opacity var(--t-2), transform var(--t-2);
+  opacity: 0; transform: translateY(4px); transition: opacity var(--t-2), transform var(--t-2);
 }
 .toast.show { opacity: 1; transform: none; }
 .toast.err { color: var(--danger); }
@@ -132,6 +148,11 @@
 @media (min-width: 721px) {
   .composer { max-width: 620px; }
 }
+
+/* tap targets: the look follows composer-target.jpg (44px), the hit areas are >= 48px */
+.plusbtn::after { content: ""; position: absolute; inset: -2px; border-radius: 50%; }
+.plusbtn { position: relative; }
+.live-btn::after, .go::after { content: ""; position: absolute; inset: -9px -6px; }
 
 /* ---------- @ target window ---------- */
 .tchip {

@@ -25,7 +25,7 @@ let bloom = 0, charge = 0, burstAt = -99, online = true, paused = false;   // bl
 const RM = matchMedia('(prefers-reduced-motion: reduce)');
 
 // five tonal layers, deep -> light (css --r0..--r4). A cell's tone comes from depth: the core is deepest, outlines strong,
-// fills soften toward the rim, the back petals and veins are the lightest. Offline shifts everything one step lighter.
+// fills soften toward the rim, the back petals and veins are the lightest. Asleep (offline) shifts everything one step lighter.
 const NT = 5;
 let off = 0;
 const put = (i, l, ch, tone) => {

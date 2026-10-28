@@ -29,6 +29,60 @@ tools/site, tests/, cloud/, capture scripts; sign-wrap identity fixed in
 PRO's new package.json/wrap launchers/JUDGE_PATH clone line) → pushed
 `9be3228` to private. devin/live-merge pushed `84cafb8`.
 
+## 2026-10-28 — Go Live v3 + air gestures (merged head, both ports identical)
+
+MAX: merge the current head into devin/live-merge. Two ports of the
+same merged Go Live landed in parallel (60e41ab here, 9c4c19c by the
+parallel agent) — byte-identical outside COORD.md; merged, both logs
+kept. Ports the merged Go Live (live.js/live.css — simplified overlays
+per SIMPLIFY-1433) + the gesture layer that was dead code here
+(hand.js 481 + handlines.js 595, verbatim) + the wfd section-A
+handlers for /live/event: air-letter (AIR-C->Chrome, AIR-V->YouTube,
+commands.tsv AIR-* overrides, through route_gloss so tier-2 gates
+identically), scroll/pointer/click -> xdotool. flow-air.mjs synced
+from the dr-test fixes (pinch enters browse/palm exits, API-taught
+sign, unique per-run text, whole-file sink check, bank cleared at
+start) + the 6 gesture clips.
+
+Real-run :103: flow-air 9/9, act-tiles 27/27, flow-teach 21/21,
+shots-390 7/7, 282 tests. Env caveat that keeps biting: a live
+proof Chrome's tracker steals TEACH.session — kill remote-debugging
+Chromes between drivers.
+
+## 2026-10-28 — Every-screen simplify pass (devin-pro/app 01816b4)
+
+MAX: merge 01816b4. The rest of FOUNDER-SIMPLIFY-1433 — ported PEAK's
+shell to pro's surfaces: boot splash (boot.js/css), five-tone lotus
+(flower.js + f3/f4 layers), morphing waveform->send-arrow act pill,
+upload progress + cancel (App.api.upload XHR), calm drawer (single
+Connect row when unpaired, no footer), laptop hero page, dev-gated
+settings row, flat library rows (tap to open), quiet toast (visible
+only on errors), deep-link bounce for laptop-only routes. Kept pro's
+@ window targeting (re-applied into merge's compose.js; .tchip/win-*
+styles re-added). v3 act picker now shows real installed-app icons.
+Rebrand kept: "Sign-Flow". Skipped merge-only sheets (panes/packs —
+retired/placeholders upstream).
+
+Gates on :103: shots-390 7/7, flow-teach 21/21, act-tiles 27/27,
+282 unit tests.
+
+## 2026-10-28 — SPEC-1229 B1 pack + native-send proofs (head below)
+
+MAX: merge the current head. "I am Govinda" is now the third prefilled
+pack (was `intro`: gloss I-AM-GOVINDA, types "I am Govinda") — pack
+tiles in the Teach grid read Hello / Namaste(built-in) / I am Govinda.
+demo-ready.mjs updated for the PEAK shell + hardened (creates its own
+photo/clip fixtures, whole-bank wipe so replay clips can't be matched
+by stale signs, unique per-run sentinels, focus the sink AFTER the
+live sheet opens since sheet-open steals X focus to the browser,
+wf-uploads file assertion). shots-390 gained the sidebar-open leg
+(1026 §3 proof).
+
+Real-run :103: demo-ready 13/13 (pair -> @ window pick -> text/image
+/file sends real end to end incl. pasted path + real wf-uploads file,
+teach wizard -> Go Live fires bound type.text), shots-390 9/9,
+flow-teach 21/21, 282 unit tests.
+
 ## 2026-10-27 — /act + @ picking on macOS/Windows (devin-pro/app b560574)
 
 Cross-platform action layer, pushed to private `devin-pro/app` at `b560574`

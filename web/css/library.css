@@ -118,7 +118,7 @@
   .lib-b { padding: 8px 12px; }
 }
 
-/* ---- v2 (spec): a flat list on paper. No cards, no capsule buttons,
+/* ---- v2 (founder spec): a flat list on paper. No cards, no capsule buttons,
    no internal gloss chip. PEAK's pass so the page is clean until PRO's rewrite lands. ---- */
 #lib-list { gap: 0; }
 .lib-card { background: transparent; border: 0; border-top: 1px solid var(--hairline-2); border-radius: 0; box-shadow: none; padding: 18px 2px 12px; }
@@ -147,7 +147,7 @@
 .lib-empty-g svg { width: 46px; height: 46px; }
 .lib-act .chip.accent { display: none; }
 
-/* A sign is its name. Counts, summaries and sub-labels are not drawn. */
+/* FOUNDER-RULE-1652: a sign is its name. Counts, summaries and sub-labels are not drawn. */
 .lib-count, #lib-count, .sheet-head .sub { display: none; }
 .lib-top .chip, .lib-act { display: none; }
 .lib-top { min-height: 56px; }

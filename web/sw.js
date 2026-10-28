@@ -12,7 +12,7 @@
  *   API/auth  network-only, never cached (keypoint/bank data must not persist)
  *   everything else same-origin: stale-while-revalidate
  */
-const VERSION = "wf-shell-v35-signflow";
+const VERSION = "wf-shell-v36-signflow";
 const CACHE = `signflow-${VERSION}`;
 
 const SHELL = [
@@ -21,15 +21,12 @@ const SHELL = [
   "/apple-touch-icon.png",
   // merged module app — every lane lives under js/ + css/
   "/css/app.css", "/css/compose.css", "/css/live.css", "/css/teach.css",
-  "/css/actions.css", "/css/macro.css", "/css/library.css", "/css/panes.css",
-  "/js/app.js", "/js/flower.js", "/js/compose.js", "/js/pose.js", "/js/kp-pack.js", "/js/skeleton.js",
-  "/js/live.js", "/js/hand.js", "/js/handlines.js", "/js/actions.js", "/js/macro.js", "/js/teach.js",
-  "/js/library.js", "/js/panes.js",
-  "/js/laptop.js", "/js/settings.js", "/js/contribute.js", "/js/drawer.js", "/css/drawer.css",
-  "/js/sound.js",
-  // BOOT stage: loading screen + sound + packs shell files; sfx.js is SITE's
-  // boot-stage cues, quick.js is the one-tap actions grid (teach.js)
-  "/css/boot.css", "/css/packs.css", "/js/boot.js", "/js/sfx.js", "/js/packs.js", "/js/quick.js"
+  "/css/actions.css", "/css/macro.css", "/css/library.css",
+  "/css/drawer.css", "/css/boot.css",
+  "/js/app.js", "/js/flower.js", "/js/compose.js", "/js/pose.js", "/js/skeleton.js",
+  "/js/live.js", "/js/hand.js", "/js/handlines.js", "/js/actions.js", "/js/macro.js",
+  "/js/teach.js", "/js/quick.js", "/js/boot.js", "/js/sound.js", "/js/sfx.js",
+  "/js/library.js", "/js/laptop.js", "/js/settings.js", "/js/drawer.js"
 ];
 const VENDOR = [
   "/vendor/mediapipe/vision_bundle.mjs",

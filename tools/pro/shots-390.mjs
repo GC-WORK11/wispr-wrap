@@ -52,6 +52,17 @@ await page.type('proof shot', { delay: 30 });
 await scan(page, 'composer');
 await shotTo(page, OUT, '01-composer');
 
+// ---- 1b. hamburger sidebar (FOUNDER-UI-SPEC-1026 §3 proof) -------------------
+await page.eval(`document.querySelector('#menu')?.click()`);
+await page.waitFor(`document.querySelector('#drawer').classList.contains('open')`, 8000, 'drawer open');
+await sleep(450);
+const drRows = await page.eval(`[...document.querySelectorAll('#drawer-nav .dr-item')].filter(r=>!r.hidden).length`);
+check('sidebar shows its rows', drRows >= 3, 'rows=' + drRows);
+await scan(page, 'sidebar');
+await shotTo(page, OUT, '01b-sidebar');
+await page.eval(`document.querySelector('#dr-close')?.click()`);
+await sleep(400);
+
 // ---- 2. Teach: the one-tap quick-action grid (FOUNDER-SIMPLIFY-1433) ---------
 await page.eval(`location.hash='#teach'`);
 await sleep(1100);
@@ -66,10 +77,11 @@ await shotTo(page, OUT, '02-teach-grid');
 await page.eval(`document.querySelector('.qa-tile[data-id="app.open"]')?.click()`);
 await sleep(1600);
 const hasAppRow = await page.eval(`(()=>{
-  const tiles=[...document.querySelectorAll('.act-app')];
-  if(!tiles.length) return 'no-tiles';
-  const names=tiles.map(t=>t.textContent.trim()).filter(Boolean);
-  return 'apps:'+names.slice(0,4).join(',');
+  const apps=[...document.querySelectorAll('.act-app')];
+  if(!apps.length) return 'no-apps';
+  const r=apps[1]||apps[0];
+  r.scrollIntoView();
+  return 'apps:'+apps.slice(0,4).map(x=>x.textContent.trim()).join(',');
 })()`);
 check('@ picker lists installed apps', /^apps:.+/.test(hasAppRow || ''), hasAppRow);
 await sleep(500);

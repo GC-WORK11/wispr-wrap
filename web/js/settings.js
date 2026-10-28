@@ -1,9 +1,8 @@
-// settings.js — the Settings page (#/settings).
+// settings.js — PRO lane: the Settings page (#/settings).
 // Only what is real and local to this phone. No account, no cloud,
 // nothing that pretends to configure the laptop — that all lives on
 // the laptop itself.
 import { App } from './app.js';
-import { Contribute } from './contribute.js';
 
 const sheet = App.el.sheetSettings;
 if (!sheet) throw new Error('settings: #sheet-settings missing');
@@ -21,7 +20,7 @@ sheet.innerHTML = `
       <input type="checkbox" id="st-vibrate" class="st-sw">
     </label>
     ${devMode ? `<label class="st-row">
-      <span class="st-t">Replayed gestures</span>
+      <span class="st-t">Replayed gestures<span class="st-s">For demos and recordings only — hands move themselves</span></span>
       <input type="checkbox" id="st-replay" class="st-sw">
     </label>` : ''}
   </div>`;
@@ -36,19 +35,6 @@ const buzzReal = App.buzz;
 App.buzz = () => { if (App.store.getItem('wfvib') !== '0') buzzReal(); };
 vib.checked = App.store.getItem('wfvib') !== '0';
 vib.onchange = () => App.store.setItem('wfvib', vib.checked ? '1' : '0');
-
-// training samples (beta) — off by default; turning it off deletes the
-// local queue and the random id (contribute.js)
-const share = sheet.querySelector('#st-share'),
-      shareNote = sheet.querySelector('#st-share-note');
-if (share) {
-  share.checked = !!Contribute && Contribute.enabled();
-  shareNote.hidden = !share.checked;
-  share.onchange = () => {
-    if (Contribute) Contribute.setEnabled(share.checked);
-    shareNote.hidden = !share.checked;
-  };
-}
 
 // replay seam — the same flag pose.js checks; needs ?replay once or this
 // toggle. Honest label, off by default, judges never see it on.

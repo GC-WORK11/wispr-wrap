@@ -46,7 +46,7 @@ try {
   await page.waitFor(`document.querySelectorAll('.qa-tile').length >= 15`, 12000, 'grid');
   await sleep(900);
   const tileNames = await page.eval(`[...document.querySelectorAll('.qa-tile .qa-l')].map(n => n.textContent)`);
-  check('ready-made pack signs are tiles from the real GET /packs', ['Hello', 'Introduce yourself'].every(t => tileNames.includes(t)), tileNames.slice(-4).join(', '));
+  check('ready-made pack signs are tiles from the real GET /packs', ['Hello', 'I am Govinda'].every(t => tileNames.includes(t)), tileNames.slice(-4).join(', '));
   check('the start screen shows tile names and one button, nothing else',
     (await visibleText(page, '#sheet-teach')).every(isLabel), (await visibleText(page, '#sheet-teach')).filter(t => !isLabel(t)).join(' | '));
   await shotTo(page, OUT, '01-start');

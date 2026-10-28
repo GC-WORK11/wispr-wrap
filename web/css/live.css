@@ -1,9 +1,9 @@
 /* live.css — Go Live: a full-screen front camera with a few controls on top.
    Top right: flip camera. Bottom: what you signed, then one row:
-   listen | Text · Control | close. No helper text: icons,
+   listen | Text · Control | close. No helper text (FOUNDER-RULE-1652): icons,
    motion and layout carry the meaning; status sentences live in a hidden
    live region for screen readers and tools.
-   Palette + shape language: brand palette (white round buttons with a soft
+   Palette + shape language: FOUNDER-COLOR-1658 (white round buttons with a soft
    shadow, white pill, ink, one lotus pink). App tokens win when the shell
    defines them. Motion is transform/opacity only (compositor, 60 fps). */
 
@@ -42,16 +42,7 @@
 }
 #lv-cam.rear { transform: none; }
 #lv-cam.swap { opacity: 0; transition-duration: .1s; }
-.lv-view.replay #lv-cam { display: none; }
-/* no camera feed behind the lines in replay — keep the stage on the light
-   palette instead of the camera black */
-.lv-view.replay { background: var(--bg, #fcfcfc); color: var(--lv-ink, #1c1b18); }
-.lv-view.replay .lv-stage { background: var(--bg, #fcfcfc); }
-.lv-view.replay .lv-scrim { background: linear-gradient(to top, rgba(255, 255, 255, .55), rgba(255, 255, 255, .18) 28%, rgba(255, 255, 255, 0) 44%); }
-.lv-view.replay .lv-line { color: var(--lv-ink, #1c1b18); }
-.lv-view.replay .lv-st.wait { border-color: rgba(28, 27, 24, .22); border-top-color: #1c1b18; }
-.lv-view.replay .lv-why { color: rgba(28, 27, 24, .55); }
-.lv-view.replay .lv-ring { border-color: rgba(28, 27, 24, .22); }
+.lv.replay #lv-cam { display: none; }
 #lv-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 #lv-skel { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
 body.dev #lv-skel { display: block; }
@@ -81,7 +72,7 @@ body.dev #lv-skel { display: block; }
 .lv-top > * { pointer-events: auto; }
 #lv-flip svg { transition: transform .55s var(--ease-out); }
 #lv-flip.spin svg { transform: rotate(180deg); }
-.lv.has-cover #lv-flip, .lv-view.replay #lv-flip { opacity: 0; pointer-events: none; }
+.lv.has-cover #lv-flip, .lv.replay #lv-flip { opacity: 0; pointer-events: none; }
 
 /* the laptop link dropped: an icon chip, no sentence */
 .lv-net {
@@ -145,9 +136,7 @@ body.dev #lv-skel { display: block; }
 .lv-cta[hidden] { display: none; }
 .lv-cta:active { transform: scale(.96); }
 .lv-why { display: none; margin-top: 6px; font: 12px/1.4 var(--mono); color: rgba(255, 255, 255, .62); }
-.lv-rdist, .lv-eng { display: none; }
 body.dev .lv-why:not(:empty) { display: block; }
-body.dev .lv-rdist:not(:empty), body.dev .lv-eng:not(:empty) { display: inline; }
 
 /* an action that asks first: the question and two buttons */
 .lv-ask { width: 100%; max-width: 420px; margin: 0 0 18px; }
@@ -181,7 +170,7 @@ body.dev .lv-rdist:not(:empty), body.dev .lv-eng:not(:empty) { display: inline; 
   position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px); border-radius: 999px;
   background: var(--lv-ink); will-change: transform; transition: transform .38s var(--ease-spring);
 }
-.lv-seg:has(#lv-m-ctl[aria-selected="true"]) .lv-thumb { transform: translateX(100%); }
+.lv.mode-control .lv-thumb { transform: translateX(100%); }
 .lv-seg button {
   position: relative; z-index: 1; height: 48px; border: 0; border-radius: 999px; cursor: pointer; background: transparent;
   color: var(--lv-muted); font: 500 16px/1 var(--sans); letter-spacing: -.008em; transition: color .26s ease;
