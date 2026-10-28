@@ -1265,7 +1265,7 @@ def _on_segment(frames, t_ms):
     def _finite(v):
         return v if (v is None or (isinstance(v, (int, float)) and math.isfinite(v))) else None
     last = {"gloss": m.gloss, "dist": _finite(m.dist), "at_ms": t_ms,
-            "accepted": bool(m.accepted),
+            "accepted": bool(m.accepted), "seg_frames": len(frames),
             "label": getattr(m, "label", "") or "",
             "score": _finite(getattr(m, "score", None)),
             "margin": _finite(getattr(m, "margin", None)),
@@ -1315,8 +1315,16 @@ def _on_segment(frames, t_ms):
     if OPS is not None:
         # composer decides: compositional sequences, profile-bound
         # actions, observe mode — and emits events the feed reports.
+        # A gloss bound only in commands.tsv still counts as bound:
+        # without the overlay the composer emits "unbound" and the
+        # tsv row's route_gloss win is never reached.
+        o_action = getattr(m, "action", None)
+        if o_action is None and getattr(m, "gloss", None):
+            row = commands().get(m.gloss)
+            if row:
+                o_action = {"label": row["label"], "_tsv": True}
         try:
-            evs = OPS.on_match(m, t_ms=t_ms) or []
+            evs = OPS.on_match(m, t_ms=t_ms, action=o_action) or []
             if evs:
                 res["events"] = evs
         except Exception as e:

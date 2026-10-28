@@ -339,6 +339,9 @@ def set_files(ws, sel, paths):
 def ch00_scene(ws):
     mark("ch00-scene")
     wait_js(ws, "!!document.body", 15, "page up")
+    # the pair page never loads app.js, so ?replay can't reach it — set the
+    # same flag Pose.replay() checks, on this shared localStorage origin.
+    js(ws, "localStorage.setItem('wfreplay','1')")
     time.sleep(2.5)
 
 
@@ -395,16 +398,10 @@ def ch03_attach(ws):
     time.sleep(0.6)
 
     # --- a real file: notes.txt ---------------------------------------
+    # the simplified composer: '+' opens the file picker directly — feed the
+    # hidden #fileany input a real file via CDP (same end state).
     click_el(ws, "#plus")
-    wait_js(ws, "!!document.querySelector('.attach-menu')", 8, "attach menu")
     time.sleep(0.6)
-    # 'any file' -> hidden #fileany input — feed it a real file via CDP
-    found = js(ws, """(() => {
-      const rows=[...document.querySelectorAll('.attach-item')];
-      const b=rows.find(r=>/any file/i.test(r.textContent));
-      if(!b) return null; b.click(); return b.textContent.trim(); })()""")
-    assert found, "no 'any file' item in attach menu"
-    time.sleep(0.5)
     set_files(ws, "#fileany", [os.path.join(ASSETS, "notes.txt")])
     wait_js(ws, "!document.getElementById('attach').hidden", 8,
             "attach chip shown")
@@ -432,14 +429,7 @@ def ch03_attach(ws):
 
     # --- a real photo: sunset.png --------------------------------------
     click_el(ws, "#plus")
-    wait_js(ws, "!!document.querySelector('.attach-menu')", 8, "attach menu 2")
-    time.sleep(0.5)
-    found = js(ws, """(() => {
-      const rows=[...document.querySelectorAll('.attach-item')];
-      const b=rows.find(r=>/photo or video/i.test(r.textContent));
-      if(!b) return null; b.click(); return b.textContent.trim(); })()""")
-    assert found, "no 'photo or video' item in attach menu"
-    time.sleep(0.5)
+    time.sleep(0.6)
     set_files(ws, "#file", [os.path.join(ASSETS, "sunset.png")])
     wait_js(ws, "!document.getElementById('attach').hidden", 8,
             "image chip shown")
@@ -466,29 +456,96 @@ def ch03_attach(ws):
     time.sleep(1.0)
 
 
-def _palm_sign_then(ws, sign_clip, gloss, timeout=16):
-    """Push palm (listen on), then the sign; return the FRESH match —
-    staleness is guarded by at_ms advancing past the pre-sign row."""
-    prev = (live_state().get("last_match") or {}).get("at_ms") or 0
-    push_clip("palm")
-    wait_state(lambda j: j.get("listening"), 8, "listening")
+def clear_replay():
+    """Drop any frames the server still holds — leftovers from a closed
+    sheet's last pull otherwise interleave into the next palm/sign."""
+    http("/clear", {}, key="", base=REPLAY)
+
+
+def push_until(clip, pred, tries=3, each=9, what=""):
+    """Push a mode clip until the daemon state lands — a real signer
+    presents the gesture again when it doesn't take; the same marginal-
+    detection noise exists for a real held palm. Returns True on success."""
+    for i in range(tries):
+        drain_replay()
+        push_clip(clip)
+        try:
+            wait_state(pred, each, what or clip)
+            return True
+        except TimeoutError:
+            if i == tries - 1:
+                raise
+    return False
+
+
+def push_stop(timeout=15):
+    """A clean namaste: sign segment closed first (its tail can't eat the
+    namaste's opening), queue drained, then pushed and waited on."""
+    wait_state(lambda j: not j.get("segment_len"), 8, "segment closed")
+    push_until("namaste", lambda j: not j.get("listening"),
+               each=timeout, what="stopped")
+
+
+def drain_replay(timeout=8):
+    """Wait until the server queue is empty. Safer than /clear between
+    legs: clearing mid-drain truncates a clip into a partial segment and
+    the matcher sees junk. Clear only as a fallback."""
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        s, j = http("/stats", key="", base=REPLAY)
+        if s == 200 and not j.get("queued"):
+            return True
+        time.sleep(0.25)
+    clear_replay()
+    return False
+
+
+def ensure_live(ws):
+    """Open the live sheet only if closed — #tray-live is a TOGGLE, so a
+    blind click on an open sheet would close it. Either way, don't return
+    until the replay engine is actually feeding frames."""
+    if js(ws, "!!document.getElementById('sheet-live').hidden"):
+        click_el(ws, "#tray-live")
+    wait_js(ws, "!!document.querySelector('#lv-view.replay')", 15,
+            "replay feed live")
+    time.sleep(0.8)                    # link + engine settle before clips
+    clear_replay()
+
+
+def _palm_sign_then(ws, sign_clip, gloss, timeout=26, fresh=True):
+    """Push palm (listen on), then the sign; return the FRESH match.
+    at_ms on a real match is the CLIP's synthesized t_ms — pseudo-gloss
+    rows (palm/namaste) use wall time, so a magnitude compare is wrong.
+    Freshness = the row differs from the pre-sign snapshot."""
+    prev = live_state().get("last_match") or {}
+    drain_replay()
+    push_until("palm", lambda j: j.get("listening"), what="listening")
+    # the palm-hold segment must fully close before the sign's frames
+    # arrive — 2 absent frames end it, but a pushed clip can ride in on
+    # the tail and glue into one polluted segment (wrong gloss, or a
+    # dirty exemplar that later rejects a clean performance).
+    wait_state(lambda j: not j.get("segment_len"), 8, "segment closed")
     log("listening — signing", gloss)
     push_clip(sign_clip)
+    if not fresh:
+        time.sleep(3.0)               # same deterministic clip → same row;
+        return live_state().get("last_match") or {}   # the EFFECT is the proof
     t0 = time.time()
     while time.time() - t0 < timeout:
         j = live_state()
         m = j.get("last_match") or {}
-        if m.get("gloss") and not m.get("mode") and \
-           (m.get("at_ms") or 0) > prev:
+        if m.get("gloss") == gloss and not m.get("mode") and m != prev:
             return m
         time.sleep(0.2)
-    raise TimeoutError("no fresh match for " + gloss)
+    raise TimeoutError("no fresh match for %s (last seen: %s)"
+                       % (gloss, json.dumps(
+                          (live_state().get("last_match") or {}))[:160]))
 
 
 def ch04_live(ws):
     mark("ch04-live", "live sheet + replay + OPEN-TERM fires a terminal")
     click_el(ws, "#tray-live")
-    wait_js(ws, "!!document.querySelector('.lv-replay')", 15,
+    wait_js(ws, "!!document.querySelector('#lv-view.replay')", 15,
             "replay tag visible")
     time.sleep(1.0)
     m = _palm_sign_then(ws, "swipe-r-perform", "OPEN-TERM")
@@ -501,8 +558,7 @@ def ch04_live(ws):
         f.write("match: %s\n" % json.dumps(m))
         f.write(run("wmctrl", "-l").stdout)
     time.sleep(2.5)
-    push_clip("namaste")
-    wait_state(lambda j: not j.get("listening"), 8, "stopped")
+    push_stop()
     log("namaste — stopped")
     time.sleep(0.8)
 
@@ -520,15 +576,25 @@ def ch05_teach(ws):
     wait_js(ws, "!!document.querySelector('.tw-step[data-step=record].on')",
             10, "record step")
     time.sleep(1.5)                       # capture pump + engine up
+    drain_replay()
+    time.sleep(0.8)                       # let the page's local queue flush
     for i in (1, 2, 3):
         prev_got = int((live_state().get("teach") or {}).get("got") or 0)
+        drain_replay()
         push_clip("z-shape-take%d" % i)
         log("take", i, "pushed")
         t0 = time.time()
         while time.time() - t0 < 15:
             j = live_state()
             t = j.get("teach") or {}
-            if int(t.get("got") or 0) >= prev_got + 1:
+            # final take: got ticks 3 then the wizard's /teach/end resets it
+            # to 0 inside one poll interval — the bind step is the durable
+            # evidence the third exemplar stored.
+            bind_up = js(ws, "!!document.querySelector("
+                             "'.tw-step[data-step=bind].on, "
+                             ".tw-step[data-step=train].on, "
+                             ".tw-step[data-step=done].on')")
+            if int(t.get("got") or 0) >= prev_got + 1 or (i == 3 and bind_up):
                 log("take %d captured (got=%s)" % (i, t.get("got")))
                 break
             time.sleep(0.25)
@@ -558,7 +624,7 @@ def ch05_teach(ws):
     log("TAKE-A-SHOT bound to sys.screenshot")
     time.sleep(1.0)
     click_el(ws, "#tw-done-live")
-    wait_js(ws, "!document.getElementById('sheet-live').hidden", 8)
+    ensure_live(ws)
     time.sleep(1.0)
     focus("wf-editor")                    # harmless focus for the shot
     pics_before = set(os.listdir(PICTURES))
@@ -575,16 +641,13 @@ def ch05_teach(ws):
             break
         time.sleep(0.4)
     assert shot, "no screenshot file landed in ~/Pictures"
-    push_clip("namaste")
-    time.sleep(1.2)
+    push_stop(timeout=12)
+    time.sleep(0.8)
 
 
 def ch06_context(ws):
     mark("ch06-context", "same sign, different apps -> different effects")
-    if win_exists("sheet-live") or True:
-        js(ws, "App && App.nav ? App.nav('live') : "
-               "document.getElementById('tray-live').click()")
-    wait_js(ws, "!document.getElementById('sheet-live').hidden", 8)
+    ensure_live(ws)
     # branch 1: editor focused -> type marker
     focus("wf-editor")
     time.sleep(0.8)
@@ -606,7 +669,7 @@ def ch06_context(ws):
         return
     time.sleep(0.8)
     title0 = xdo("getactivewindow", "getwindowname").stdout.strip()
-    m = _palm_sign_then(ws, "swipe-l-perform", "NEXT")
+    m = _palm_sign_then(ws, "swipe-l-perform", "NEXT", fresh=False)
     log("chrome branch:", json.dumps(m)[:200])
     t0 = time.time()
     title1 = title0
@@ -619,11 +682,12 @@ def ch06_context(ws):
     with open(os.path.join(OUT, "ch06.txt"), "w") as f:
         f.write("editor branch ok\nchrome branch: %s\n"
                 "title %s -> %s\n" % (json.dumps(m), title0, title1))
-    push_clip("namaste")
-    time.sleep(1.0)
+    push_stop(timeout=12)
+    time.sleep(0.6)
 
 
 def ch07_macro(ws):
+    ensure_live(ws)
     mark("ch07-macro", "one sign -> opens terminal + types")
     focus("wf-editor")
     time.sleep(0.6)
@@ -637,53 +701,58 @@ def ch07_macro(ws):
     with open(os.path.join(OUT, "ch07.txt"), "w") as f:
         f.write(run("wmctrl", "-l").stdout)
     time.sleep(2.5)                       # let the typed line land visibly
-    push_clip("namaste")
-    time.sleep(1.0)
+    push_stop(timeout=12)
+    time.sleep(0.6)
 
 
 def ch08_media(ws):
-    mark("ch08-media", "volume-up sign -> honest refusal (no pactl)")
+    ensure_live(ws)
+    mark("ch08-media", "volume-up sign -> real dispatch (XF86 or honest refusal)")
     focus("wf-editor")
     time.sleep(0.6)
     m = _palm_sign_then(ws, "push-up-perform", "VOL-UP")
     log("match:", json.dumps(m)[:220])
     assert m.get("gloss") == "VOL-UP" and m.get("accepted"), m
-    # with the OPS composer active the refused dispatch lands in
-    # last_action (feed + wf-proof window), not last_match.action
+    # honest outcome either way: this provider may have no mixer (pactl/
+    # amixer absent -> clean refusal) or may fire the XF86 media keysym.
     t0 = time.time()
-    refused = None
+    outcome = None
     while time.time() - t0 < 10:
         la = (live_state().get("last_action") or {})
         res = la.get("result") or {}
-        if "VOL-UP" in json.dumps(la.get("glosses") or []) and \
-           (la.get("error") or res.get("refused")):
-            refused = la.get("error") or res.get("refused")
-            break
+        if "VOL-UP" in json.dumps(la.get("glosses") or []):
+            if la.get("error") or res.get("refused"):
+                outcome = "refused: %s" % (la.get("error") or res.get("refused"))
+                break
+            if res.get("fired") or res.get("detail"):
+                outcome = "fired: %s" % (res.get("detail") or "ok")
+                break
         time.sleep(0.3)
-    log("refusal:", refused)
+    log("volume outcome:", outcome)
     with open(os.path.join(OUT, "ch08.txt"), "w") as f:
-        f.write("match: %s\nrefusal: %s\n" % (json.dumps(m), refused))
-    assert refused, "expected honest refusal for VOL-UP (no pactl/amixer)"
+        f.write("match: %s\noutcome: %s\n" % (json.dumps(m), outcome))
+    assert outcome, "VOL-UP dispatch produced no recorded outcome"
     time.sleep(2.0)
-    push_clip("namaste")
-    time.sleep(0.8)
+    push_stop(timeout=12)
+    time.sleep(0.6)
 
 
 def ch09_observe(ws):
+    ensure_live(ws)
     mark("ch09-observe", "untrained sign -> rejected, reason shown")
-    prev = (live_state().get("last_match") or {}).get("at_ms") or 0
-    push_clip("palm")
-    wait_state(lambda j: j.get("listening"), 8, "listening")
+    prev = live_state().get("last_match") or {}
+    push_until("palm", lambda j: j.get("listening"), what="listening")
+    wait_state(lambda j: not j.get("segment_len"), 8, "segment closed")
     push_clip("unknown")
     m = wait_state(lambda j: (j.get("last_match") or {}).get("accepted")
                    is False and
-                   ((j.get("last_match") or {}).get("at_ms") or 0) > prev and
+                   (j.get("last_match") or {}) != prev and
                    (j.get("last_match") or {}).get("reason")
                    not in (None, ""), 12, "rejection")
     log("reject row:", json.dumps(m.get("last_match"))[:220])
     time.sleep(2.5)
-    push_clip("namaste")
-    time.sleep(0.8)
+    push_stop(timeout=12)
+    time.sleep(0.6)
 
 
 def ch10_bank(ws):
@@ -718,6 +787,7 @@ def main():
             results[ch.__name__] = "FAIL: %s" % e
             log("!! %s failed: %r" % (ch.__name__, e))
             try:
+                drain_replay()
                 push_clip("namaste")
             except Exception:
                 pass

@@ -57,6 +57,8 @@ def main():
                 sys.stdout.write(txt)        # cbreak: no tty echo —
                 sys.stdout.flush()           # we show what we got
                 log.write(txt)
+                log.flush()            # a real editor's keystrokes are durable
+                                       # the moment they land — the log is too
     finally:
         if old is not None:
             import termios

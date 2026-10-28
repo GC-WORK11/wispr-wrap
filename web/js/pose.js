@@ -77,17 +77,24 @@ let replayProbed;
 function replayEngine() {
   const Z = () => ({ x: 0, y: 0, z: 0, score: 0 });
   let queue = [], inflight = false, lastT = -1, stopped = false;
+  let upstreamEmpty = true;
   async function pull() {
     if (inflight || stopped) return;
     inflight = true;
     try {
-      const r = await fetch(REPLAY_BASE + '/pull?n=8', { cache: 'no-store' });
+      const r = await fetch(REPLAY_BASE + '/pull?n=48', { cache: 'no-store' });
       const j = await r.json();
-      if (j && Array.isArray(j.frames)) queue.push(...j.frames);
+      if (j && Array.isArray(j.frames)) {
+        upstreamEmpty = j.frames.length === 0;
+        queue.push(...j.frames);
+      }
     } catch (e) { /* replay service went away — zeros keep flowing */ }
     inflight = false;
   }
-  const iv = setInterval(() => { if (queue.length < 6) pull(); }, 60);
+  // deep buffer: a backgrounded tab throttles setInterval below the pump
+  // rate — a shallow queue then underruns mid-clip and the daemon's
+  // segmenter sees absent-frame gaps that truncate the sign.
+  const iv = setInterval(() => { if (queue.length < 40) pull(); }, 60);
   return {
     name: 'kp42-replay',
     videoless: true,               // KpLink: don't wait on video.readyState
@@ -97,7 +104,8 @@ function replayEngine() {
       if (t === lastT) return null;
       lastT = t;
       const f = queue.shift();
-      if (queue.length < 4) pull();
+      if (queue.length < 24) pull();
+      if (!f && !upstreamEmpty) { pull(); return null; }  // underrun: pause, don't fabricate an absent frame
       const src = f && Array.isArray(f.points) && f.points.length === 42
         ? f.points : null;
       const pts = new Array(42);
