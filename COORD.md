@@ -80,3 +80,16 @@ measured offset — systematic), best-last_match in act-tiles polling
 copy assert accepts any sink substring. act-tiles-live 27/27 re-green
 on the v3 wizard (eval-set compat name, #tw-pick2, Ready done text).
 shots-390 reshot: 22 tiles, all views clean. 282 unit tests green.
+
+## 2026-10-28 — Go Live v3 + gesture layer (devin-pro/app 9c4c19c)
+
+MAX: merge 9c4c19c into devin/live-merge. The whole merged live.js
+came over verbatim (calmer overlays, Text|Control seg, KpLink contract
+unchanged for teach) + hand.js/handlines.js. wfd.py got the merged
+/live/event section-A handlers verbatim: air-letter -> route_gloss on
+_ACT_Q (tier-gated like any sign; AIR-<L> commands.tsv rows beat the
+builtins C->Chrome / V->YouTube), pointer -> real mousemove (+click),
+scroll -> wheel, click/dwell/pinch -> click. flow-air reshot green:
+9/9 on :103 — real Chrome/YouTube opens, real cursor moves, scroll in
+the feed, taught sign types into SinkEdit. act-tiles 27/27, flow-teach
+21/21, shots-390 7/7 on the new overlays, 282 tests green.
