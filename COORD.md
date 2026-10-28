@@ -1,4 +1,34 @@
 
+## 2026-10-28 — Teach v3 merge cycle (devin-pro/app 7f321dc → devin/live-merge 84cafb8)
+
+Merged PRO's new head `7f321dc` (Teach v3 quick-action grid b2f38ec +
+macOS/Windows ports). 12 conflicts resolved: theirs for the Teach v3
+files, HEAD kept for `web/js/actions.js` (.act-app tile-grid picker is
+newer than PRO's select-row picker — verified in shots) and `web/sw.js`
+(superset: signflow cache + legacy sweep). **`server/wfd.py` needed a
+real union merge** — PRO's version predates the live hardening; kept the
+auto-merged base (CORS Host-match, /pair-info IP-literal check,
+/act/run + /act/pointer, /send mode+expect, abort cleanup, 429
+Retry-After) and grafted PRO's pure additions (_mac_* window helpers,
+_darwin() branches, node_name(), /send-file).
+
+Gate: 335 unittest OK (skipped=3, xfail=1). Landing `astro build` clean.
+
+Proofs on :96 realrun stack (env `-i` daemon, real xfwm4, fake-device
+Chrome 390x844@2x — detections substituted only, labelled):
+- tools/site/flow-teach.mjs (Teach v3 e2e): **20/20 PASS** — quick-grid
+  pick → name → 3 real takes via daemon endpointer → banked → **fired
+  immediately in Go Live, daemon matched, text in SinkEdit**. Old
+  name→record→bind path also completes. No hscroll at 360/768/1280.
+- tools/pro/shots-390.mjs: **7/7 PASS** (22-tile teach grid, .act-app
+  picker, zero raw-text leaks in every shot).
+- proofs/ui-v2/site-teach + shots-390 rewritten; PROOF.md updated.
+
+oss/clean re-synced to 84cafb8 (kept curated set incl. tools/*, dropped
+tools/site, tests/, cloud/, capture scripts; sign-wrap identity fixed in
+PRO's new package.json/wrap launchers/JUDGE_PATH clone line) → pushed
+`9be3228` to private. devin/live-merge pushed `84cafb8`.
+
 ## 2026-10-27 — /act + @ picking on macOS/Windows (devin-pro/app b560574)
 
 Cross-platform action layer, pushed to private `devin-pro/app` at `b560574`
