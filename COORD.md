@@ -72,3 +72,35 @@ poisons every teach on that daemon until it stops streaming.
 Cleanup done: proof-Chrome instances killed, test glosses removed,
 bank = HELLO only. shots-390 `@ picker` check updated for the `.act-app`
 tile grid (6/6 on the :96 stack) — commit 4effb7e.
+
+## 2026-10-28 — teach e2e green on live-merge @ 952a822 + oss/clean re-sync (devin)
+
+`devin-pro/app` polled: still `20ff3ea` (already an ancestor — merge = no-op).
+Gate: **270 unittest OK** (skipped=3, expected failures=1) on 952a822.
+
+**e2e — tools/pro/demo-ready.mjs on the :96 stack (env `-i` daemon :8875,
+private Xvfb + real xfwm4 EWMH, Chrome fake-device 390x844): 11/12 PASS**
+(`proofs/ui-v2/demo-ready/RESULT.txt`):
+- pair → composer; @ window pick → `AT-TERM-OK` lands in the picked tty only
+- text/image/video sends land in the focused SinkEdit editor
+- **Teach**: DR0105 named → 3 real takes through the daemon endpointer →
+  @-picker Type text `hi from sign` → Finish → sign banked (3 exemplars)
+- **Go Live**: palm-hold → perform DR0105 → `match accepted` dist **0.024**
+  (score 0.977) → `hi from sign` typed into the focused editor; live
+  readout names the sign
+- lone FAIL `typed text lands in the focused editor` = timing flake
+  (xfwm4 first-focus settle; `dr-proof-text` present in sink after poll,
+  direct `/send` re-verified in ~1.5 s — not a defect)
+
+**proof shots — tools/pro/shots-390.mjs → proofs/ui-v2/shots-390: 6/6 PASS**
+composer / teach-record / teach-grid / app-picker / go-live all clean of
+raw text, URLs, ms, dtw, X-WF (fake-camera pac-man is the labelled
+substitution seam). PROOF.md rewritten for this run.
+
+**oss/clean**: synced to 952a822, scrubbed (agent names, /workspace+dr-test
+paths, devin-pro branch refs, stale wispr-wrap URLs→sign-wrap, pycache,
+landing capture tooling dropped), secrets scan clean — pushed
+`4fd6996..9e7e882`. Stack notes: :96 now runs xfwm4 (real WM) — the fake
+_NET_ACTIVE_WINDOW props are replaced by real EWMH; SinkEdit `pro-sink`
+(6291474) + `wispr-wrap-term` cat tty (8388611) provide the sink/term
+targets, env file `/tmp/wf-rr-proofs/env`.
