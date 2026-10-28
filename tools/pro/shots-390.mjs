@@ -52,6 +52,17 @@ await page.type('proof shot', { delay: 30 });
 await scan(page, 'composer');
 await shotTo(page, OUT, '01-composer');
 
+// ---- 1b. hamburger sidebar (FOUNDER-UI-SPEC-1026 §3 proof) -------------------
+await page.eval(`document.querySelector('#menu')?.click()`);
+await page.waitFor(`document.querySelector('#drawer').classList.contains('open')`, 8000, 'drawer open');
+await sleep(450);
+const drRows = await page.eval(`[...document.querySelectorAll('#drawer-nav .dr-item')].filter(r=>!r.hidden).length`);
+check('sidebar shows its rows', drRows >= 3, 'rows=' + drRows);
+await scan(page, 'sidebar');
+await shotTo(page, OUT, '01b-sidebar');
+await page.eval(`document.querySelector('#dr-close')?.click()`);
+await sleep(400);
+
 // ---- 2. Teach: the one-tap quick-action grid (FOUNDER-SIMPLIFY-1433) ---------
 await page.eval(`location.hash='#teach'`);
 await sleep(1100);
