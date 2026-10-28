@@ -45,6 +45,50 @@ async function req(method, path, body, extraHeaders) {
   return { ok: r.ok, status: r.status, json: j };
 }
 
+/* Upload a blob with real progress + cancel. fetch(Blob) gives neither, and a
+   phone video is 20-200 MB, so the composer needs both. XHR carries the same
+   X-WF-Key auth, the same lenient JSON parse (bare Infinity/NaN from older
+   daemons), and raises the same 'unpaired' event on 403 as req() above.
+   onProgress(fraction 0..1, {loaded, total}) fires while the body uploads;
+   abortSignal (an AbortController's .signal) cancels the transfer.
+   Resolves {ok, status, json, aborted} — aborted uploads never throw. */
+function upload(path, blob, extraHeaders, onProgress, abortSignal) {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    let aborted = false;
+    xhr.open('POST', path, true);
+    xhr.setRequestHeader('X-WF-Key', K);
+    const h = extraHeaders || {};
+    for (const k of Object.keys(h)) if (h[k] != null) xhr.setRequestHeader(k, h[k]);
+    if (xhr.upload && onProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(e.total ? e.loaded / e.total : 0, { loaded: e.loaded, total: e.total });
+      };
+    }
+    xhr.onload = () => {
+      let j = null; const txt = xhr.responseText || '';
+      if (txt) {
+        try { j = JSON.parse(txt); }
+        catch (e) {
+          try { j = JSON.parse(txt.replace(/([:\[,]\s*)-?(?:Infinity|NaN)(?=\s*[,}\]])/g, '$1null')); }
+          catch (e2) { /* plain-text reply */ }
+        }
+      }
+      if (xhr.status === 403) App.emit('unpaired');
+      resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, json: j });
+    };
+    xhr.onerror = () => resolve({ ok: false, status: 0, json: null });
+    xhr.ontimeout = () => resolve({ ok: false, status: 0, json: null, timeout: true });
+    xhr.onabort = () => { aborted = true; resolve({ ok: false, status: 0, json: null, aborted: true }); };
+    if (abortSignal) {
+      if (abortSignal.aborted) { try { xhr.abort(); } catch (e) {} }
+      else abortSignal.addEventListener('abort', () => { try { xhr.abort(); } catch (e) {} }, { once: true });
+    }
+    try { xhr.send(blob); }
+    catch (e) { resolve({ ok: false, status: 0, json: null }); }
+  });
+}
+
 // ---------- tiny event bus ----------
 const listeners = {};
 function on(evt, fn) { (listeners[evt] = listeners[evt] || []).push(fn); return () => off(evt, fn); }
@@ -80,20 +124,17 @@ const canAct = () => connected() && (!state.laptop || state.laptop.canAct);
 function renderStatus() {
   const ok = connected();
   if (linkDot) linkDot.className = 'dr-dot' + (ok ? ' on' : '');
-  let sub;
-  if (!state.online) sub = 'Not connected';
-  else if (!state.paired) sub = 'Needs its code';
-  else {
-    const nm = (state.laptop && state.laptop.name) || store.getItem('wfname') || 'Your laptop';
-    sub = nm + (state.focus ? ' · typing into ' + state.focus : '');
-  }
+  const sub = ok ? 'Connected' : '';
   if (lapSub) lapSub.textContent = sub;
+  // spec: laptop features exist only while a laptop is connected; otherwise one "Connect your laptop" row
+  for (const id of ['tray-teach', 'tray-signs', 'tray-live', 'dr-laptop']) { const el = document.getElementById(id); if (el) el.hidden = !ok; }
+  const dc = document.getElementById('dr-connect'); if (dc) dc.hidden = ok;
   if (connHint) connHint.hidden = ok || !state.checked || !K;
   emit('statusbar', state);
 }
 
 async function pollHealth() {
-  try { await fetch('/health', { cache: 'no-store' }); setOnline(true); }
+  try { const r = await fetch('/health', { cache: 'no-store' }); setOnline(r.status < 500); }   // the service worker answers 503 when the laptop is gone
   catch (e) { setOnline(false); }
   if (!state.checked) { state.checked = true; renderStatus(); }
 }
@@ -187,6 +228,11 @@ function parseHash() {
 async function applyRoute() {
   const name = parseHash();
   if (name === current) return;
+  // laptop-only surfaces: a stale or hand-typed deep-link bounces to the
+  // connect page until pairing says connected.
+  if (!connected() && ['live', 'teach', 'signs'].includes(name)) {
+    if (location.hash !== '#/laptop') { location.hash = '#/laptop'; return; }
+  }
   const prev = routes[current];
   if (prev && prev.close) await prev.close();
   current = name;
@@ -210,12 +256,12 @@ const toastEl = document.getElementById('toast');
 let toastT;
 function toast(msg, isErr) {
   toastEl.textContent = msg;
-  toastEl.className = 'toast show' + (isErr ? ' err' : '');
+  toastEl.className = isErr ? 'toast show err' : 'toast quiet';   // success/progress: announced to assistive tech, not drawn (the lotus + progress line carry it)
   clearTimeout(toastT);
   toastT = setTimeout(() => toastEl.classList.remove('show'), 2000);
 }
 
-const buzz = () => { try { navigator.vibrate && navigator.vibrate(18); } catch (e) {} };
+const buzz = () => { try { if (store.getItem('wf.haptics') !== '0') navigator.vibrate && navigator.vibrate(18); } catch (e) {} };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // ---------- shared keypoint envelope ----------
@@ -257,17 +303,17 @@ function renderConfirms(rows) {
     row.className = 'confirm-row';
     const txt = document.createElement('span');
     txt.className = 'confirm-txt';
-    txt.textContent = (p.label || p.gloss || 'action') + ' — held for confirm';
+    txt.textContent = p.label || p.gloss || 'Action';
     const yes = document.createElement('button');
-    yes.className = 'confirm-yes'; yes.textContent = 'run it';
+    yes.className = 'confirm-yes'; yes.textContent = 'Run it';
     const no = document.createElement('button');
-    no.className = 'confirm-no'; no.textContent = 'cancel';
+    no.className = 'confirm-no'; no.textContent = 'Cancel';
     yes.onclick = async () => {
       yes.disabled = no.disabled = true;
       const r = await req('POST', '/act/confirm', { id: p.id }).catch(() => null);
-      if (r && r.ok && r.json && r.json.fired) toast('fired ' + (p.label || p.gloss));
-      else if (r && r.ok) toast('done');
-      else toast('confirm failed' + (r ? ' (' + r.status + ')' : ''), true);
+      if (r && r.ok && r.json && r.json.fired) toast('Done');
+      else if (r && r.ok) toast('Done');
+      else toast('Couldn’t run it', true);
       pollState();
     };
     no.onclick = async () => {
@@ -285,9 +331,11 @@ on('confirms', renderConfirms);
 export const App = {
   key: K,
   store,
-  api: { get: p => req('GET', p), post: (p, b, h) => req('POST', p, b, h), del: p => req('DELETE', p), put: (p, b) => req('PUT', p, b) },
+  api: { get: p => req('GET', p), post: (p, b, h) => req('POST', p, b, h), del: p => req('DELETE', p), put: (p, b) => req('PUT', p, b), upload },
   on, off, emit,
   state, renderStatus, pollState, pollEngine, pollStatus, connected, canAct,
+  connect: () => { showOnboarding(''); onbSkip.hidden = false; },
+  pair,
   route, nav, back, routes, parseHash,
   toast, buzz, sleep, raise,
   kpFrame,
@@ -334,24 +382,30 @@ async function autoPair() {
     return true;
   } catch (e) { return false; }
 }
-async function pairWithCode() {
-  const code = onbCode.value.trim();
-  if (code.length < 4) { onbErr.textContent = 'Type the code your laptop is showing.'; return; }
-  onbGo.disabled = true; onbGo.textContent = 'Connecting…'; onbErr.textContent = '';
+// one pairing call for the first-run screen and the Laptop page -> { ok } or { err }
+async function pair(code) {
+  code = String(code || '').trim();
+  if (code.length < 4) return { err: 'Enter the code.' };
   try {
     const r = await fetch('/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code }) });
     const j = await r.json().catch(() => ({}));
-    if (r.ok && j.key) {
-      store.setItem('wfk', j.key);
-      onbGo.textContent = 'Connected ✓';
-      setTimeout(() => location.replace(location.pathname + location.hash), 350);
-      return;
-    }
-    onbErr.textContent = r.status === 429 ? 'One try per second — give it a moment.'
-      : r.status === 403 ? 'That code isn’t right. Check your laptop screen.'
-      : 'Couldn’t pair (' + r.status + ').';
-  } catch (e) { onbErr.textContent = 'Can’t reach your laptop from here.'; }
+    if (r.ok && j.key) { store.setItem('wfk', j.key); return { ok: true }; }
+    return { err: r.status === 429 ? 'Wait a second, then try again.'
+      : r.status === 403 ? 'That code isn’t right.'
+      : 'Couldn’t connect.' };
+  } catch (e) { return { err: 'Can’t reach your laptop.' }; }
+}
+async function pairWithCode() {
+  if (onbCode.value.trim().length < 4) { onbErr.textContent = 'Enter the code.'; return; }
+  onbGo.disabled = true; onbGo.textContent = 'Connecting…'; onbErr.textContent = '';
+  const r = await pair(onbCode.value);
+  if (r.ok) {
+    onbGo.textContent = 'Connected ✓';
+    setTimeout(() => location.reload(), 350);
+    return;
+  }
+  onbErr.textContent = r.err;
   onbGo.disabled = false; onbGo.textContent = 'Connect';
 }
 onbGo.onclick = pairWithCode;
@@ -360,7 +414,7 @@ onbCode.addEventListener('input', () => { onbCode.value = onbCode.value.toUpperC
 const onbSkip = document.getElementById('onb-skip');
 onbSkip.onclick = () => { onb.hidden = true; };
 async function firstRun() {
-  if (await autoPair()) { location.replace(location.pathname + location.hash); return; }
+  if (await autoPair()) { location.reload(); return; }
   showOnboarding('');
 }
 if (!K) firstRun();
@@ -400,6 +454,7 @@ document.getElementById('tray-live').onclick = () => nav(current === 'live' ? ''
 document.getElementById('tray-teach').onclick = go('teach');
 document.getElementById('tray-signs').onclick = go('signs');
 document.getElementById('dr-laptop').onclick = go('laptop');
+document.getElementById('dr-connect').onclick = () => { openDrawer(false); App.connect(); };
 document.getElementById('dr-settings').onclick = go('settings');
 if (connHint) connHint.onclick = () => nav('laptop');
 on('route', name => { openDrawer(false); document.body.classList.toggle('sheet-open', name !== ''); });
@@ -432,5 +487,11 @@ applyRoute();
 // the lotus: opens when the laptop link is up, closes to a bud when it is not,
 // and sleeps while a full-screen page covers it
 Flower.init({ field: document.getElementById('field'), anchor: document.getElementById('composer'), top: 64 });
-on('statusbar', () => Flower.setOnline(connected()));
+on('statusbar', () => Flower.setOnline(connected() || !state.checked));
 on('route', name => { Flower.pause(name !== ''); if (!name) setTimeout(Flower.measure, 60); });
+
+// loading screen (boot.js owns readiness + the fade): when it hands over, the ASCII lotus replays its sprout
+// from a bud, so every load and refresh ends in the bloom. Without a splash (or after bfcache restore) replay now.
+if (document.getElementById('boot') && !(window.__boot && window.__boot.done)) addEventListener('wl:boot-done', () => Flower.restart(), { once: true });
+else Flower.restart();
+addEventListener('pageshow', e => { if (e.persisted) Flower.restart(); });   // back/forward restore: bloom again

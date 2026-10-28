@@ -117,3 +117,38 @@
   .lib-name { font-size: 14px; }
   .lib-b { padding: 8px 12px; }
 }
+
+/* ---- v2 (founder spec): a flat list on paper. No cards, no capsule buttons,
+   no internal gloss chip. PEAK's pass so the page is clean until PRO's rewrite lands. ---- */
+#lib-list { gap: 0; }
+.lib-card { background: transparent; border: 0; border-top: 1px solid var(--hairline-2); border-radius: 0; box-shadow: none; padding: 18px 2px 12px; }
+#lib-list .lib-card:first-child { border-top: 0; }
+.lib-gl { display: none; }
+.lib-name { font-size: 19px; font-weight: 600; letter-spacing: -.02em; }
+.lib-top .chip { background: none; padding: 0; color: var(--muted); font-size: 14px; font-weight: 450; }
+.lib-act { margin-top: 3px; font-size: 14.5px; }
+.lib-row { border-top: 0; margin-top: 8px; padding-top: 0; gap: 2px; }
+.lib-b { border: 0; background: transparent; padding: 9px 12px; margin-left: -12px; margin-right: 4px; font-size: 14.5px; font-weight: 550; color: var(--ink-2); border-radius: 10px; }
+.lib-b:hover { background: var(--hairline-2); }
+.lib-b.danger { color: var(--danger); }
+.lib-b.btn-primary { background: var(--ink); color: #fff; margin-left: 0; }
+.lib-b.btn-primary:hover { background: #2b2b2b; }
+.lib-empty-g { background: var(--surface); color: var(--ink); box-shadow: var(--sh-1); width: 104px; height: 104px; }   /* same family as the Laptop page glyph */
+
+/* v2.1 (simplify): a sign is one calm row; tap it for its actions */
+.lib-card .lib-row { display: none; }
+.lib-card.open .lib-row { display: flex; animation: msg-in var(--t-2) var(--ease-out); }
+.lib-top { cursor: pointer; min-height: 48px; }
+.lib-top::after { content: ""; flex: none; width: 8px; height: 8px; margin: 0 4px 0 2px; border: solid var(--muted); border-width: 0 1.8px 1.8px 0; transform: rotate(45deg) translateY(-2px); transition: transform var(--t-2) var(--ease-out); }
+.lib-card.open .lib-top::after { transform: rotate(-135deg) translateY(-2px); }
+.lib-b { min-height: 48px; padding: 12px 14px; }
+.lib-empty { font-size: 17px; color: var(--muted); padding: 0; }
+.lib-empty-g { margin-bottom: 0; }
+.lib-empty-g svg { width: 46px; height: 46px; }
+.lib-act .chip.accent { display: none; }
+
+/* FOUNDER-RULE-1652: a sign is its name. Counts, summaries and sub-labels are not drawn. */
+.lib-count, #lib-count, .sheet-head .sub { display: none; }
+.lib-top .chip, .lib-act { display: none; }
+.lib-top { min-height: 56px; }
+.lib-name { font-size: 20px; }

@@ -15,7 +15,7 @@ if (!sheet) throw new Error('library: #sheet-signs missing');
 
 sheet.innerHTML = `
   <div class="sheet-head">
-    <h1>your signs</h1>
+    <h1>My signs</h1>
     <span class="sub" id="lib-count"></span>
     <button class="sheet-x" id="lib-x" aria-label="Close">×</button>
   </div>
@@ -26,17 +26,14 @@ sheet.innerHTML = `
     <section id="lib-list"></section>
     <div class="lib-empty" id="lib-empty" hidden>
       <span class="lib-empty-g" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <path d="M12 5v14M5 12h14"/>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8.5 11.5V6a1.5 1.5 0 0 1 3 0v5m0-1.5a1.5 1.5 0 0 1 3 0V11m0-.5a1.5 1.5 0 0 1 3 0v1m0-.5a1.5 1.5 0 0 1 3 0v4.5c0 3-2.5 5.5-6 5.5s-5-1.5-6.5-4l-2-3.6c-.6-1 .8-2.1 1.7-1.3l1.3 1.1"/>
         </svg>
       </span>
-      no signs yet — <b>teach your first one</b>.<br>
-      a sign is a gesture <i>you</i> choose, bound to an action on your laptop.<br>
-      three takes, ~90 seconds, runs offline.
     </div>
   </div>
   <div class="sheet-foot">
-    <button class="btn btn-primary btn-block" id="lib-teach">+ teach a sign</button>
+    <button class="btn btn-primary btn-block" id="lib-teach">Teach a sign</button>
   </div>`;
 const $ = id => sheet.querySelector('#' + id);
 const listEl = $('lib-list'), emptyEl = $('lib-empty'), countEl = $('lib-count'),
@@ -69,8 +66,8 @@ function render() {
     const tier = s.tier || 0;
     card.innerHTML =
       `<div class="lib-top"><span class="lib-gl">${esc(s.gloss)}</span>` +
-      `<span class="lib-name">${esc(s.label && s.label !== s.gloss ? s.label : '')}</span>` +
-      `<span class="chip">${n} exemplar${n === 1 ? '' : 's'}</span></div>` +
+      `<span class="lib-name">${esc(s.label && s.label !== s.gloss ? s.label : String(s.gloss || '').toLowerCase().replace(/[-_]+/g, ' '))}</span>` +
+      `<span class="chip">${n} take${n === 1 ? '' : 's'}</span></div>` +
       `<div class="lib-act"><span class="lib-act-v">${esc(actSummary(s))}</span>` +
       (tier >= 2 ? '<span class="chip warn">confirm</span>' : '') +
       (s.taught === false ? '<span class="chip accent">bound</span>' : '') +
@@ -81,24 +78,25 @@ function render() {
       b.className = 'btn-ghost lib-b' + (cls ? ' ' + cls : '');
       b.textContent = txt; b.onclick = fn; row.appendChild(b); return b;
     };
-    if (s.taught !== false) mk('+ take', '', () => { App.nav('teach'); setTimeout(() => Teach.openAdd(s.gloss), 80); });
-    mk('rebind @', '', () => rebind(card, s));
-    mk('rename', '', () => startRename(card, s, row));
-    const del = mk('delete', 'danger', async () => {
+    if (s.taught !== false) mk('Add a take', '', () => { App.nav('teach'); setTimeout(() => Teach.openAdd(s.gloss), 80); });
+    mk('Change action', '', () => rebind(card, s));
+    mk('Rename', '', () => startRename(card, s, row));
+    const del = mk('Delete', 'danger', async () => {
       if (del.dataset.armed) {
         del.textContent = '…'; del.disabled = true;
         const r = await App.api.del('/bank?gloss=' + encodeURIComponent(s.gloss)).catch(() => null);
-        if (r && r.ok) { rows = rows.filter(x => x.gloss !== s.gloss); render(); App.toast('deleted ' + s.gloss); }
+        if (r && r.ok) { rows = rows.filter(x => x.gloss !== s.gloss); render(); App.toast('Deleted'); }
         else if (r && r.status === 404) bannerShow('no such sign — refreshed', true);
         else if (r && r.status === 403) App.toast('Not connected — scan the code again.', true);
-        else { App.toast('delete failed', true); del.disabled = false; del.textContent = 'delete'; }
+        else { App.toast('Couldn’t delete.', true); del.disabled = false; del.textContent = 'Delete'; }
         delete del.dataset.armed;
       } else {
-        del.dataset.armed = '1'; del.textContent = 'sure?';
-        setTimeout(() => { if (del.isConnected) { delete del.dataset.armed; del.textContent = 'delete'; } }, 2600);
+        del.dataset.armed = '1'; del.textContent = 'Sure?';
+        setTimeout(() => { if (del.isConnected) { delete del.dataset.armed; del.textContent = 'Delete'; } }, 2600);
       }
     });
     card.appendChild(row);
+    card.querySelector('.lib-top').onclick = () => card.classList.toggle('open');
     listEl.appendChild(card);
   }
 }
@@ -162,6 +160,7 @@ async function refresh() {
     teachBtn.disabled = true;
   } else if (r && r.status === 403) {
     bannerShow('Not connected — scan the code again.');
+    rows = [];
     teachBtn.disabled = true;
   } else {
     bannerShow('Can’t reach your laptop.', true);

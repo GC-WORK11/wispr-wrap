@@ -12,7 +12,7 @@
  *   API/auth  network-only, never cached (keypoint/bank data must not persist)
  *   everything else same-origin: stale-while-revalidate
  */
-const VERSION = "wf-shell-v7-mac";
+const VERSION = "wf-shell-v31-simplify";
 const CACHE = `wispr-wrap-${VERSION}`;
 
 const SHELL = [
@@ -22,10 +22,11 @@ const SHELL = [
   // merged module app — every lane lives under js/ + css/
   "/css/app.css", "/css/compose.css", "/css/live.css", "/css/teach.css",
   "/css/actions.css", "/css/macro.css", "/css/library.css",
+  "/css/drawer.css", "/css/boot.css",
   "/js/app.js", "/js/flower.js", "/js/compose.js", "/js/pose.js", "/js/skeleton.js",
-  "/js/live.js", "/js/actions.js", "/js/macro.js", "/js/teach.js",
-  "/js/library.js", "/js/laptop.js", "/js/settings.js", "/js/drawer.js",
-  "/css/drawer.css"
+  "/js/live.js", "/js/hand.js", "/js/handlines.js", "/js/actions.js", "/js/macro.js",
+  "/js/teach.js", "/js/quick.js", "/js/boot.js", "/js/sound.js", "/js/sfx.js",
+  "/js/library.js", "/js/laptop.js", "/js/settings.js", "/js/drawer.js"
 ];
 const VENDOR = [
   "/vendor/mediapipe/vision_bundle.mjs",

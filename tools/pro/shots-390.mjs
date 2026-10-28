@@ -66,15 +66,11 @@ await shotTo(page, OUT, '02-teach-grid');
 await page.eval(`document.querySelector('.qa-tile[data-id="app.open"]')?.click()`);
 await sleep(1600);
 const hasAppRow = await page.eval(`(()=>{
-  const rows=[...document.querySelectorAll('.act-row')];
-  const r=rows.find(x=>/open app/i.test(x.textContent));
-  if(!r) return 'no-row';
-  const sel=r.querySelector('.act-select');
-  if(!sel) return 'no-select';
-  const real=[...sel.options].filter(o=>o.value).map(o=>o.textContent);
+  const apps=[...document.querySelectorAll('.act-app')];
+  if(!apps.length) return 'no-apps';
+  const r=apps[1]||apps[0];
   r.scrollIntoView();
-  if(real.length){ sel.value=sel.options[1].value; sel.dispatchEvent(new Event('change',{bubbles:true})); }
-  return 'apps:'+real.slice(0,4).join(',');
+  return 'apps:'+apps.slice(0,4).map(x=>x.textContent.trim()).join(',');
 })()`);
 check('@ picker lists installed apps', /^apps:.+/.test(hasAppRow || ''), hasAppRow);
 await sleep(500);
