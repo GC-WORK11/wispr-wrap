@@ -100,3 +100,20 @@ Real-run :103: flow-air 9/9, act-tiles 27/27, flow-teach 21/21,
 shots-390 7/7, 282 tests. Env caveat that keeps biting: a live
 proof Chrome's tracker steals TEACH.session — kill remote-debugging
 Chromes between drivers.
+
+## 2026-10-28 — Every-screen simplify pass (devin-pro/app 01816b4)
+
+MAX: merge 01816b4. The rest of FOUNDER-SIMPLIFY-1433 — ported PEAK's
+shell to pro's surfaces: boot splash (boot.js/css), five-tone lotus
+(flower.js + f3/f4 layers), morphing waveform->send-arrow act pill,
+upload progress + cancel (App.api.upload XHR), calm drawer (single
+Connect row when unpaired, no footer), laptop hero page, dev-gated
+settings row, flat library rows (tap to open), quiet toast (visible
+only on errors), deep-link bounce for laptop-only routes. Kept pro's
+@ window targeting (re-applied into merge's compose.js; .tchip/win-*
+styles re-added). v3 act picker now shows real installed-app icons.
+Rebrand kept: "Sign-Flow". Skipped merge-only sheets (panes/packs —
+retired/placeholders upstream).
+
+Gates on :103: shots-390 7/7, flow-teach 21/21, act-tiles 27/27,
+282 unit tests.
