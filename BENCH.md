@@ -7,7 +7,9 @@ Everything below is a **measured** number on the real product modules —
 Harness: `tools/live-eval/run_eval_sb.py` (this commit). Proofs:
 `tools/live-eval/proofs/sb_{teach,false_accept,latency,load}.json`
 (gitignored local evidence — regenerate with the commands at the bottom;
-deterministic, `--seed 7`, ~17s total).
+deterministic, `--seed 7`, ~17s total). Re-measured 2026-10-28 on the
+post-SIMPLIFY shell — kp-calibrated cells reproduce exactly; the
+shipped-regime cells and the load arm are updated to that run.
 
 **Sensor = synthetic motion.** Keypoints come from `tools/live-eval/synth.py`
 (seeded MediaPipe-shape renderer, 640x480 px, kp jitter sigma 1.2 px/frame,
@@ -62,17 +64,21 @@ Thresholds: shipped default `0.6`, per-bank `calibrate_threshold`
 
 | N | variant | answer rate | precision | recall | wrong-sign | no-segment |
 |---|---------|------------:|----------:|-------:|-----------:|-----------:|
-| 5  | veto @0.6 | 0.150 | 1.000 | 0.150 | 0.000 | 10/20 |
-| 10 | veto @0.6 | 0.150 | 0.667 | 0.100 | 0.050 | 19/40 |
-| 20 | veto @0.6 | 0.138 | 0.455 | 0.062 | 0.075 | 36/80 |
-| all| veto/cons @cal | 0.000 | — | 0.000 | 0.000 | — |
+| 5  | veto @0.6 | 0.100 | 1.000 | 0.100 | 0.000 | 9/20 |
+| 10 | veto @0.6 | 0.100 | 0.750 | 0.075 | 0.025 | 17/40 |
+| 20 | veto @0.6 | 0.175 | 0.214 | 0.038 | 0.138 | 34/80 |
+| 5  | veto @cal (0.476) | 0.100 | 1.000 | 0.100 | 0.000 | 9/20 |
+| 10 | veto @cal (0.300) | 0.025 | 1.000 | 0.025 | 0.000 | 17/40 |
+| 10 | consensus @cal    | 0.025 | 1.000 | 0.025 | 0.000 | 17/40 |
+| 20 | veto/cons @cal (0.009) | 0.000 | — | 0.000 | 0.000 | 34/80 |
 
-(`cal` collapses to ~0.136: the blob cal-set's min-positive distance is
-tiny, so the safe threshold accepts almost nothing. Confusion under kp
-veto@0.6 is concentrated where the trajectory channel is genuinely
-line-like: `HOOK->SWIPE-R` x3, `ZIGZAG->SWIPE-R` x2, `V-DRAW->CIRCLE-CCW`
-x2, plus `TRIANGLE->SQUARE/CIRCLE-CW`, `SWIPE-R->ZIGZAG/U-DRAW` at N=20 —
-see `sb_teach.json` per_eval rows.)
+(The shipped-regime blob cal-set is unstable run to run — the
+min-positive distance moves with which blob segments happen to emit —
+but every measured operating point is still recall ≈ 0. Confusion
+under kp veto@0.6 is concentrated where the trajectory channel is
+genuinely line-like: `HOOK->SWIPE-R` x3, `ZIGZAG->SWIPE-R` x2,
+`V-DRAW->CIRCLE-CCW` x2, plus `TRIANGLE->SQUARE/CIRCLE-CW`,
+`SWIPE-R->ZIGZAG/U-DRAW` at N=20 — see `sb_teach.json` per_eval rows.)
 
 **The bar: near-100% answer @ <1% wrong — NOT MET** (synthetic
 motion). No measured operating point clears it: at the default 0.6 the
@@ -93,12 +99,12 @@ bank and routed to a command row.
 
 | mode | rule/threshold | segments | fires | **fires/hour** |
 |------|----------------|---------:|------:|---------------:|
-| kp | veto @0.6        | 271 | 178 | **1067.5** |
-| kp | veto @cal (0.190)| 271 | 6   | **36.0** |
-| kp | consensus @cal   | 271 | 0   | 0.0 |
-| shipped | veto @0.6 (3s blob segs) | 193 | 35 | 209.9 |
-| shipped | veto @cal (0.136)      | 193 | 0 | 0.0 |
-| shipped | consensus @cal         | 193 | 0 | 0.0 |
+| kp | veto @0.6        | 270 | 177 | **1061.5** |
+| kp | veto @cal (0.190)| 270 | 6   | **36.0** |
+| kp | consensus @cal   | 270 | 0   | 0.0 |
+| shipped | veto @0.6 (3s blob segs) | 192 | 47 | 281.9 |
+| shipped | veto @cal (0.300)      | 192 | 2 | 12.0 |
+| shipped | consensus @cal         | 192 | 0 | 0.0 |
 
 Mode events (PALM-OPEN / NAMASTE holds): **0** in both regimes — on this
 sensor the hold-speed gate (`hold_v=0.6`) sits under still-jitter hand
@@ -106,7 +112,7 @@ speed too, so the listen toggle is a MISS, not a false fire.
 
 **NOT MET** for production: at the shipped default 0.6, normal desk
 motion fires ~1 routed action every **3.4 s** of simulated idle
-(1067/hr). The calibrated threshold gets to ~36/hr — still one stray
+(1062/hr). The calibrated threshold gets to ~36/hr — still one stray
 fire per 100 s — and consensus to 0/hr but (arm 1) at a recall cost.
 Distance distribution of the fires spans 0.09–0.60: distractor arcs
 genuinely land inside the taught shapes' neighborhood, not just at the
@@ -122,14 +128,14 @@ hidden): keypoints→daemon LAN POST (~3–10 ms PRD), real argv spawn
 
 | mode | detect p50/p95 (virtual) | match+route decide p50/p95 | sign-end→decide p50/p95 |
 |------|-------------------------:|---------------------------:|------------------------:|
-| kp      | 500 / 733 ms | **4.08 / 5.64 ms** (max 7.37) | 503.9 / 738.0 ms |
-| shipped | 2201 / 2835 ms | 3.17 / 3.36 ms (max 3.46) | 2204 / 2838 ms |
+| kp      | 500 / 733 ms | **3.35 / 3.52 ms** | 503.1 / 736.4 ms |
+| shipped | 2133 / 2534 ms | 2.71 / 2.96 ms | 2136 / 2537 ms |
 
 **Decision latency MET** (bar <10 ms): the pure-Python fused-DTW match +
-route on a 10-gloss x3 bank is ~4 ms p50 on a Xeon VM — the compute is
+route on a 10-gloss x3 bank is ~3 ms p50 on a Xeon VM — the compute is
 not the bottleneck. The end-to-end sign-end→action number is dominated
 by the endpointer's quiet window (designed ~350 ms + measured EMA decay
-→ ~500 ms p50); under shipped defaults it is ~2.2 s p50 because only the
+→ ~500 ms p50); under shipped defaults it is ~2.1 s p50 because only the
 3.0 s max-seg force-close fires. Lowering `quiet_s`/`exit_v` trades
 directly against the false-accept arm — measured, not hidden.
 
@@ -137,27 +143,26 @@ directly against the false-accept arm — measured, not hidden.
 
 Spawned the shipped daemon, fetched the full shell asset list a phone
 pulls (every `src`/`href` in index.html + the sw.js precache set):
-**28 assets, 34.93 MB** (26.3 MB wasm + 7.8 MB hand_landmarker.task).
-Loopback — server-path only; phone-on-LAN deltas stated below.
+**44 assets, 35.32 MB** (26.1 MB wasm + 7.8 MB hand_landmarker.task —
+the post-SIMPLIFY shell has more css/js modules; the vendor payload is
+the same). Loopback — server-path only; phone-on-LAN deltas stated below.
 
 | metric | value |
 |--------|------:|
-| daemon start → /health | 165.6 ms |
-| cold fetch total (28 assets, first ever) | 107.8 ms |
-| warm per-asset p50 (small files) | ~0.5 ms |
-| cold vendor wasm .wasm files | 30.6 / 26.1 ms |
-| full-shell sequential p50/p95 | **55.5 / 57.9 ms** |
+| cold fetch total (44 assets, first ever) | 288.2 ms |
+| warm per-asset p50 (small files) | ~0.4 ms |
+| cold vendor wasm .wasm files | 88.8 / 54.7 ms |
+| full-shell sequential p50/p95 | **63.5 / 79.5 ms** |
 
 `service_worker` present, `Cache-Control` headers: **none** — "warm"
 above is a real repeat TCP+HTTP fetch (wfd is HTTP/1.0, closes each
 connection), not a cache hit. On the phone the service worker makes the
-34.9 MB vendor payload a one-time cost (cache-first precache);
+35.3 MB vendor payload a one-time cost (cache-first precache);
 repeat loads pull only the ~0.2 MB shell. What loopback does NOT
 include: LAN RTT (~2–20 ms wifi) and radio throughput — at ~50 Mbps the
-first-ever 34.9 MB pull is ~5.6 s, at ~300 Mbps ~0.9 s; per-asset RTT
-adds ~ms each over loopback. Also found: `index.html` references
-`icon-180.png` which does not exist in `web/` — a real (cosmetic) 404
-on the touch icon.
+first-ever 35.3 MB pull is ~5.7 s, at ~300 Mbps ~0.9 s; per-asset RTT
+adds ~ms each over loopback. (`index.html`'s stale `icon-180.png` 404
+noted in the previous measurement is gone on the current shell.)
 
 ---
 
@@ -202,10 +207,10 @@ encoder lands on-device).
 | bar | result |
 |-----|--------|
 | ~100% answer @ <1% wrong | **NOT MET** (synthetic). Best: 95% answer / 22.5% wrong @0.6, or 0% wrong at ≤35% answer @cal. |
-| decision <10 ms | **MET** — match+route p50 4.1 / p95 5.6 ms |
-| sign-end→action (designed) | **NOT MET** at UX scale — detect lag p50 500 ms kp / 2201 ms shipped (quiet-hold is the design; compute is 4 ms) |
-| false-accepts | **NOT MET** at 0.6 (1067/hr); 36/hr @cal; 0/hr only under consensus which trades recall to ~2.5% |
-| shell load | ~55 ms p50 loopback (varies a few ms run to run); one-time 34.9 MB vendor pull on LAN ≈ 1–6 s depending on wifi; SW-cached thereafter |
+| decision <10 ms | **MET** — match+route p50 3.3 / p95 3.5 ms |
+| sign-end→action (designed) | **NOT MET** at UX scale — detect lag p50 500 ms kp / 2133 ms shipped (quiet-hold is the design; compute is ~3 ms) |
+| false-accepts | **NOT MET** at 0.6 (1062/hr); 36/hr @cal; 0/hr only under consensus which trades recall to ~2.5% |
+| shell load | ~64 ms p50 loopback on the 44-asset shell (varies a few ms run to run); one-time 35.3 MB pull incl. vendor on LAN ≈ 1–6 s depending on wifi; SW-cached thereafter |
 
 ## Real defects surfaced (measured, not opinion)
 
@@ -219,7 +224,8 @@ encoder lands on-device).
    (HOOK/ZIGZAG vs SWIPE-R); veto rule guesses, consensus starves.
    `signbank.py` PARITY NOTE names the fix (port the engineered 19-dim
    descriptor) — now backed by the confusion data in `sb_teach.json`.
-3. `web/index.html` → `icon-180.png` 404 (cosmetic).
+3. `web/index.html` → `icon-180.png` 404 (cosmetic). **Resolved** on the
+   post-SIMPLIFY shell — no longer referenced; nothing replaces it.
 
 ## Reproduce (deterministic, ~17 s total, --seed 7)
 
