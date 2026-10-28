@@ -164,3 +164,15 @@ refusal); sink.py flushes per write.
 
 No fabricated sign/benchmark/hardware claims; the recording is a real
 x11grab of a real run.
+
+## 2026-10-28 — BENCH re-measure (head `5eb2a28`)
+
+`tools/live-eval/run_eval_sb.py --arm all --seed 7` re-run on the
+post-SIMPLIFY tree: kp-calibrated cells reproduce exactly (N=20 kp
+veto@0.6: .925 answer / .838 prec / .150 wrong; FA kp cons@cal 0/hr).
+Updated cells: shipped-regime teach table (blob cal-set drifts run to
+run — noted), shipped FA (47 fires / 281.9/hr, cal→2/12.0/hr), decide
+latency (kp 3.35/3.52ms, shipped 2.71/2.96ms), load arm (44 assets /
+35.32 MB / 288ms cold / 63.5-79.5ms shell — more css/js modules, same
+26.1MB wasm + 7.8MB task vendor payload). icon-180.png 404 is resolved
+on the new shell. Same Xeon box, same method.
